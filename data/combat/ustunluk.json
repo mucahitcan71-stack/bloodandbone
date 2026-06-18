@@ -1,0 +1,14 @@
+{
+	"Akinci": {"guclu": ["Toksotai", "Psiloi"], "zayif": ["Kataphraktoi", "Varangian", "Tagmata"]},
+	"Yeniceeri": {"guclu": ["Skoutatoi", "Varangian"], "zayif": ["Toksotai", "Psiloi"]},
+	"Topcu": {"guclu": ["Kataphraktoi", "Skoutatoi", "Tagmata"], "zayif": ["Akinci", "Sipahi"]},
+	"Sipahi": {"guclu": ["Toksotai", "Topcu", "Psiloi"], "zayif": ["Skoutatoi", "Varangian"]},
+	"Azap": {"guclu": ["Psiloi", "Toksotai"], "zayif": ["Kataphraktoi", "Skoutatoi", "Varangian"]},
+	"Kapikulu": {"guclu": ["Kataphraktoi", "Varangian", "Tagmata"], "zayif": ["Topcu", "Toksotai"]},
+	"Kataphraktoi": {"guclu": ["Akinci", "Topcu", "Azap"], "zayif": ["Yeniceeri", "Kapikulu"]},
+	"Toksotai": {"guclu": ["Yeniceeri", "Kapikulu"], "zayif": ["Akinci", "Sipahi"]},
+	"Skoutatoi": {"guclu": ["Akinci", "Sipahi", "Azap"], "zayif": ["Topcu", "Yeniceeri", "Kapikulu"]},
+	"Varangian": {"guclu": ["Akinci", "Sipahi", "Azap"], "zayif": ["Yeniceeri", "Topcu", "Kapikulu"]},
+	"Psiloi": {"guclu": ["Yeniceeri", "Azap"], "zayif": ["Akinci", "Sipahi"]},
+	"Tagmata": {"guclu": ["Sipahi", "Topcu", "Azap"], "zayif": ["Kapikulu", "Topcu"]}
+}

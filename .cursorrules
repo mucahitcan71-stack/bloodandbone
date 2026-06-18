@@ -1,0 +1,34 @@
+TOKEN TASARRUFU KURALLARI:
+
+1. Diff-based çalış: Bir dosyada değişiklik yaparken SADECE değişen
+   satırları/fonksiyonları göster. Asla tüm dosyayı baştan yazma,
+   tüm dosyayı tekrar yapıştırma.
+
+2. Gereksiz açıklama yapma: Kod değişikliğini özetleyen uzun
+   paragraflar yazma. Ne değiştiğini 1-2 cümleyle belirt, gerisini
+   kodun kendisi anlatsın.
+
+3. Dosya okurken minimal oku: Bir dosyayı incelerken sadece ilgili
+   fonksiyonu/bölümü oku, tüm dosyayı context'e çekme. Gerekirse
+   grep/symbol search kullan, dosyanın tamamını taramak yerine.
+
+4. Tekrar yapıştırma yasak: Daha önce yazdığın kodu, değişmeyen
+   kısımlarıyla birlikte tekrar gösterme. Sadece yeni eklenen veya
+   değiştirilen satırları sun.
+
+5. Çoklu dosya değişikliklerinde özet tablo kullan: Birden fazla
+   dosya değiştiyse, her dosya için ayrı ayrı uzun açıklama yerine
+   kısa bir liste halinde "X dosyasında Y eklendi" formatında özetle.
+
+6. Yorum satırlarını abartma: Kodun içine gereksiz uzun açıklayıcı
+   yorumlar ekleme, sadece karmaşık mantık için kısa not düş.
+
+7. Test/debug çıktısı istemeden verme: Konsol çıktısı, log mesajları
+   gibi şeyleri ben istemedikçe ekleme veya gösterme.
+
+8. Onay bekleme döngüsünü kısalt: "Şunu yapayım mı?" diye sormak
+   yerine, net bir talimat aldığında direkt uygula, sadece riskli
+   (silme, geri dönüşü olmayan) işlemlerde onay sor.
+
+Özetle: minimum token ile maksimum net iş. Konuşkanlık yok, gereksiz
+tekrar yok, sadece gerekli kod ve 1 cümlelik açıklama.
