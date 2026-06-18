@@ -341,6 +341,11 @@ func _ui_refs_sync() -> void:
 	detay_popup_panel = ui_system.get_detay_popup_panel()
 	detay_popup_label = ui_system.get_detay_popup_label()
 	detay_popup_timer = ui_system.get_detay_popup_timer()
+	hazirlik_paneli = ui_system.get_hazirlik_paneli()
+	hazirlik_aktif_tab = ui_system.get_hazirlik_aktif_tab()
+	hazirlik_tab_gruplari = ui_system.get_hazirlik_tab_gruplari()
+	hazirlik_tab_butonlari = ui_system.get_hazirlik_tab_butonlari()
+	hazirlik_tab_container_map = ui_system.get_hazirlik_tab_container_map()
 
 func harita_uygula(map_id: String) -> void:
 	world_system.harita_uygula(map_id)
@@ -638,31 +643,12 @@ func _yan_hud_hazirla() -> void:
 	_ui_refs_sync()
 
 func hazirlik_eleman_ekle(tab: String, node: Control) -> void:
-	var parent = hazirlik_tab_container_map.get(tab, null)
-	if parent == null:
-		parent = hazirlik_tabs_content
-	parent.add_child(node)
-	hazirlik_paneli.append(node)
-	if hazirlik_tab_gruplari.has(tab):
-		hazirlik_tab_gruplari[tab].append(node)
+	ui_system.add_preparation_element(tab, node)
+	_ui_refs_sync()
 
 func hazirlik_tab_degistir(tab: String) -> void:
-	if not hazirlik_tab_gruplari.has(tab):
-		return
-	birim_detay_hover_bitir()
-	hazirlik_aktif_tab = tab
-	for t in hazirlik_tab_container_map:
-		var kutu = hazirlik_tab_container_map[t]
-		if is_instance_valid(kutu):
-			kutu.visible = t == tab
-	for t in hazirlik_tab_gruplari:
-		for el in hazirlik_tab_gruplari[t]:
-			if is_instance_valid(el):
-				el.visible = t == tab
-	for t in hazirlik_tab_butonlari:
-		var btn = hazirlik_tab_butonlari[t]
-		if is_instance_valid(btn):
-			btn.modulate = Color(1.4, 1.4, 1.0) if t == tab else Color(1, 1, 1)
+	ui_system.switch_preparation_tab(tab)
+	_ui_refs_sync()
 
 func terfi_ozet_metni() -> String:
 	return HudFormatter.promotion_summary(terfi_verisi.get("osmanli", {}))
@@ -719,29 +705,8 @@ func kontrol_noktalari_olustur() -> void:
 		add_child(puan_l)
 
 func hazirlik_paneli_olustur() -> void:
-	hazirlik_tab_butonlari.clear()
-	hazirlik_tab_container_map.clear()
-	hazirlik_tab_gruplari = {"genel": [], "ordu": [], "taktik": []}
-	var tablar = [
-		{"id": "genel", "text": "Genel"},
-		{"id": "ordu", "text": "Ordu"},
-		{"id": "taktik", "text": "Taktik"},
-	]
-	var tab_content_holder = VBoxContainer.new()
-	hazirlik_tabs_content.add_child(tab_content_holder)
-	for t in tablar:
-		var tbtn = Button.new()
-		tbtn.text = t["text"]
-		tbtn.custom_minimum_size = Vector2(110, 32)
-		var tab_id = t["id"]
-		tbtn.pressed.connect(func(): hazirlik_tab_degistir(tab_id))
-		hazirlik_tabs_row.add_child(tbtn)
-		hazirlik_paneli.append(tbtn)
-		hazirlik_tab_butonlari[tab_id] = tbtn
-		var tbox = VBoxContainer.new()
-		tbox.visible = false
-		tab_content_holder.add_child(tbox)
-		hazirlik_tab_container_map[tab_id] = tbox
+	ui_system.build_preparation_panel()
+	_ui_refs_sync()
 
 	# --- GENEL ---
 	var zorluk_baslik = Label.new()
@@ -762,8 +727,7 @@ func hazirlik_paneli_olustur() -> void:
 		var z_isim = z["isim"]
 		btn.pressed.connect(func(): zorluk_sec(z_isim))
 		zorluk_row.add_child(btn)
-		hazirlik_paneli.append(btn)
-		hazirlik_tab_gruplari["genel"].append(btn)
+		ui_system.register_preparation_widget(btn, "genel")
 		zorluk_butonlari[z["isim"]] = btn
 
 	var secili_l = Label.new()
@@ -812,8 +776,7 @@ func hazirlik_paneli_olustur() -> void:
 		var tip = osmanli_birim_tipleri[i]
 		var grup = VBoxContainer.new()
 		birim_grid.add_child(grup)
-		hazirlik_paneli.append(grup)
-		hazirlik_tab_gruplari["ordu"].append(grup)
+		ui_system.register_preparation_widget(grup, "ordu")
 		var isim_l = Label.new()
 		isim_l.text = tip["sembol"] + " " + tip["isim"] + " (" + str(tip["kontenjan"]) + "kt, " + str(tip["maliyet"]) + "🪙)"
 		grup.add_child(isim_l)
@@ -865,8 +828,7 @@ func hazirlik_paneli_olustur() -> void:
 		var f_id = f["id"]
 		fbtn.pressed.connect(func(): formasyon_sec(f_id))
 		form_row.add_child(fbtn)
-		hazirlik_paneli.append(fbtn)
-		hazirlik_tab_gruplari["taktik"].append(fbtn)
+		ui_system.register_preparation_widget(fbtn, "taktik")
 
 	var kart_l = Label.new()
 	kart_l.name = "Label_Kart"
@@ -883,10 +845,8 @@ func hazirlik_paneli_olustur() -> void:
 	savas_btn.text = "SAVASA BASLA"
 	savas_btn.custom_minimum_size = Vector2(200, 42)
 	savas_btn.pressed.connect(func(): savas_baslat())
-	hazirlik_tabs_content.add_child(savas_btn)
-	hazirlik_paneli.append(savas_btn)
-
-	hazirlik_tab_degistir("genel")
+	ui_system.add_preparation_footer(savas_btn)
+	_ui_refs_sync()
 
 func zorluk_sec(secilen: String) -> void:
 	zorluk = secilen
@@ -1209,9 +1169,9 @@ func kart_secenekleri_hazirla() -> void:
 		var kart = kart_secenekleri[i]
 		btn.pressed.connect(func(): kart_sec(kart))
 		satir.add_child(btn)
-		hazirlik_paneli.append(btn)
-		hazirlik_tab_gruplari["taktik"].append(btn)
+		ui_system.register_preparation_widget(btn, "taktik")
 		kart_butonlari.append(btn)
+	_ui_refs_sync()
 
 func kart_sec(kart: Dictionary) -> void:
 	secili_kart = kart
@@ -1242,9 +1202,9 @@ func ekipman_secimleri_hazirla() -> void:
 		var e = anahtar
 		btn.pressed.connect(func(): ekipman_sec(e))
 		satir.add_child(btn)
-		hazirlik_paneli.append(btn)
-		hazirlik_tab_gruplari["taktik"].append(btn)
+		ui_system.register_preparation_widget(btn, "taktik")
 		ekipman_butonlari.append(btn)
+	_ui_refs_sync()
 
 func ekipman_sec(anahtar: String) -> void:
 	secili_ekipman = anahtar
@@ -1912,7 +1872,7 @@ func hazirlik_baslat() -> void:
 	if is_instance_valid(tekrar_oyna_btn):
 		tekrar_oyna_btn.visible = false
 
-	hazirlik_aktif_tab = "genel"
+	_ui_refs_sync()
 	for el in hazirlik_paneli:
 		if is_instance_valid(el):
 			el.visible = true

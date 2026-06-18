@@ -18,6 +18,11 @@ var _detail_text_fn: Callable
 var detay_popup_timer: Timer = null
 var detay_popup_panel: Panel = null
 var detay_popup_label: Label = null
+var hazirlik_paneli: Array = []
+var hazirlik_aktif_tab: String = "genel"
+var hazirlik_tab_gruplari = {"genel": [], "ordu": [], "taktik": []}
+var hazirlik_tab_butonlari = {}
+var hazirlik_tab_container_map = {}
 
 func configure(root_node: Node2D) -> void:
 	_root = root_node
@@ -165,6 +170,88 @@ func get_detay_popup_label() -> Label:
 
 func get_detay_popup_timer() -> Timer:
 	return detay_popup_timer
+
+func get_hazirlik_paneli() -> Array:
+	return hazirlik_paneli
+
+func get_hazirlik_aktif_tab() -> String:
+	return hazirlik_aktif_tab
+
+func get_hazirlik_tab_gruplari() -> Dictionary:
+	return hazirlik_tab_gruplari
+
+func get_hazirlik_tab_butonlari() -> Dictionary:
+	return hazirlik_tab_butonlari
+
+func get_hazirlik_tab_container_map() -> Dictionary:
+	return hazirlik_tab_container_map
+
+func build_preparation_panel() -> void:
+	if hazirlik_tabs_row == null or hazirlik_tabs_content == null:
+		return
+	hazirlik_tab_butonlari.clear()
+	hazirlik_tab_container_map.clear()
+	hazirlik_tab_gruplari = {"genel": [], "ordu": [], "taktik": []}
+	hazirlik_paneli.clear()
+	var tablar = [
+		{"id": "genel", "text": "Genel"},
+		{"id": "ordu", "text": "Ordu"},
+		{"id": "taktik", "text": "Taktik"},
+	]
+	var tab_content_holder = VBoxContainer.new()
+	hazirlik_tabs_content.add_child(tab_content_holder)
+	for t in tablar:
+		var tbtn = Button.new()
+		tbtn.text = t["text"]
+		tbtn.custom_minimum_size = Vector2(110, 32)
+		var tab_id = t["id"]
+		tbtn.pressed.connect(func(): switch_preparation_tab(tab_id))
+		hazirlik_tabs_row.add_child(tbtn)
+		hazirlik_paneli.append(tbtn)
+		hazirlik_tab_butonlari[tab_id] = tbtn
+		var tbox = VBoxContainer.new()
+		tbox.visible = false
+		tab_content_holder.add_child(tbox)
+		hazirlik_tab_container_map[tab_id] = tbox
+	switch_preparation_tab("genel")
+
+func add_preparation_element(tab: String, node: Control) -> void:
+	var parent = hazirlik_tab_container_map.get(tab, null)
+	if parent == null:
+		parent = hazirlik_tabs_content
+	parent.add_child(node)
+	hazirlik_paneli.append(node)
+	if hazirlik_tab_gruplari.has(tab):
+		hazirlik_tab_gruplari[tab].append(node)
+
+func register_preparation_widget(node: Control, tab: String = "") -> void:
+	hazirlik_paneli.append(node)
+	if tab != "" and hazirlik_tab_gruplari.has(tab):
+		hazirlik_tab_gruplari[tab].append(node)
+
+func add_preparation_footer(node: Control) -> void:
+	if hazirlik_tabs_content == null:
+		return
+	hazirlik_tabs_content.add_child(node)
+	hazirlik_paneli.append(node)
+
+func switch_preparation_tab(tab: String) -> void:
+	if not hazirlik_tab_gruplari.has(tab):
+		return
+	end_unit_detail_hover()
+	hazirlik_aktif_tab = tab
+	for t in hazirlik_tab_container_map:
+		var kutu = hazirlik_tab_container_map[t]
+		if is_instance_valid(kutu):
+			kutu.visible = t == tab
+	for t in hazirlik_tab_gruplari:
+		for el in hazirlik_tab_gruplari[t]:
+			if is_instance_valid(el):
+				el.visible = t == tab
+	for t in hazirlik_tab_butonlari:
+		var btn = hazirlik_tab_butonlari[t]
+		if is_instance_valid(btn):
+			btn.modulate = Color(1.4, 1.4, 1.0) if t == tab else Color(1, 1, 1)
 
 func build_unit_detail_popup() -> void:
 	detay_popup_timer = Timer.new()
