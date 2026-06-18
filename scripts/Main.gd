@@ -354,6 +354,13 @@ func _ui_refs_sync() -> void:
 func _command_system_hazirla() -> void:
 	command_system = CommandSystem.new()
 	command_system.configure(self)
+	command_system.bind_map_helpers(
+		harita_sinirla,
+		en_yakin_nokta_bul,
+		nokta_merkezi,
+		en_yakin_dost_nokta,
+		birimin_arazisini_bul
+	)
 
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
@@ -362,6 +369,14 @@ func _command_refs_sync() -> void:
 
 func _command_state_push() -> void:
 	command_system._sync_from_main(secili_komut, secili_birim, komut_menusu_hedef_birim)
+
+func _command_status_line_uygula(result: Dictionary) -> void:
+	var metin = str(result.get("status_line", ""))
+	if metin == "":
+		return
+	var savas_bilgi = ui_node("Label_SavasBilgi")
+	if savas_bilgi != null:
+		savas_bilgi.text = metin
 
 func harita_uygula(map_id: String) -> void:
 	world_system.harita_uygula(map_id)
@@ -872,17 +887,9 @@ func zorluk_sec(secilen: String) -> void:
 	hazirlik_bilgi_guncelle()
 
 func komut_sec(komut: String) -> void:
-	secili_komut = komut
-	var savas_bilgi = ui_node("Label_SavasBilgi")
-	if savas_bilgi != null and secili_birim != null:
-		var metin = "Secili: " + secili_birim["isim"]
-		if komut == "saldir":
-			metin += " — hedefe tikla"
-		elif komut == "hareket":
-			metin += " — hareket icin tikla"
-		else:
-			metin += " — komut sec"
-		savas_bilgi.text = metin
+	var result = command_system.set_command_mode(komut)
+	secili_komut = command_system.get_selected_command()
+	_command_status_line_uygula(result)
 
 func komut_menusu_olustur() -> void:
 	komut_menusu_panel = ui_node("Panel_KomutMenu") as PanelContainer
@@ -2089,55 +2096,22 @@ func hasar_carpani_hesapla(saldiran: String, hedef: String) -> float:
 	return 1.0
 
 func birim_tikla(birim: Dictionary) -> void:
-	if birim["taraf"] != "osmanli":
+	var result = command_system.select_unit(birim)
+	if result.get("ignored", false):
 		return
-
-	if secili_birim != null and secili_birim != birim:
-		secili_birim["secili"] = false
-		if is_instance_valid(secili_birim["node"]):
-			secili_birim["node"].modulate = Color(1, 1, 1)
-
-	secili_birim = birim
-	birim["secili"] = true
-	birim["node"].modulate = Color(1.5, 1.5, 0.5)
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 	birim_detay_goster(birim)
-	var savas_l = ui_node("Label_SavasBilgi")
-	if savas_l != null:
-		var metin = "Secili: " + birim["isim"]
-		metin += " — hedefe tikla" if secili_komut == "hareket" else " — pusu kurmak icin tikla"
-		savas_l.text = metin
-	secili_envanter_idx = -1
-	secili_envanter_tip_anahtari = ""
-	secili_envanter_gonder_adedi = 1
-	_envanter_secim_ui_guncelle()
+	if result.get("deselect_inventory", false):
+		secili_envanter_idx = -1
+		secili_envanter_tip_anahtari = ""
+		secili_envanter_gonder_adedi = 1
+		_envanter_secim_ui_guncelle()
 
 func birim_hareket_ettir(hedef_pos: Vector2) -> void:
-	if secili_birim == null:
-		return
-	if secili_birim.get("savunma_modunda", false):
-		var savas_l2 = ui_node("Label_SavasBilgi")
-		if savas_l2 != null:
-			savas_l2.text = "Nokta savun modunda — once komut ver"
-		return
-
-	hedef_pos = harita_sinirla(hedef_pos)
-	secili_birim["hedef"] = hedef_pos
-	secili_birim["hedef_nokta"] = en_yakin_nokta_bul(hedef_pos)
-	secili_birim["savas_halinde"] = false
-	secili_birim["geri_cekiliyor"] = false
-	secili_birim["savunma_modunda"] = false
-	secili_birim["takip_edilen_dusman"] = -1
-	secili_birim["pusu_modunda"] = false
-	secili_birim["pusu_arazi_gizli"] = false
-	secili_birim["pusu_ilk_saldiri_kullanildi"] = false
-	secili_birim["secili"] = false
-
-	if is_instance_valid(secili_birim["node"]):
-		secili_birim["node"].modulate = Color(1, 1, 1)
-	secili_birim = null
-	var savas_l3 = ui_node("Label_SavasBilgi")
-	if savas_l3 != null:
-		savas_l3.text = "Birim hareket ettirildi"
+	var result = command_system.execute_move(hedef_pos)
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 
 func birim_id_ile_bul(id: int) -> Dictionary:
 	for birim in aktif_birimler:
@@ -2161,83 +2135,25 @@ func en_yakin_dost_nokta(pos: Vector2, taraf: String) -> String:
 	return fallback
 
 func birim_komut_saldir(birim: Dictionary, hedef_pos: Vector2, hedef_dusman_id: int = -1) -> void:
-	birim["geri_cekiliyor"] = false
-	birim["savunma_modunda"] = false
-	birim["pusu_modunda"] = false
-	birim["pusu_arazi_gizli"] = false
-	birim["hedef"] = harita_sinirla(hedef_pos)
-	birim["hedef_nokta"] = en_yakin_nokta_bul(birim["hedef"])
-	birim["takip_edilen_dusman"] = hedef_dusman_id
-	birim["secili"] = false
-	if is_instance_valid(birim["node"]):
-		birim["node"].modulate = Color(1, 1, 1)
-	secili_birim = null
-	komut_sec("hareket")
-	var savas_l4 = ui_node("Label_SavasBilgi")
-	if savas_l4 != null:
-		savas_l4.text = "Saldiri emri verildi"
+	var result = command_system.execute_attack(birim, hedef_pos, hedef_dusman_id)
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 
 func birim_geri_cekil_baslat(birim: Dictionary) -> void:
-	var nokta = en_yakin_dost_nokta(birim["konum"], "osmanli")
-	birim["geri_cekiliyor"] = true
-	birim["savunma_modunda"] = false
-	birim["pusu_modunda"] = false
-	birim["pusu_arazi_gizli"] = false
-	birim["takip_edilen_dusman"] = -1
-	birim["hedef"] = nokta_merkezi(nokta)
-	birim["hedef_nokta"] = nokta
-	birim["secili"] = false
-	if is_instance_valid(birim["node"]):
-		birim["node"].modulate = Color(1, 1, 1)
-	secili_birim = null
-	komut_sec("hareket")
-	var savas_l5 = ui_node("Label_SavasBilgi")
-	if savas_l5 != null:
-		savas_l5.text = "Birim geri cekiliyor → " + nokta
+	var result = command_system.execute_retreat(birim)
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 
 func birim_nokta_savun(birim: Dictionary) -> void:
-	var nokta = en_yakin_nokta_bul(birim["konum"])
-	birim["savunma_modunda"] = true
-	birim["geri_cekiliyor"] = false
-	birim["takip_edilen_dusman"] = -1
-	birim["pusu_modunda"] = false
-	birim["pusu_arazi_gizli"] = false
-	birim["hedef"] = birim["konum"]
-	birim["hedef_nokta"] = nokta
-	birim["secili"] = false
-	if is_instance_valid(birim["node"]):
-		birim["node"].modulate = Color(1, 1, 1)
-	secili_birim = null
-	komut_sec("hareket")
-	var savas_l6 = ui_node("Label_SavasBilgi")
-	if savas_l6 != null:
-		savas_l6.text = "Nokta savun modu aktif: " + nokta
+	var result = command_system.execute_defend_point(birim)
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 
 func birim_pusu_kur() -> void:
-	if secili_birim == null:
-		return
-	var arazi = birimin_arazisini_bul(secili_birim["konum"])
-	if str(arazi.get("tip", "duz_arazi")) != "orman":
-		var savas_l7 = ui_node("Label_SavasBilgi")
-		if savas_l7 != null:
-			savas_l7.text = "Pusu sadece ORMAN bolgesinde kurulabilir"
-		return
-	secili_birim["hedef"] = secili_birim["konum"]
-	secili_birim["pusu_modunda"] = true
-	secili_birim["pusu_arazi_gizli"] = false
-	secili_birim["pusu_ilk_saldiri_kullanildi"] = false
-	secili_birim["geri_cekiliyor"] = false
-	secili_birim["savunma_modunda"] = false
-	secili_birim["takip_edilen_dusman"] = -1
-	secili_birim["savas_halinde"] = false
-	secili_birim["secili"] = false
-	if is_instance_valid(secili_birim["node"]):
-		secili_birim["node"].modulate = Color(1, 1, 1)
-	secili_birim = null
-	komut_sec("hareket")
-	var savas_l8 = ui_node("Label_SavasBilgi")
-	if savas_l8 != null:
-		savas_l8.text = "Birim pusuya girdi (dusman menzile girince ilk vurus x2)"
+	_command_state_push()
+	var result = command_system.execute_ambush()
+	_command_refs_sync()
+	_command_status_line_uygula(result)
 
 func _process(delta: float) -> void:
 	if oyun_bitti:
