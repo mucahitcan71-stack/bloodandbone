@@ -1241,9 +1241,7 @@ func ekipman_uygula(taraf: String, ekipman_key: String) -> void:
 	taraf_carpanlari[taraf]["menzil"] *= e["menzil"]
 
 func hiz_butonunu_guncelle() -> void:
-	if hiz_tek_btn == null:
-		return
-	hiz_tek_btn.text = "Hiz: " + str(int(mevcut_hiz_carpani)) + "x"
+	ui_system.refresh_speed_button(mevcut_hiz_carpani)
 
 func hiz_carpani_sifirla() -> void:
 	mevcut_hiz_carpani = 1.0
@@ -2801,15 +2799,7 @@ func ai_hedef_sec() -> String:
 	return noktalar[randi() % noktalar.size()]
 
 func oyun_sonu_paneli_goster() -> void:
-	for el in savas_paneli:
-		if is_instance_valid(el) and el.name != "Label_MacOzeti":
-			el.visible = false
-	if is_instance_valid(tekrar_oyna_btn):
-		tekrar_oyna_btn.visible = true
-	var ozet_l = ui_node("Label_MacOzeti")
-	if ozet_l != null:
-		ozet_l.text = mac_ozeti_metni()
-		ozet_l.visible = true
+	ui_system.show_game_over_panel(mac_ozeti_metni())
 
 func tekrar_oyna() -> void:
 	hazirlik_baslat()
@@ -2818,15 +2808,11 @@ func oyun_bitir_kazanan(kazanan: String) -> void:
 	hiz_carpani_sifirla()
 	oyun_bitti = true
 	if kazanan == "osmanli":
-		var r = ui_node("Label_Round")
-		if r != null:
-			r.text = "OSMANLI KAZANDI!"
+		ui_system.set_game_over_round("OSMANLI KAZANDI!")
 		kampanya_index = MetaSystem.campaign_next_index(kampanya_index, true, kampanya_harita_idleri.size())
 		mac_istatistik_kayit["galibiyet"] = int(mac_istatistik_kayit.get("galibiyet", 0)) + 1
 	else:
-		var r2 = ui_node("Label_Round")
-		if r2 != null:
-			r2.text = "DOGU ROMA KAZANDI!"
+		ui_system.set_game_over_round("DOGU ROMA KAZANDI!")
 		kampanya_index = MetaSystem.campaign_next_index(kampanya_index, false, kampanya_harita_idleri.size())
 		mac_istatistik_kayit["maglubiyet"] = int(mac_istatistik_kayit.get("maglubiyet", 0)) + 1
 	kayit_kaydet()
@@ -2840,9 +2826,7 @@ func oyun_bitir() -> void:
 	else:
 		hiz_carpani_sifirla()
 		oyun_bitti = true
-		var r3 = ui_node("Label_Round")
-		if r3 != null:
-			r3.text = "BERABERE!"
+		ui_system.set_game_over_round("BERABERE!")
 		mac_istatistik_kayit["beraberlik"] = int(mac_istatistik_kayit.get("beraberlik", 0)) + 1
 		kayit_kaydet()
 		oyun_sonu_paneli_goster()

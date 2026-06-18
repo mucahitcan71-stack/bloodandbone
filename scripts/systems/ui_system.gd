@@ -299,6 +299,28 @@ func update_hud(snapshot: Dictionary) -> void:
 		if sure_l2 != null:
 			sure_l2.text = str(dk) + ":" + str(sn).pad_zeros(2)
 
+func refresh_speed_button(multiplier: float) -> void:
+	if hiz_tek_btn == null:
+		return
+	hiz_tek_btn.text = "Hiz: " + str(int(multiplier)) + "x"
+
+func set_game_over_round(text: String) -> void:
+	var round_l = get_node_by_name("Label_Round") as Label
+	if round_l != null:
+		round_l.text = text
+
+func show_game_over_panel(summary_text: String) -> void:
+	for el in savas_paneli:
+		if is_instance_valid(el) and el.name != "Label_MacOzeti":
+			el.visible = false
+	var retry_btn = get_node_by_name("TekrarOynaBtn") as Button
+	if retry_btn != null:
+		retry_btn.visible = true
+	var ozet_l = get_node_by_name("Label_MacOzeti") as Label
+	if ozet_l != null:
+		ozet_l.text = summary_text
+		ozet_l.visible = true
+
 func build_preparation_panel() -> void:
 	if hazirlik_tabs_row == null or hazirlik_tabs_content == null:
 		return
