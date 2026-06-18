@@ -346,6 +346,8 @@ func _ui_refs_sync() -> void:
 	hazirlik_tab_gruplari = ui_system.get_hazirlik_tab_gruplari()
 	hazirlik_tab_butonlari = ui_system.get_hazirlik_tab_butonlari()
 	hazirlik_tab_container_map = ui_system.get_hazirlik_tab_container_map()
+	savas_paneli = ui_system.get_savas_paneli()
+	hiz_tek_btn = ui_system.get_hiz_tek_btn()
 
 func harita_uygula(map_id: String) -> void:
 	world_system.harita_uygula(map_id)
@@ -1271,53 +1273,16 @@ func hiz_carpani_arttir() -> void:
 	hiz_sec(sonraki)
 
 func savas_paneli_olustur() -> void:
-	for el in savas_paneli:
-		if is_instance_valid(el):
-			el.queue_free()
-	savas_paneli.clear()
-
-	var bilgi = Label.new()
-	bilgi.name = "Label_SavasBilgi"
-	bilgi.text = "Envanter sec → haritaya tikla"
-	savas_icerik_vbox.add_child(bilgi)
-	savas_paneli.append(bilgi)
-
-	var ust_durum_satir = HBoxContainer.new()
-	savas_icerik_vbox.add_child(ust_durum_satir)
-	savas_paneli.append(ust_durum_satir)
-
-	var altin_l = Label.new()
-	altin_l.name = "Label_Altin"
-	altin_l.text = "30🪙 | G0"
-	ust_durum_satir.add_child(altin_l)
-	savas_paneli.append(altin_l)
-
-	var durum_l = Label.new()
-	durum_l.name = "Label_Durum"
-	durum_l.text = "M100 | Acik | U0%"
-	ust_durum_satir.add_child(durum_l)
-	savas_paneli.append(durum_l)
-
-	var komut_satir = HBoxContainer.new()
-	savas_icerik_vbox.add_child(komut_satir)
-	savas_paneli.append(komut_satir)
-
-	var ult_btn = Button.new()
-	ult_btn.name = "UltBtn"
-	ult_btn.text = "ULT"
-	ult_btn.custom_minimum_size = Vector2(70, 32)
-	ult_btn.pressed.connect(func(): ult_kullan("osmanli"))
-	komut_satir.add_child(ult_btn)
-	savas_paneli.append(ult_btn)
+	ui_system.clear_battle_panel()
+	ui_system.build_battle_panel_skeleton(func(): ult_kullan("osmanli"))
+	_ui_refs_sync()
 
 	var satin_baslik = Label.new()
 	satin_baslik.text = "Takviye:"
-	savas_icerik_vbox.add_child(satin_baslik)
-	savas_paneli.append(satin_baslik)
+	ui_system.add_battle_panel_element(satin_baslik)
 
 	var satin_toggle_satir = HBoxContainer.new()
-	savas_icerik_vbox.add_child(satin_toggle_satir)
-	savas_paneli.append(satin_toggle_satir)
+	ui_system.add_battle_panel_element(satin_toggle_satir)
 
 	var satin_toggle_btn = Button.new()
 	satin_toggle_btn.text = "Birim Ekle"
@@ -1327,12 +1292,11 @@ func savas_paneli_olustur() -> void:
 		takviye_gorunurluk_guncelle(yeni)
 	)
 	satin_toggle_satir.add_child(satin_toggle_btn)
-	savas_paneli.append(satin_toggle_btn)
+	ui_system.register_battle_panel_widget(satin_toggle_btn)
 
 	takviye_liste_satiri = HBoxContainer.new()
 	takviye_liste_satiri.visible = false
-	savas_icerik_vbox.add_child(takviye_liste_satiri)
-	savas_paneli.append(takviye_liste_satiri)
+	ui_system.add_battle_panel_element(takviye_liste_satiri)
 	takviye_butonlari.clear()
 	for i in range(osmanli_birim_tipleri.size()):
 		var tip = osmanli_birim_tipleri[i]
@@ -1346,60 +1310,56 @@ func savas_paneli_olustur() -> void:
 		btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
 		takviye_liste_satiri.add_child(btn)
 		takviye_butonlari.append(btn)
-		savas_paneli.append(btn)
+		ui_system.register_battle_panel_widget(btn)
 
 	takviye_adet_satiri = HBoxContainer.new()
 	takviye_adet_satiri.visible = false
-	savas_icerik_vbox.add_child(takviye_adet_satiri)
-	savas_paneli.append(takviye_adet_satiri)
+	ui_system.add_battle_panel_element(takviye_adet_satiri)
 	var satin_adet_baslik = Label.new()
 	satin_adet_baslik.text = "Adet:"
 	takviye_adet_satiri.add_child(satin_adet_baslik)
-	savas_paneli.append(satin_adet_baslik)
+	ui_system.register_battle_panel_widget(satin_adet_baslik)
 	var satin_eksi = Button.new()
 	satin_eksi.text = "-"
 	satin_eksi.custom_minimum_size = Vector2(26, 26)
 	satin_eksi.pressed.connect(func(): takviye_adet_degistir(-1))
 	takviye_adet_satiri.add_child(satin_eksi)
-	savas_paneli.append(satin_eksi)
+	ui_system.register_battle_panel_widget(satin_eksi)
 	takviye_adet_label = Label.new()
 	takviye_adet_label.text = "x1"
 	takviye_adet_satiri.add_child(takviye_adet_label)
-	savas_paneli.append(takviye_adet_label)
+	ui_system.register_battle_panel_widget(takviye_adet_label)
 	var satin_arti = Button.new()
 	satin_arti.text = "+"
 	satin_arti.custom_minimum_size = Vector2(26, 26)
 	satin_arti.pressed.connect(func(): takviye_adet_degistir(1))
 	takviye_adet_satiri.add_child(satin_arti)
-	savas_paneli.append(satin_arti)
+	ui_system.register_battle_panel_widget(satin_arti)
 	takviye_toplu_btn = Button.new()
 	takviye_toplu_btn.text = "Toplu Ekle"
 	takviye_toplu_btn.custom_minimum_size = Vector2(120, 26)
 	takviye_toplu_btn.pressed.connect(func(): takviye_toplu_ekle())
 	takviye_adet_satiri.add_child(takviye_toplu_btn)
-	savas_paneli.append(takviye_toplu_btn)
+	ui_system.register_battle_panel_widget(takviye_toplu_btn)
 	takviye_ui_guncelle()
 
 	var env_baslik = Label.new()
 	env_baslik.name = "Label_Envanter"
 	env_baslik.text = "Envanter: (bos)"
-	savas_icerik_vbox.add_child(env_baslik)
-	savas_paneli.append(env_baslik)
+	ui_system.add_battle_panel_element(env_baslik)
 
 	envanter_grid = GridContainer.new()
 	envanter_grid.columns = 6
-	savas_icerik_vbox.add_child(envanter_grid)
-	savas_paneli.append(envanter_grid)
+	ui_system.add_battle_panel_element(envanter_grid)
 
 	envanter_adet_satiri = HBoxContainer.new()
 	envanter_adet_satiri.visible = false
-	savas_icerik_vbox.add_child(envanter_adet_satiri)
-	savas_paneli.append(envanter_adet_satiri)
+	ui_system.add_battle_panel_element(envanter_adet_satiri)
 
 	var adet_baslik = Label.new()
 	adet_baslik.text = "Gonder:"
 	envanter_adet_satiri.add_child(adet_baslik)
-	savas_paneli.append(adet_baslik)
+	ui_system.register_battle_panel_widget(adet_baslik)
 
 	envanter_adet_eksi_btn = Button.new()
 	envanter_adet_eksi_btn.text = "-"
@@ -1409,12 +1369,12 @@ func savas_paneli_olustur() -> void:
 		_envanter_secim_ui_guncelle()
 	)
 	envanter_adet_satiri.add_child(envanter_adet_eksi_btn)
-	savas_paneli.append(envanter_adet_eksi_btn)
+	ui_system.register_battle_panel_widget(envanter_adet_eksi_btn)
 
 	envanter_adet_label = Label.new()
 	envanter_adet_label.text = "x1"
 	envanter_adet_satiri.add_child(envanter_adet_label)
-	savas_paneli.append(envanter_adet_label)
+	ui_system.register_battle_panel_widget(envanter_adet_label)
 
 	envanter_adet_arti_btn = Button.new()
 	envanter_adet_arti_btn.text = "+"
@@ -1425,16 +1385,14 @@ func savas_paneli_olustur() -> void:
 		_envanter_secim_ui_guncelle()
 	)
 	envanter_adet_satiri.add_child(envanter_adet_arti_btn)
-	savas_paneli.append(envanter_adet_arti_btn)
+	ui_system.register_battle_panel_widget(envanter_adet_arti_btn)
 
 	var gel_baslik = Label.new()
 	gel_baslik.text = "Nokta +"
-	savas_icerik_vbox.add_child(gel_baslik)
-	savas_paneli.append(gel_baslik)
+	ui_system.add_battle_panel_element(gel_baslik)
 
 	var gel_satir = HBoxContainer.new()
-	savas_icerik_vbox.add_child(gel_satir)
-	savas_paneli.append(gel_satir)
+	ui_system.add_battle_panel_element(gel_satir)
 	var sirali_noktalar = ["A", "B", "C", "D", "E"]
 	for nokta in sirali_noktalar:
 		if not nokta_konumlari.has(nokta):
@@ -1446,26 +1404,11 @@ func savas_paneli_olustur() -> void:
 		var n = nokta
 		gbtn.pressed.connect(func(): nokta_gelistir(n))
 		gel_satir.add_child(gbtn)
-		savas_paneli.append(gbtn)
+		ui_system.register_battle_panel_widget(gbtn)
 
-	var hiz_satir = HBoxContainer.new()
-	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
-	savas_icerik_vbox.add_child(hiz_satir)
-	savas_paneli.append(hiz_satir)
-
-	hiz_tek_btn = Button.new()
-	hiz_tek_btn.name = "HizBtn"
-	hiz_tek_btn.custom_minimum_size = Vector2(120, 30)
-	hiz_tek_btn.pressed.connect(func(): hiz_carpani_arttir())
-	hiz_satir.add_child(hiz_tek_btn)
-	savas_paneli.append(hiz_tek_btn)
+	ui_system.build_battle_panel_footer(func(): hiz_carpani_arttir())
+	_ui_refs_sync()
 	hiz_butonunu_guncelle()
-
-	var mac_ozet = Label.new()
-	mac_ozet.name = "Label_MacOzeti"
-	mac_ozet.text = ""
-	savas_icerik_vbox.add_child(mac_ozet)
-	savas_paneli.append(mac_ozet)
 
 	for el in savas_paneli:
 		if is_instance_valid(el):

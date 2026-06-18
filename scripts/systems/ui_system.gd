@@ -23,6 +23,8 @@ var hazirlik_aktif_tab: String = "genel"
 var hazirlik_tab_gruplari = {"genel": [], "ordu": [], "taktik": []}
 var hazirlik_tab_butonlari = {}
 var hazirlik_tab_container_map = {}
+var savas_paneli: Array = []
+var hiz_tek_btn: Button = null
 
 func configure(root_node: Node2D) -> void:
 	_root = root_node
@@ -185,6 +187,86 @@ func get_hazirlik_tab_butonlari() -> Dictionary:
 
 func get_hazirlik_tab_container_map() -> Dictionary:
 	return hazirlik_tab_container_map
+
+func get_savas_paneli() -> Array:
+	return savas_paneli
+
+func get_hiz_tek_btn() -> Button:
+	return hiz_tek_btn
+
+func clear_battle_panel() -> void:
+	for el in savas_paneli:
+		if is_instance_valid(el):
+			el.queue_free()
+	savas_paneli.clear()
+	hiz_tek_btn = null
+
+func add_battle_panel_element(node: Control) -> void:
+	if savas_icerik_vbox == null:
+		return
+	savas_icerik_vbox.add_child(node)
+	savas_paneli.append(node)
+
+func register_battle_panel_widget(node: Control) -> void:
+	savas_paneli.append(node)
+
+func build_battle_panel_skeleton(ult_pressed: Callable) -> void:
+	if savas_icerik_vbox == null:
+		return
+
+	var bilgi = Label.new()
+	bilgi.name = "Label_SavasBilgi"
+	bilgi.text = "Envanter sec → haritaya tikla"
+	add_battle_panel_element(bilgi)
+
+	var ust_durum_satir = HBoxContainer.new()
+	add_battle_panel_element(ust_durum_satir)
+
+	var altin_l = Label.new()
+	altin_l.name = "Label_Altin"
+	altin_l.text = "30🪙 | G0"
+	ust_durum_satir.add_child(altin_l)
+	register_battle_panel_widget(altin_l)
+
+	var durum_l = Label.new()
+	durum_l.name = "Label_Durum"
+	durum_l.text = "M100 | Acik | U0%"
+	ust_durum_satir.add_child(durum_l)
+	register_battle_panel_widget(durum_l)
+
+	var komut_satir = HBoxContainer.new()
+	add_battle_panel_element(komut_satir)
+
+	var ult_btn = Button.new()
+	ult_btn.name = "UltBtn"
+	ult_btn.text = "ULT"
+	ult_btn.custom_minimum_size = Vector2(70, 32)
+	if ult_pressed.is_valid():
+		ult_btn.pressed.connect(ult_pressed)
+	komut_satir.add_child(ult_btn)
+	register_battle_panel_widget(ult_btn)
+
+func build_battle_panel_footer(speed_pressed: Callable) -> void:
+	if savas_icerik_vbox == null:
+		return
+
+	var hiz_satir = HBoxContainer.new()
+	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
+	add_battle_panel_element(hiz_satir)
+
+	hiz_tek_btn = Button.new()
+	hiz_tek_btn.name = "HizBtn"
+	hiz_tek_btn.custom_minimum_size = Vector2(120, 30)
+	hiz_tek_btn.text = "Hiz: 1x"
+	if speed_pressed.is_valid():
+		hiz_tek_btn.pressed.connect(speed_pressed)
+	hiz_satir.add_child(hiz_tek_btn)
+	register_battle_panel_widget(hiz_tek_btn)
+
+	var mac_ozet = Label.new()
+	mac_ozet.name = "Label_MacOzeti"
+	mac_ozet.text = ""
+	add_battle_panel_element(mac_ozet)
 
 func build_preparation_panel() -> void:
 	if hazirlik_tabs_row == null or hazirlik_tabs_content == null:
