@@ -7,10 +7,12 @@ const GameData = preload("res://scripts/systems/game_data.gd")
 const WorldSystem = preload("res://scripts/systems/world_system.gd")
 const FogSystem = preload("res://scripts/systems/fog_system.gd")
 const UISystem = preload("res://scripts/systems/ui_system.gd")
+const CommandSystem = preload("res://scripts/systems/command_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
 var ui_system: UISystem
+var command_system: CommandSystem
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -349,6 +351,18 @@ func _ui_refs_sync() -> void:
 	savas_paneli = ui_system.get_savas_paneli()
 	hiz_tek_btn = ui_system.get_hiz_tek_btn()
 
+func _command_system_hazirla() -> void:
+	command_system = CommandSystem.new()
+	command_system.configure(self)
+
+func _command_refs_sync() -> void:
+	secili_komut = command_system.get_selected_command()
+	secili_birim = command_system.get_selected_unit()
+	komut_menusu_hedef_birim = command_system.get_menu_target_unit()
+
+func _command_state_push() -> void:
+	command_system._sync_from_main(secili_komut, secili_birim, komut_menusu_hedef_birim)
+
 func harita_uygula(map_id: String) -> void:
 	world_system.harita_uygula(map_id)
 	_world_refs_sync()
@@ -502,6 +516,7 @@ func _ready() -> void:
 	_world_system_hazirla()
 	_fog_system_hazirla()
 	_ui_system_hazirla()
+	_command_system_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -518,6 +533,7 @@ func _ready() -> void:
 	birim_detay_popup_olustur()
 	tekrar_oyna_butonu_olustur()
 	hazirlik_baslat()
+	_command_refs_sync()
 	ui_fontlarini_optimize_et()
 
 func kayit_yukle() -> void:
@@ -2226,6 +2242,8 @@ func birim_pusu_kur() -> void:
 func _process(delta: float) -> void:
 	if oyun_bitti:
 		return
+
+	_command_state_push()
 
 	if detay_popup_panel != null and detay_popup_panel.visible:
 		_birim_detay_popup_konumla()
