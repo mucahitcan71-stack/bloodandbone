@@ -268,6 +268,37 @@ func build_battle_panel_footer(speed_pressed: Callable) -> void:
 	mac_ozet.text = ""
 	add_battle_panel_element(mac_ozet)
 
+func update_hud(snapshot: Dictionary) -> void:
+	var os_l = get_node_by_name("Label_Osmanli") as Label
+	if os_l != null:
+		os_l.text = "⚔ Osmanli: " + str(snapshot.get("osmanli_puan", 0)) + "/" + str(snapshot.get("kazanma_puani", 0))
+	var dr_l = get_node_by_name("Label_DoguRoma") as Label
+	if dr_l != null:
+		dr_l.text = "Dogu Roma: " + str(snapshot.get("dogu_roma_puan", 0)) + "/" + str(snapshot.get("kazanma_puani", 0)) + " 🛡 | 🪙" + str(snapshot.get("dogu_roma_altini", 0))
+	var durum_l = get_node_by_name("Label_Durum") as Label
+	if durum_l != null:
+		durum_l.text = "M" + str(int(snapshot.get("moral", 0))) + " | " + str(snapshot.get("hava", "")) + " | U" + str(int(snapshot.get("ult_yuzde", 0))) + "%"
+	var altin_l = get_node_by_name("Label_Altin") as Label
+	if altin_l != null and not snapshot.get("hazirlik_fazi", true):
+		altin_l.text = str(snapshot.get("osmanli_altin", 0)) + "🪙 | G" + str(snapshot.get("gelisim_altin", 0))
+	if snapshot.get("hazirlik_fazi", false):
+		var round_l = get_node_by_name("Label_Round") as Label
+		if round_l != null:
+			round_l.text = "HAZIRLIK"
+		var sure_l = get_node_by_name("Label_Sure") as Label
+		if sure_l != null:
+			sure_l.text = "Kalan: " + str(int(snapshot.get("kalan_sure", 0.0))) + "s"
+	else:
+		var round_l2 = get_node_by_name("Label_Round") as Label
+		if round_l2 != null:
+			round_l2.text = "SAVAS DEVAM EDIYOR"
+		var kalan = float(snapshot.get("kalan_sure", 0.0))
+		var dk = int(kalan) / 60
+		var sn = int(kalan) % 60
+		var sure_l2 = get_node_by_name("Label_Sure") as Label
+		if sure_l2 != null:
+			sure_l2.text = str(dk) + ":" + str(sn).pad_zeros(2)
+
 func build_preparation_panel() -> void:
 	if hazirlik_tabs_row == null or hazirlik_tabs_content == null:
 		return

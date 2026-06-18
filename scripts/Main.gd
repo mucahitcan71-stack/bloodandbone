@@ -2857,35 +2857,23 @@ func mac_ozeti_metni() -> String:
 	var ozet = HudFormatter.match_summary(mac_istatistik["osmanli"], mac_istatistik["dogu_roma"])
 	return ozet + "\nBolge: " + kampanya_bolgeleri[kampanya_index] + " | " + HudFormatter.save_stats(mac_istatistik_kayit)
 
+func _hud_snapshot_olustur() -> Dictionary:
+	return {
+		"hazirlik_fazi": hazirlik_fazi,
+		"osmanli_puan": osmanli_puani,
+		"dogu_roma_puan": dogu_roma_puani,
+		"kazanma_puani": kazanma_puani,
+		"kalan_sure": kalan_sure,
+		"osmanli_altin": osmanli_altini,
+		"gelisim_altin": osmanli_gelisim_altini,
+		"dogu_roma_altini": dogu_roma_altini,
+		"moral": int(taraf_moral["osmanli"]),
+		"hava": hava_durumu,
+		"ult_yuzde": int(ult_sarj["osmanli"]),
+	}
+
 func ui_guncelle() -> void:
-	var os_l = ui_node("Label_Osmanli")
-	if os_l != null:
-		os_l.text = "⚔ Osmanli: " + str(osmanli_puani) + "/" + str(kazanma_puani)
-	var dr_l = ui_node("Label_DoguRoma")
-	if dr_l != null:
-		dr_l.text = "Dogu Roma: " + str(dogu_roma_puani) + "/" + str(kazanma_puani) + " 🛡 | 🪙" + str(dogu_roma_altini)
-	var durum_l = ui_node("Label_Durum")
-	if durum_l != null:
-		durum_l.text = "M" + str(int(taraf_moral["osmanli"])) + " | " + hava_durumu + " | U" + str(int(ult_sarj["osmanli"])) + "%"
-	var altin_l = ui_node("Label_Altin")
-	if altin_l != null and not hazirlik_fazi:
-		altin_l.text = str(osmanli_altini) + "🪙 | G" + str(osmanli_gelisim_altini)
-	if hazirlik_fazi:
-		var round_l = ui_node("Label_Round")
-		if round_l != null:
-			round_l.text = "HAZIRLIK"
-		var sure_l = ui_node("Label_Sure")
-		if sure_l != null:
-			sure_l.text = "Kalan: " + str(int(kalan_sure)) + "s"
-	else:
-		var round_l2 = ui_node("Label_Round")
-		if round_l2 != null:
-			round_l2.text = "SAVAS DEVAM EDIYOR"
-		var dk = int(kalan_sure) / 60
-		var sn = int(kalan_sure) % 60
-		var sure_l2 = ui_node("Label_Sure")
-		if sure_l2 != null:
-			sure_l2.text = str(dk) + ":" + str(sn).pad_zeros(2)
+	ui_system.update_hud(_hud_snapshot_olustur())
 	takviye_ui_guncelle()
 
 func nokta_renkleri_sifirla() -> void:
