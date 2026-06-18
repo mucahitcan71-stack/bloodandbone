@@ -623,13 +623,10 @@ func takviye_toplu_ekle() -> void:
 	for i in range(adet):
 		envanter.append(tip.duplicate())
 	envanter_olustur()
-	var altin_l = ui_node("Label_Altin")
-	if altin_l != null:
-		altin_l.text = str(osmanli_altini) + "🪙 | G" + str(osmanli_gelisim_altini)
 	var s1 = ui_node("Label_SavasBilgi")
 	if s1 != null:
 		s1.text = str(adet) + " " + tip["isim"] + " envantere eklendi"
-	takviye_ui_guncelle()
+	ui_guncelle()
 
 func _yan_hud_goster() -> void:
 	ui_system.show_side_hud()
@@ -1715,9 +1712,7 @@ func birim_satin_al(idx: int) -> void:
 	mac_istatistik["osmanli"]["altin_harcama"] += int(tip["maliyet"])
 	envanter.append(tip.duplicate())
 	envanter_olustur()
-	var altin_l = ui_node("Label_Altin")
-	if altin_l != null:
-		altin_l.text = str(osmanli_altini) + "🪙 | G" + str(osmanli_gelisim_altini)
+	ui_guncelle()
 
 func hazirlik_baslat() -> void:
 	hiz_carpani_sifirla()
@@ -2497,9 +2492,7 @@ func puan_uret() -> void:
 			dogu_roma_altini += 10
 			dogu_roma_gelisim_altini += 10
 
-	var altin_l = ui_node("Label_Altin")
-	if altin_l != null:
-		altin_l.text = str(osmanli_altini) + "🪙 | G" + str(osmanli_gelisim_altini)
+	ui_guncelle()
 
 func istatistik_nokta_sure_guncelle(delta: float) -> void:
 	var ult_hiz = {
@@ -2534,6 +2527,7 @@ func nokta_gelistir(nokta: String) -> void:
 	nokta_gelistirme[nokta] += 1
 	nokta_puan[nokta] = nokta_taban_puan(nokta) + nokta_gelistirme[nokta]
 	nokta_altin[nokta] = nokta_taban_altin(nokta) + nokta_gelistirme[nokta]
+	ui_guncelle()
 
 func ai_nokta_gelistir() -> void:
 	if hazirlik_fazi or oyun_bitti:
