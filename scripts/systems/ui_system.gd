@@ -25,6 +25,9 @@ var hazirlik_tab_butonlari = {}
 var hazirlik_tab_container_map = {}
 var savas_paneli: Array = []
 var hiz_tek_btn: Button = null
+var ust_bilgi_bari: PanelContainer = null
+var ust_bilgi_kaynak_label: Label = null
+var savas_kaynak_satir: HBoxContainer = null
 
 func configure(root_node: Node2D) -> void:
 	_root = root_node
@@ -220,7 +223,10 @@ func build_battle_panel_skeleton(ult_pressed: Callable) -> void:
 	add_battle_panel_element(bilgi)
 
 	var ust_durum_satir = HBoxContainer.new()
+	ust_durum_satir.name = "SavasKaynakSatir"
 	add_battle_panel_element(ust_durum_satir)
+	savas_kaynak_satir = ust_durum_satir
+	savas_kaynak_satir.visible = false
 
 	var altin_l = Label.new()
 	altin_l.name = "Label_Altin"
@@ -276,12 +282,24 @@ func update_hud(snapshot: Dictionary) -> void:
 	if dr_l != null:
 		dr_l.text = "Dogu Roma: " + str(snapshot.get("dogu_roma_puan", 0)) + "/" + str(snapshot.get("kazanma_puani", 0)) + " 🛡 | 🪙" + str(snapshot.get("dogu_roma_altini", 0))
 	var durum_l = get_node_by_name("Label_Durum") as Label
-	if durum_l != null:
-		durum_l.text = "M" + str(int(snapshot.get("moral", 0))) + " | " + str(snapshot.get("hava", "")) + " | U" + str(int(snapshot.get("ult_yuzde", 0))) + "%"
 	var altin_l = get_node_by_name("Label_Altin") as Label
-	if altin_l != null and not snapshot.get("hazirlik_fazi", true):
-		altin_l.text = str(snapshot.get("osmanli_altin", 0)) + "🪙 | G" + str(snapshot.get("gelisim_altin", 0))
-	if snapshot.get("hazirlik_fazi", false):
+	var hazirlik = snapshot.get("hazirlik_fazi", true)
+	if not hazirlik:
+		var altin_metin = str(snapshot.get("osmanli_altin", 0)) + "🪙 | G" + str(snapshot.get("gelisim_altin", 0))
+		var durum_metin = "M" + str(int(snapshot.get("moral", 0))) + " | " + str(snapshot.get("hava", "")) + " | U" + str(int(snapshot.get("ult_yuzde", 0))) + "%"
+		if altin_l != null:
+			altin_l.text = altin_metin
+		if durum_l != null:
+			durum_l.text = durum_metin
+		if ust_bilgi_kaynak_label != null:
+			ust_bilgi_kaynak_label.text = altin_metin + " " + durum_metin
+	if ust_bilgi_bari != null:
+		ust_bilgi_bari.visible = not hazirlik
+	if savas_kaynak_satir == null:
+		savas_kaynak_satir = get_node_by_name("SavasKaynakSatir") as HBoxContainer
+	if savas_kaynak_satir != null:
+		savas_kaynak_satir.visible = false
+	if hazirlik:
 		var round_l = get_node_by_name("Label_Round") as Label
 		if round_l != null:
 			round_l.text = "HAZIRLIK"
@@ -469,6 +487,7 @@ func build_container_infrastructure() -> void:
 			savas_scroll.add_child(savas_icerik_vbox)
 	if ui_root != null and ust_bilgi_paneli != null and hazirlik_panel_root != null and hazirlik_tabs_row != null and hazirlik_tabs_content != null and savas_panel_root != null and savas_icerik_vbox != null:
 		_savas_panel_alt_konumla()
+		_ensure_ust_bilgi_bari()
 		return
 
 	ui_root = Control.new()
@@ -562,6 +581,44 @@ func build_container_infrastructure() -> void:
 	savas_icerik_vbox = VBoxContainer.new()
 	savas_icerik_vbox.name = "SavasIcerik"
 	savas_scroll.add_child(savas_icerik_vbox)
+	_ensure_ust_bilgi_bari()
+
+func _ensure_ust_bilgi_bari() -> void:
+	if ui_root == null:
+		return
+	ust_bilgi_bari = get_node_by_name("UstBilgiBari") as PanelContainer
+	if ust_bilgi_bari != null:
+		ust_bilgi_kaynak_label = get_node_by_name("Label_UstKaynak") as Label
+		ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return
+	ust_bilgi_bari = PanelContainer.new()
+	ust_bilgi_bari.name = "UstBilgiBari"
+	ust_bilgi_bari.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	ust_bilgi_bari.offset_left = 0
+	ust_bilgi_bari.offset_top = 0
+	ust_bilgi_bari.offset_right = 0
+	ust_bilgi_bari.offset_bottom = 36
+	ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bar_style = StyleBoxFlat.new()
+	bar_style.bg_color = Color(0.12, 0.12, 0.14, 0.88)
+	ust_bilgi_bari.add_theme_stylebox_override("panel", bar_style)
+	ui_root.add_child(ust_bilgi_bari)
+	ui_root.move_child(ust_bilgi_bari, 0)
+	var bar_margin = MarginContainer.new()
+	bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar_margin.add_theme_constant_override("margin_left", 12)
+	bar_margin.add_theme_constant_override("margin_right", 12)
+	bar_margin.add_theme_constant_override("margin_top", 6)
+	bar_margin.add_theme_constant_override("margin_bottom", 6)
+	ust_bilgi_bari.add_child(bar_margin)
+	var bar_row = HBoxContainer.new()
+	bar_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar_margin.add_child(bar_row)
+	ust_bilgi_kaynak_label = Label.new()
+	ust_bilgi_kaynak_label.name = "Label_UstKaynak"
+	ust_bilgi_kaynak_label.text = "30🪙 | G0 M100 | Acik | U0%"
+	ust_bilgi_kaynak_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar_row.add_child(ust_bilgi_kaynak_label)
 
 func optimize_fonts(font_size: int, extra_roots: Array = []) -> void:
 	if ui_root != null:

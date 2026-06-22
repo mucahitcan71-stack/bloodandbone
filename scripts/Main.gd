@@ -1931,6 +1931,9 @@ func savas_baslat() -> void:
 		takviye_adet_satiri.visible = false
 	if envanter_adet_satiri != null:
 		envanter_adet_satiri.visible = false
+	var savas_kaynak = ui_node("SavasKaynakSatir")
+	if savas_kaynak != null:
+		savas_kaynak.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = true
 	if is_instance_valid(gorus_hucre_katmani):
