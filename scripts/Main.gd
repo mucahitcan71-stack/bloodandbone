@@ -2841,6 +2841,15 @@ func _komut_menusu_disina_tiklandi_mi(event_position: Vector2) -> bool:
 			return true
 	return false
 
+func _bos_alan_nokta_secimini_dene(dunya_pos: Vector2) -> bool:
+	for nokta in nokta_konumlari:
+		if not kesfedilen_noktalar.get(nokta, false):
+			continue
+		if dunya_pos.distance_to(nokta_merkezi(nokta)) <= 70.0:
+			nokta_sec(nokta)
+			return true
+	return false
+
 func _input(event) -> void:
 	if oyun_bitti:
 		return
@@ -2928,12 +2937,7 @@ func _input(event) -> void:
 				elif secili_envanter_tip_anahtari != "":
 					birim_haritadan_gonder(dunya_pos)
 				else:
-					for nokta in nokta_konumlari:
-						if not kesfedilen_noktalar.get(nokta, false):
-							continue
-						if dunya_pos.distance_to(nokta_merkezi(nokta)) <= 70.0:
-							nokta_sec(nokta)
-							break
+					_bos_alan_nokta_secimini_dene(dunya_pos)
 				return
 
 			if hazirlik_fazi:
