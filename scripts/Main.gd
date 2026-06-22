@@ -2833,6 +2833,14 @@ func _minimap_tiklamasini_isle(event_position: Vector2) -> bool:
 			return true
 	return false
 
+func _komut_menusu_disina_tiklandi_mi(event_position: Vector2) -> bool:
+	if komut_menusu_panel != null and komut_menusu_panel.visible:
+		var menu_rect = Rect2(komut_menusu_panel.position, komut_menusu_panel.size)
+		if not menu_rect.has_point(event_position):
+			komut_menusu_kapat()
+			return true
+	return false
+
 func _input(event) -> void:
 	if oyun_bitti:
 		return
@@ -2874,10 +2882,7 @@ func _input(event) -> void:
 			if _minimap_tiklamasini_isle(event.position):
 				return
 
-			if komut_menusu_panel != null and komut_menusu_panel.visible:
-				var menu_rect = Rect2(komut_menusu_panel.position, komut_menusu_panel.size)
-				if not menu_rect.has_point(event.position):
-					komut_menusu_kapat()
+			_komut_menusu_disina_tiklandi_mi(event.position)
 
 			if event.position.y > 450:
 				return
