@@ -607,7 +607,7 @@ func takviye_gorunurluk_guncelle(acik: bool) -> void:
 	if takviye_liste_satiri != null:
 		takviye_liste_satiri.visible = acik
 	if takviye_adet_satiri != null:
-		takviye_adet_satiri.visible = acik
+		takviye_adet_satiri.visible = false
 
 func takviye_ui_guncelle() -> void:
 	if takviye_butonlari.is_empty():
@@ -1927,6 +1927,10 @@ func savas_baslat() -> void:
 	var nokta_plus = ui_node("NoktaPlusGrup")
 	if nokta_plus != null:
 		nokta_plus.visible = false
+	if takviye_adet_satiri != null:
+		takviye_adet_satiri.visible = false
+	if envanter_adet_satiri != null:
+		envanter_adet_satiri.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = true
 	if is_instance_valid(gorus_hucre_katmani):
