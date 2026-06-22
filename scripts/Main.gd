@@ -392,6 +392,38 @@ func kamera_limitlerini_guncelle() -> void:
 func kamera_sinirla() -> void:
 	world_system.kamera_sinirla()
 
+func _kamera_kaydirmayi_uygula(delta: float) -> void:
+	if kamera == null:
+		return
+	var kamera_hizi = 800.0
+	var kenar_tetik_pikseli = 35.0
+	var kamera_yon = Vector2.ZERO
+
+	var mouse_pos = get_viewport().get_mouse_position()
+	var viewport_size = get_viewport().get_visible_rect().size
+	if mouse_pos.x < kenar_tetik_pikseli:
+		kamera_yon.x -= 1.0
+	elif mouse_pos.x > viewport_size.x - kenar_tetik_pikseli:
+		kamera_yon.x += 1.0
+	if mouse_pos.y < kenar_tetik_pikseli:
+		kamera_yon.y -= 1.0
+	elif mouse_pos.y > viewport_size.y - kenar_tetik_pikseli:
+		kamera_yon.y += 1.0
+
+	if Input.is_action_pressed("cmd_camera_up"):
+		kamera_yon.y -= 1.0
+	if Input.is_action_pressed("cmd_camera_down"):
+		kamera_yon.y += 1.0
+	if Input.is_action_pressed("cmd_camera_left"):
+		kamera_yon.x -= 1.0
+	if Input.is_action_pressed("cmd_camera_right"):
+		kamera_yon.x += 1.0
+
+	if kamera_yon != Vector2.ZERO:
+		kamera_yon = kamera_yon.normalized()
+		kamera.position += kamera_yon * kamera_hizi * delta
+		kamera_sinirla()
+
 func arazi_katmani_olustur() -> void:
 	world_system.arazi_katmani_olustur()
 	_world_refs_sync()
@@ -2221,6 +2253,7 @@ func _process(delta: float) -> void:
 				var kont_l = ui_node("Label_Kontenjan")
 				if kont_l != null:
 					kont_l.text = "Ordu kurmadan savas baslamaz!"
+		_kamera_kaydirmayi_uygula(delta)
 		return
 
 	if kalan_sure <= 0:
@@ -2391,6 +2424,8 @@ func _process(delta: float) -> void:
 	savas_sisi_guncelle()
 	nokta_gorunurluklerini_guncelle()
 	birim_gorunurluklerini_guncelle()
+
+	_kamera_kaydirmayi_uygula(delta)
 
 	if osmanli_puani >= kazanma_puani:
 		oyun_bitir_kazanan("osmanli")
