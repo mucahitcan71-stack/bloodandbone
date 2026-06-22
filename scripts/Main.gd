@@ -2867,6 +2867,33 @@ func _tiklanan_birimi_bul(dunya_pos: Vector2) -> Dictionary:
 			break
 	return {"oyuncu": tiklanan_oyuncu, "dusman": tiklanan_dusman}
 
+func _birim_tiklama_kararini_uygula(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vector2, ekran_pos: Vector2) -> void:
+	if tiklanan_oyuncu != null:
+		if secili_birim == tiklanan_oyuncu:
+			komut_menusu_ac(ekran_pos, tiklanan_oyuncu)
+		else:
+			komut_menusu_kapat()
+			komut_sec("hareket")
+			birim_tikla(tiklanan_oyuncu)
+		return
+
+	if secili_birim != null and secili_komut == "saldir" and tiklanan_dusman != null:
+		birim_komut_saldir(secili_birim, tiklanan_dusman["konum"], int(tiklanan_dusman.get("id", -1)))
+		return
+
+	if secili_birim != null:
+		komut_menusu_kapat()
+		if secili_komut == "pusu":
+			birim_pusu_kur()
+		elif secili_komut == "saldir":
+			birim_komut_saldir(secili_birim, dunya_pos)
+		else:
+			birim_hareket_ettir(dunya_pos)
+	elif secili_envanter_tip_anahtari != "":
+		birim_haritadan_gonder(dunya_pos)
+	else:
+		_bos_alan_nokta_secimini_dene(dunya_pos)
+
 func _input(event) -> void:
 	if oyun_bitti:
 		return
@@ -2919,31 +2946,7 @@ func _input(event) -> void:
 				var tiklanan_oyuncu = tiklama_sonucu["oyuncu"]
 				var tiklanan_dusman = tiklama_sonucu["dusman"]
 
-				if tiklanan_oyuncu != null:
-					if secili_birim == tiklanan_oyuncu:
-						komut_menusu_ac(event.position, tiklanan_oyuncu)
-					else:
-						komut_menusu_kapat()
-						komut_sec("hareket")
-						birim_tikla(tiklanan_oyuncu)
-					return
-
-				if secili_birim != null and secili_komut == "saldir" and tiklanan_dusman != null:
-					birim_komut_saldir(secili_birim, tiklanan_dusman["konum"], int(tiklanan_dusman.get("id", -1)))
-					return
-
-				if secili_birim != null:
-					komut_menusu_kapat()
-					if secili_komut == "pusu":
-						birim_pusu_kur()
-					elif secili_komut == "saldir":
-						birim_komut_saldir(secili_birim, dunya_pos)
-					else:
-						birim_hareket_ettir(dunya_pos)
-				elif secili_envanter_tip_anahtari != "":
-					birim_haritadan_gonder(dunya_pos)
-				else:
-					_bos_alan_nokta_secimini_dene(dunya_pos)
+				_birim_tiklama_kararini_uygula(tiklanan_oyuncu, tiklanan_dusman, dunya_pos, event.position)
 				return
 
 			if hazirlik_fazi:
