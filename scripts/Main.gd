@@ -1408,10 +1408,8 @@ func savas_paneli_olustur() -> void:
 
 	var gel_baslik = Label.new()
 	gel_baslik.text = "Nokta +"
-	ui_system.add_battle_panel_element(gel_baslik)
-
 	var gel_satir = HBoxContainer.new()
-	ui_system.add_battle_panel_element(gel_satir)
+	gel_satir.name = "NoktaPlusSatir"
 	var sirali_noktalar = ["A", "B", "C", "D", "E"]
 	for nokta in sirali_noktalar:
 		if not nokta_konumlari.has(nokta):
@@ -1424,6 +1422,13 @@ func savas_paneli_olustur() -> void:
 		gbtn.pressed.connect(func(): nokta_gelistir(n))
 		gel_satir.add_child(gbtn)
 		ui_system.register_battle_panel_widget(gbtn)
+
+	var nokta_plus_grup = VBoxContainer.new()
+	nokta_plus_grup.name = "NoktaPlusGrup"
+	nokta_plus_grup.add_child(gel_baslik)
+	nokta_plus_grup.add_child(gel_satir)
+	ui_system.add_battle_panel_element(nokta_plus_grup)
+	nokta_plus_grup.visible = false
 
 	ui_system.build_battle_panel_footer(func(): hiz_carpani_arttir())
 	_ui_refs_sync()
@@ -1572,7 +1577,8 @@ func envanter_sec(anahtar: String) -> void:
 	secili_envanter_tip_anahtari = anahtar
 	secili_envanter_gonder_adedi = 1
 	_envanter_secim_ui_guncelle()
-	secili_birim = null
+	command_system.select_unit(null)
+	secili_birim = command_system.get_selected_unit()
 	var tip = envanter_gruplari[anahtar]["tip"]
 	birim_detay_goster(tip)
 	var s = ui_node("Label_SavasBilgi")
@@ -1897,6 +1903,9 @@ func savas_baslat() -> void:
 	for el in savas_paneli:
 		if is_instance_valid(el):
 			el.visible = true
+	var nokta_plus = ui_node("NoktaPlusGrup")
+	if nokta_plus != null:
+		nokta_plus.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = true
 	if is_instance_valid(gorus_hucre_katmani):
@@ -2939,8 +2948,10 @@ func _input(event) -> void:
 
 			_komut_menusu_disina_tiklandi_mi(event.position)
 
-			if event.position.y > 450:
-				return
+			var savas_panel = ui_node("SavasPaneli") as Control
+			if savas_panel != null and savas_panel.visible:
+				if savas_panel.get_global_rect().has_point(event.position):
+					return
 
 			var dunya_pos = get_global_mouse_position()
 			if not hazirlik_fazi:
