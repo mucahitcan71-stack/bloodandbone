@@ -2835,24 +2835,24 @@ func _input(event) -> void:
 			kamera_sinirla()
 		return
 
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			if kamera != null:
-				var yeni = kamera.zoom - Vector2(zoom_hizi, zoom_hizi)
-				kamera.zoom = Vector2(
-					clamp(yeni.x, zoom_min, zoom_max),
-					clamp(yeni.y, zoom_min, zoom_max)
-				)
-			return
-		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			if kamera != null:
-				var yeni = kamera.zoom + Vector2(zoom_hizi, zoom_hizi)
-				kamera.zoom = Vector2(
-					clamp(yeni.x, zoom_min, zoom_max),
-					clamp(yeni.y, zoom_min, zoom_max)
-				)
-			return
+	if event.is_action_pressed("cmd_zoom_in"):
+		if kamera != null:
+			var yeni = kamera.zoom - Vector2(zoom_hizi, zoom_hizi)
+			kamera.zoom = Vector2(
+				clamp(yeni.x, zoom_min, zoom_max),
+				clamp(yeni.y, zoom_min, zoom_max)
+			)
+		return
+	if event.is_action_pressed("cmd_zoom_out"):
+		if kamera != null:
+			var yeni = kamera.zoom + Vector2(zoom_hizi, zoom_hizi)
+			kamera.zoom = Vector2(
+				clamp(yeni.x, zoom_min, zoom_max),
+				clamp(yeni.y, zoom_min, zoom_max)
+			)
+		return
 
+	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			if minimap_panel != null:
 				var surface = ui_node("MinimapSurface")
