@@ -64,7 +64,12 @@ func set_command_mode(komut: String) -> Dictionary:
 	result["status_line"] = metin
 	return result
 
-func select_unit(birim: Dictionary) -> Dictionary:
+func select_unit(birim) -> Dictionary:
+	if birim == null:
+		if secili_birim != null:
+			_deselect_unit_visual(secili_birim)
+		secili_birim = null
+		return {}
 	if birim.get("taraf", "") != "osmanli":
 		return {"ignored": true}
 	if secili_birim != null and secili_birim != birim:

@@ -2941,12 +2941,6 @@ func _input(event) -> void:
 		komut_menusu_kapat()
 		return
 
-	if event.is_action_pressed("cmd_camera_pan"):
-		pan_aktif = true
-		return
-	if event.is_action_released("cmd_camera_pan"):
-		pan_aktif = false
-		return
 	if event is InputEventMouseMotion and pan_aktif:
 		if kamera != null:
 			kamera.position -= event.relative / kamera.zoom.x
