@@ -155,6 +155,15 @@ func arazi_gorsellerini_guncelle() -> void:
 		return
 	for c in arazi_katmani.get_children():
 		c.queue_free()
+	var sinir = harita_sinir
+	var taban = ColorRect.new()
+	taban.name = "AraziTaban"
+	taban.position = Vector2(sinir["min_x"], sinir["min_y"])
+	taban.size = Vector2(sinir["max_x"] - sinir["min_x"], sinir["max_y"] - sinir["min_y"])
+	taban.color = Color(0.2, 0.26, 0.16, 1.0)
+	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	taban.z_index = -2
+	arazi_katmani.add_child(taban)
 	for bolge in arazi_bolgeleri:
 		var rect: Rect2 = bolge.get("rect", Rect2())
 		if rect.size.x <= 0 or rect.size.y <= 0:
@@ -164,19 +173,20 @@ func arazi_gorsellerini_guncelle() -> void:
 		alan.size = rect.size
 		alan.color = _arazi_renk(str(bolge.get("tip", "duz_arazi")))
 		alan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		alan.z_index = -1
 		arazi_katmani.add_child(alan)
 
 func _arazi_renk(tip: String) -> Color:
 	if tip == "tepe":
-		return Color(0.56, 0.39, 0.22, 0.35)
+		return Color(0.48, 0.34, 0.2, 0.72)
 	if tip == "orman":
-		return Color(0.11, 0.35, 0.16, 0.35)
+		return Color(0.1, 0.32, 0.14, 0.78)
 	if tip == "dar_gecit":
-		return Color(0.33, 0.33, 0.33, 0.35)
+		return Color(0.28, 0.28, 0.3, 0.75)
 	if tip == "vadi":
-		return Color(0.45, 0.7, 0.38, 0.3)
+		return Color(0.38, 0.58, 0.28, 0.7)
 	if tip == "yol":
-		return Color(0.72, 0.64, 0.4, 0.32)
+		return Color(0.62, 0.54, 0.32, 0.75)
 	if tip == "kopru":
-		return Color(0.47, 0.47, 0.52, 0.36)
+		return Color(0.42, 0.42, 0.46, 0.78)
 	return Color(0, 0, 0, 0)

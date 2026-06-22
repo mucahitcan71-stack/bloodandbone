@@ -487,6 +487,7 @@ func build_container_infrastructure() -> void:
 			savas_scroll.add_child(savas_icerik_vbox)
 	if ui_root != null and ust_bilgi_paneli != null and hazirlik_panel_root != null and hazirlik_tabs_row != null and hazirlik_tabs_content != null and savas_panel_root != null and savas_icerik_vbox != null:
 		_savas_panel_alt_konumla()
+		_uygula_panel_stili(hazirlik_panel_root)
 		_ensure_ust_bilgi_bari()
 		return
 
@@ -540,6 +541,7 @@ func build_container_infrastructure() -> void:
 	hazirlik_panel_root.offset_top = -250
 	hazirlik_panel_root.offset_right = -20
 	hazirlik_panel_root.offset_bottom = -20
+	_uygula_panel_stili(hazirlik_panel_root)
 	ui_root.add_child(hazirlik_panel_root)
 
 	var hazirlik_margin = MarginContainer.new()
@@ -562,6 +564,7 @@ func build_container_infrastructure() -> void:
 
 	savas_panel_root = PanelContainer.new()
 	savas_panel_root.name = "SavasPaneli"
+	_uygula_panel_stili(savas_panel_root)
 	ui_root.add_child(savas_panel_root)
 	_savas_panel_alt_konumla()
 
@@ -635,6 +638,18 @@ func _savas_panel_alt_konumla() -> void:
 	savas_panel_root.offset_top = -310
 	savas_panel_root.offset_right = -12
 	savas_panel_root.offset_bottom = -8
+	if savas_panel_root.get_theme_stylebox("panel") == null:
+		_uygula_panel_stili(savas_panel_root)
+
+func _uygula_panel_stili(panel: PanelContainer) -> void:
+	var stil = StyleBoxFlat.new()
+	stil.bg_color = Color(0.09, 0.1, 0.12, 0.9)
+	stil.border_color = Color(0.38, 0.34, 0.28, 0.55)
+	stil.set_border_width_all(1)
+	stil.set_corner_radius_all(6)
+	stil.shadow_color = Color(0, 0, 0, 0.35)
+	stil.shadow_size = 4
+	panel.add_theme_stylebox_override("panel", stil)
 
 func _apply_font_size(node: Node, font_size: int) -> void:
 	if node is Label:

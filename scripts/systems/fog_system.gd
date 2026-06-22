@@ -20,6 +20,9 @@ var dusman_hayalet_ikonlari = {}
 var _minimap_fow_gorseli: Image = null
 var _minimap_fow_doku: ImageTexture = null
 
+const FOG_GORUNUR = Color(0, 0, 0, 0.0)
+const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
+
 func configure(root_node: Node2D, world_system: WorldSystem) -> void:
 	_root = root_node
 	_world = world_system
@@ -101,11 +104,11 @@ func update_minimap_fow() -> void:
 	for x in range(w):
 		for y in range(h):
 			var anahtar = Vector2i(min_h.x + x, min_h.y + y)
-			var col = Color(0, 0, 0, 0.9)
+			var col = FOG_KAPALI
 			if su_anki_gorus_alani.get(anahtar, false):
-				col = Color(0, 0, 0, 0.0)
+				col = FOG_GORUNUR
 			elif kesfedilen_alanlar.get(anahtar, false):
-				col = Color(0, 0, 0, 0.0)
+				col = FOG_GORUNUR
 			_minimap_fow_gorseli.set_pixel(x, y, col)
 	if _minimap_fow_doku == null:
 		_minimap_fow_doku = ImageTexture.create_from_image(_minimap_fow_gorseli)
@@ -185,6 +188,7 @@ func create_fog_layer() -> void:
 	gorus_hucre_katmani = Control.new()
 	gorus_hucre_katmani.name = "FogLayer"
 	gorus_hucre_katmani.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gorus_hucre_katmani.z_index = 40
 	_root.add_child(gorus_hucre_katmani)
 	reset_fog_grid()
 
@@ -205,7 +209,7 @@ func reset_fog_grid() -> void:
 			var hucre = ColorRect.new()
 			hucre.size = Vector2(gorus_hucre_boyutu, gorus_hucre_boyutu)
 			hucre.position = Vector2(float(x) * gorus_hucre_boyutu, float(y) * gorus_hucre_boyutu)
-			hucre.color = Color(0, 0, 0, 0.9)
+			hucre.color = FOG_KAPALI
 			hucre.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			hucre.visible = true
 			gorus_hucre_katmani.add_child(hucre)
@@ -241,11 +245,11 @@ func _apply_main_map_overlay() -> void:
 		if not is_instance_valid(hucre):
 			continue
 		if su_anki_gorus_alani.get(anahtar, false):
-			hucre.color = Color(0, 0, 0, 0.0)
+			hucre.color = FOG_GORUNUR
 		elif kesfedilen_alanlar.get(anahtar, false):
-			hucre.color = Color(0, 0, 0, 0.0)
+			hucre.color = FOG_GORUNUR
 		else:
-			hucre.color = Color(0, 0, 0, 0.9)
+			hucre.color = FOG_KAPALI
 
 func _clear_ghost_icon(id: int) -> void:
 	if dusman_hayalet_ikonlari.has(id):

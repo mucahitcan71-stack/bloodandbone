@@ -563,6 +563,9 @@ func kampanya_haritasini_yukle() -> void:
 
 func _ready() -> void:
 	randomize()
+	var eski_rect = get_node_or_null("ColorRect") as ColorRect
+	if eski_rect != null:
+		eski_rect.visible = false
 	_world_system_hazirla()
 	_fog_system_hazirla()
 	_ui_system_hazirla()
@@ -738,8 +741,16 @@ func hazirlik_bilgi_guncelle() -> void:
 
 func kontrol_noktalari_olustur() -> void:
 	for nokta in nokta_konumlari:
+		var cerceve = ColorRect.new()
+		cerceve.color = Color(0.12, 0.12, 0.14, 0.55)
+		cerceve.size = Vector2(84, 84)
+		cerceve.position = nokta_konumlari[nokta] - Vector2(2, 2)
+		cerceve.name = "NoktaCerceve_" + nokta
+		cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(cerceve)
+
 		var kare = ColorRect.new()
-		kare.color = Color.GRAY
+		kare.color = Color(0.38, 0.4, 0.44, 0.92)
 		kare.size = Vector2(80, 80)
 		kare.position = nokta_konumlari[nokta]
 		kare.name = "Nokta_" + nokta
@@ -748,19 +759,21 @@ func kontrol_noktalari_olustur() -> void:
 		var isim_l = Label.new()
 		isim_l.name = "Label_Nokta_" + nokta
 		isim_l.text = nokta
+		isim_l.add_theme_font_size_override("font_size", 14)
+		isim_l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
 		isim_l.position = nokta_konumlari[nokta] + Vector2(30, 30)
 		add_child(isim_l)
 
 		var bar_bg = ColorRect.new()
 		bar_bg.name = "CaptureBg_" + nokta
-		bar_bg.color = Color(0.5, 0, 0.8)
-		bar_bg.size = Vector2(80, 10)
+		bar_bg.color = Color(0.15, 0.15, 0.18, 0.9)
+		bar_bg.size = Vector2(80, 8)
 		bar_bg.position = nokta_konumlari[nokta] + Vector2(0, 85)
 		add_child(bar_bg)
 
 		var bar = ColorRect.new()
-		bar.color = Color(1, 0.8, 0)
-		bar.size = Vector2(40, 10)
+		bar.color = Color(0.85, 0.72, 0.2, 1.0)
+		bar.size = Vector2(40, 8)
 		bar.position = nokta_konumlari[nokta] + Vector2(0, 85)
 		bar.name = "CaptureBar_" + nokta
 		add_child(bar)
@@ -1076,6 +1089,12 @@ func minimap_olustur() -> void:
 		minimap_panel.offset_top = -minimap_boyut.y - 12
 		minimap_panel.offset_right = -12
 		minimap_panel.offset_bottom = -12
+		var mini_stil = StyleBoxFlat.new()
+		mini_stil.bg_color = Color(0.08, 0.09, 0.11, 0.92)
+		mini_stil.border_color = Color(0.35, 0.32, 0.28, 0.6)
+		mini_stil.set_border_width_all(1)
+		mini_stil.set_corner_radius_all(4)
+		minimap_panel.add_theme_stylebox_override("panel", mini_stil)
 		ui_root.add_child(minimap_panel)
 
 	var minimap_margin = ui_node("MinimapMargin") as MarginContainer
@@ -1093,7 +1112,7 @@ func minimap_olustur() -> void:
 		minimap_surface = ColorRect.new()
 		minimap_surface.name = "MinimapSurface"
 		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(12, 12)
-		minimap_surface.color = Color(0.08, 0.08, 0.08, 0.78)
+		minimap_surface.color = Color(0.16, 0.22, 0.14, 0.95)
 		minimap_margin.add_child(minimap_surface)
 
 	minimap_fow_rect = ui_node("MinimapFow") as TextureRect
@@ -2177,31 +2196,43 @@ func birim_etkin_degerleri(birim: Dictionary) -> Dictionary:
 	return etkiler
 
 func birim_olustur(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Dictionary, hedef_konum: Vector2 = Vector2(-1, -1)) -> void:
+	var cerceve = ColorRect.new()
+	cerceve.color = Color(0.05, 0.05, 0.08, 0.55) if taraf == "osmanli" else Color(0.15, 0.05, 0.25, 0.65)
+	cerceve.size = Vector2(34, 34)
+	cerceve.position = baslangic - Vector2(2, 2)
+	cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cerceve.z_index = 19
+	add_child(cerceve)
+
 	var kare = ColorRect.new()
 	kare.color = tip["renk"]
 	kare.size = Vector2(30, 30)
 	kare.position = baslangic
+	kare.z_index = 20
 	add_child(kare)
 
 	var sembol = Label.new()
 	sembol.text = tip["sembol"]
 	sembol.position = Vector2(5, 5)
+	sembol.add_theme_font_size_override("font_size", 14)
 	kare.add_child(sembol)
 
 	var asker_l = Label.new()
 	asker_l.name = "AskerSayisi"
 	asker_l.text = str(tip["asker_sayisi"])
 	asker_l.position = Vector2(0, -18)
+	asker_l.add_theme_font_size_override("font_size", 10)
+	asker_l.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
 	kare.add_child(asker_l)
 
 	var hp_bg = ColorRect.new()
-	hp_bg.color = Color.RED
+	hp_bg.color = Color(0.15, 0.05, 0.05, 0.9)
 	hp_bg.size = Vector2(30, 4)
 	hp_bg.position = Vector2(0, -6)
 	kare.add_child(hp_bg)
 
 	var hp_bar = ColorRect.new()
-	hp_bar.color = Color.GREEN
+	hp_bar.color = Color(0.25, 0.78, 0.32, 1.0)
 	hp_bar.size = Vector2(30, 4)
 	hp_bar.position = Vector2(0, -6)
 	hp_bar.name = "HPBar"
