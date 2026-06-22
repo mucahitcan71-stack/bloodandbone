@@ -1747,8 +1747,9 @@ func hazirlik_baslat() -> void:
 	secili_envanter_idx = -1
 	secili_envanter_tip_anahtari = ""
 	secili_envanter_gonder_adedi = 1
-	secili_birim = null
-	secili_komut = "hareket"
+	command_system.reset_for_preparation()
+	secili_birim = command_system.get_selected_unit()
+	secili_komut = command_system.get_selected_command()
 	komut_menusu_kapat()
 	nokta_gelistirme.clear()
 	nokta_capture.clear()
