@@ -2818,6 +2818,21 @@ func nokta_al(nokta: String, taraf: String) -> void:
 	elif taraf == "dogu_roma":
 		moral_degistir("dogu_roma", 10.0)
 
+func _minimap_tiklamasini_isle(event_position: Vector2) -> bool:
+	if minimap_panel != null:
+		var surface = ui_node("MinimapSurface")
+		var hedef_rect = Rect2(
+			surface.get_global_position() if surface != null else minimap_panel.get_global_position(),
+			surface.size if surface != null else minimap_panel.size
+		)
+		if hedef_rect.has_point(event_position):
+			if kamera != null:
+				var yerel = event_position - hedef_rect.position
+				kamera.position = minimap_panel_to_dunya(yerel)
+				kamera_sinirla()
+			return true
+	return false
+
 func _input(event) -> void:
 	if oyun_bitti:
 		return
@@ -2856,18 +2871,8 @@ func _input(event) -> void:
 		return
 
 	if event.is_action_pressed("cmd_primary_click"):
-			if minimap_panel != null:
-				var surface = ui_node("MinimapSurface")
-				var hedef_rect = Rect2(
-					surface.get_global_position() if surface != null else minimap_panel.get_global_position(),
-					surface.size if surface != null else minimap_panel.size
-				)
-				if hedef_rect.has_point(event.position):
-					if kamera != null:
-						var yerel = event.position - hedef_rect.position
-						kamera.position = minimap_panel_to_dunya(yerel)
-						kamera_sinirla()
-					return
+			if _minimap_tiklamasini_isle(event.position):
+				return
 
 			if komut_menusu_panel != null and komut_menusu_panel.visible:
 				var menu_rect = Rect2(komut_menusu_panel.position, komut_menusu_panel.size)
