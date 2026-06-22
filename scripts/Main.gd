@@ -2822,7 +2822,7 @@ func _input(event) -> void:
 	if oyun_bitti:
 		return
 
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if event.is_action_pressed("cmd_cancel_menu"):
 		komut_menusu_kapat()
 		return
 
