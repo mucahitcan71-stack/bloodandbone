@@ -2976,9 +2976,9 @@ func _input(event) -> void:
 
 			_komut_menusu_disina_tiklandi_mi(event.position)
 
-			var savas_panel = ui_node("SavasPaneli") as Control
-			if savas_panel != null and savas_panel.visible:
-				if savas_panel.get_global_rect().has_point(event.position):
+			var savas_icerik = ui_node("SavasIcerik") as Control
+			if savas_icerik != null and savas_icerik.visible:
+				if savas_icerik.get_global_rect().has_point(event.position):
 					return
 
 			var dunya_pos = get_global_mouse_position()
