@@ -947,7 +947,8 @@ func komut_menusu_komut_sec(komut: String) -> void:
 	if komut_menusu_hedef_birim == null:
 		komut_menusu_kapat()
 		return
-	secili_birim = komut_menusu_hedef_birim
+	command_system.select_unit(komut_menusu_hedef_birim)
+	secili_birim = command_system.get_selected_unit()
 	if komut == "saldir":
 		secili_birim["savunma_modunda"] = false
 		secili_birim["geri_cekiliyor"] = false
