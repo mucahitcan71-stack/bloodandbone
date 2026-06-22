@@ -2855,8 +2855,7 @@ func _input(event) -> void:
 			)
 		return
 
-	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if event.is_action_pressed("cmd_primary_click"):
 			if minimap_panel != null:
 				var surface = ui_node("MinimapSurface")
 				var hedef_rect = Rect2(
