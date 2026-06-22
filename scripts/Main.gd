@@ -1368,7 +1368,7 @@ func savas_paneli_olustur() -> void:
 	ui_system.add_battle_panel_element(env_baslik)
 
 	envanter_grid = GridContainer.new()
-	envanter_grid.columns = 6
+	envanter_grid.columns = 5
 	ui_system.add_battle_panel_element(envanter_grid)
 
 	envanter_adet_satiri = HBoxContainer.new()
@@ -1542,22 +1542,43 @@ func envanter_olustur() -> void:
 		var tip = grup["tip"]
 		var adet = (grup["indeksler"] as Array).size()
 		var btn = Button.new()
-		btn.text = str(tip.get("sembol", "•"))
-		btn.custom_minimum_size = Vector2(72, 42)
-		btn.clip_text = true
+		btn.text = ""
+		btn.custom_minimum_size = Vector2(100, 60)
 		btn.pressed.connect(func(): envanter_sec(anahtar))
 		var hover_tip = tip
 		btn.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
 		btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
+
+		var kart = VBoxContainer.new()
+		kart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		kart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		kart.alignment = BoxContainer.ALIGNMENT_CENTER
+
+		var isim_l = Label.new()
+		isim_l.text = str(tip.get("isim", "Birim"))
+		isim_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		isim_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		isim_l.add_theme_font_size_override("font_size", 11)
+
+		var alt_satir = HBoxContainer.new()
+		alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
+		alt_satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var sembol_l = Label.new()
+		sembol_l.text = str(tip.get("sembol", "•"))
+		sembol_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		sembol_l.add_theme_font_size_override("font_size", 13)
+
 		var adet_l = Label.new()
 		adet_l.text = "x" + str(adet)
 		adet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		adet_l.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		adet_l.offset_left = -28
-		adet_l.offset_top = 2
-		adet_l.offset_right = -2
-		adet_l.offset_bottom = 18
-		btn.add_child(adet_l)
+		adet_l.add_theme_font_size_override("font_size", 12)
+
+		alt_satir.add_child(sembol_l)
+		alt_satir.add_child(adet_l)
+		kart.add_child(isim_l)
+		kart.add_child(alt_satir)
+		btn.add_child(kart)
 		envanter_grid.add_child(btn)
 		envanter_butonlari.append(btn)
 
