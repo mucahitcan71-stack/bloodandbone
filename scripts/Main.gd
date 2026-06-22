@@ -2850,6 +2850,23 @@ func _bos_alan_nokta_secimini_dene(dunya_pos: Vector2) -> bool:
 			return true
 	return false
 
+func _tiklanan_birimi_bul(dunya_pos: Vector2) -> Dictionary:
+	var tiklanan_oyuncu = null
+	var tiklanan_dusman = null
+	for birim in aktif_birimler:
+		if birim["hp"] <= 0:
+			continue
+		var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
+		if not birim_rect.has_point(dunya_pos):
+			continue
+		if birim["taraf"] == "osmanli":
+			tiklanan_oyuncu = birim
+		else:
+			tiklanan_dusman = birim
+		if tiklanan_oyuncu != null:
+			break
+	return {"oyuncu": tiklanan_oyuncu, "dusman": tiklanan_dusman}
+
 func _input(event) -> void:
 	if oyun_bitti:
 		return
@@ -2898,20 +2915,9 @@ func _input(event) -> void:
 
 			var dunya_pos = get_global_mouse_position()
 			if not hazirlik_fazi:
-				var tiklanan_oyuncu = null
-				var tiklanan_dusman = null
-				for birim in aktif_birimler:
-					if birim["hp"] <= 0:
-						continue
-					var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
-					if not birim_rect.has_point(dunya_pos):
-						continue
-					if birim["taraf"] == "osmanli":
-						tiklanan_oyuncu = birim
-					else:
-						tiklanan_dusman = birim
-					if tiklanan_oyuncu != null:
-						break
+				var tiklama_sonucu = _tiklanan_birimi_bul(dunya_pos)
+				var tiklanan_oyuncu = tiklama_sonucu["oyuncu"]
+				var tiklanan_dusman = tiklama_sonucu["dusman"]
 
 				if tiklanan_oyuncu != null:
 					if secili_birim == tiklanan_oyuncu:
