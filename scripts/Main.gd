@@ -1491,7 +1491,7 @@ func _envanter_secim_ui_guncelle() -> void:
 	var secili_indeksler = _envanter_secili_grup_indeksleri()
 	var secili_toplam = secili_indeksler.size()
 	if envanter_adet_satiri != null:
-		envanter_adet_satiri.visible = secili_toplam > 0
+		envanter_adet_satiri.visible = false
 	if secili_toplam <= 0:
 		secili_envanter_idx = -1
 		secili_envanter_tip_anahtari = ""
@@ -1729,7 +1729,7 @@ func birim_haritadan_gonder(hedef_pos: Vector2) -> void:
 		return
 
 	hedef_pos = harita_sinirla(hedef_pos)
-	var adet = min(secili_envanter_gonder_adedi, secili_indeksler.size())
+	var adet = min(1, secili_indeksler.size())
 	var tip = _envanter_secili_tip()
 	secili_indeksler.sort()
 	for i in range(adet):
