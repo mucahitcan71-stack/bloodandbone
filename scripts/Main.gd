@@ -12,6 +12,8 @@ const HudStyle = preload("res://scripts/ui/hud_style.gd")
 const HudCommands = preload("res://scripts/ui/hud_commands.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 const MinimapController = preload("res://scripts/ui/minimap_controller.gd")
+const CameraController = preload("res://scripts/camera/camera_controller.gd")
+const InputRouter = preload("res://scripts/input/input_router.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -154,9 +156,8 @@ var takviye_sag_tik_menu: PanelContainer = null
 var takviye_sag_tik_secili_idx = -1
 var pan_aktif = false
 var kamera: Camera2D = null
-var zoom_min = 0.3
-var zoom_max = 1.5
-var zoom_hizi = 0.1
+var camera_controller: CameraController = CameraController.new()
+var input_router: InputRouter = InputRouter.new()
 var minimap_controller: MinimapController = MinimapController.new()
 var minimap_panel: PanelContainer = null
 var minimap_boyut = Vector2(206, 124)
@@ -402,36 +403,13 @@ func kamera_sinirla() -> void:
 	world_system.kamera_sinirla()
 
 func _kamera_kaydirmayi_uygula(delta: float) -> void:
-	if kamera == null:
-		return
-	var kamera_hizi = 800.0
-	var kenar_tetik_pikseli = 35.0
-	var kamera_yon = Vector2.ZERO
-
-	var mouse_pos = get_viewport().get_mouse_position()
-	var viewport_size = get_viewport().get_visible_rect().size
-	if mouse_pos.x < kenar_tetik_pikseli:
-		kamera_yon.x -= 1.0
-	elif mouse_pos.x > viewport_size.x - kenar_tetik_pikseli:
-		kamera_yon.x += 1.0
-	if mouse_pos.y < kenar_tetik_pikseli:
-		kamera_yon.y -= 1.0
-	elif mouse_pos.y > viewport_size.y - kenar_tetik_pikseli:
-		kamera_yon.y += 1.0
-
-	if Input.is_action_pressed("cmd_camera_up"):
-		kamera_yon.y -= 1.0
-	if Input.is_action_pressed("cmd_camera_down"):
-		kamera_yon.y += 1.0
-	if Input.is_action_pressed("cmd_camera_left"):
-		kamera_yon.x -= 1.0
-	if Input.is_action_pressed("cmd_camera_right"):
-		kamera_yon.x += 1.0
-
-	if kamera_yon != Vector2.ZERO:
-		kamera_yon = kamera_yon.normalized()
-		kamera.position += kamera_yon * kamera_hizi * delta
-		kamera_sinirla()
+	camera_controller.apply_pan(
+		kamera,
+		delta,
+		get_viewport().get_mouse_position(),
+		get_viewport().get_visible_rect().size,
+		Callable(self, "kamera_sinirla")
+	)
 
 func arazi_katmani_olustur() -> void:
 	world_system.arazi_katmani_olustur()
@@ -3260,27 +3238,13 @@ func _input(event) -> void:
 		komut_menusu_kapat()
 		return
 
-	if event is InputEventMouseMotion and pan_aktif:
-		if kamera != null:
-			kamera.position -= event.relative / kamera.zoom.x
-			kamera_sinirla()
-		return
-
-	if event.is_action_pressed("cmd_zoom_in"):
-		if kamera != null:
-			var yeni = kamera.zoom - Vector2(zoom_hizi, zoom_hizi)
-			kamera.zoom = Vector2(
-				clamp(yeni.x, zoom_min, zoom_max),
-				clamp(yeni.y, zoom_min, zoom_max)
-			)
-		return
-	if event.is_action_pressed("cmd_zoom_out"):
-		if kamera != null:
-			var yeni = kamera.zoom + Vector2(zoom_hizi, zoom_hizi)
-			kamera.zoom = Vector2(
-				clamp(yeni.x, zoom_min, zoom_max),
-				clamp(yeni.y, zoom_min, zoom_max)
-			)
+	if input_router.handle_camera_input(
+		event,
+		kamera,
+		camera_controller,
+		pan_aktif,
+		Callable(self, "kamera_sinirla")
+	):
 		return
 
 	if event.is_action_pressed("cmd_primary_click"):
