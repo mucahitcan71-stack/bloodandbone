@@ -161,7 +161,7 @@ var minimap_nokta_isaretleri = {}
 var minimap_fow_rect: TextureRect = null
 var minimap_fow_gorseli: Image = null
 var minimap_fow_doku: ImageTexture = null
-var minimap_boyut = Vector2(220, 132)
+var minimap_boyut = Vector2(206, 124)
 var ui_root: Control = null
 var ust_bilgi_paneli: HBoxContainer = null
 var yan_hud_tetik: PanelContainer = null
@@ -1110,10 +1110,12 @@ func minimap_olustur() -> void:
 		minimap_panel.name = "MinimapPanel"
 		minimap_panel.custom_minimum_size = minimap_boyut
 		var mini_stil = StyleBoxFlat.new()
-		mini_stil.bg_color = Color(0.08, 0.09, 0.11, 0.92)
-		mini_stil.border_color = Color(0.35, 0.32, 0.28, 0.6)
+		mini_stil.bg_color = Color(0.06, 0.08, 0.1, 0.9)
+		mini_stil.border_color = Color(0.4, 0.34, 0.24, 0.58)
 		mini_stil.set_border_width_all(1)
-		mini_stil.set_corner_radius_all(4)
+		mini_stil.set_corner_radius_all(5)
+		mini_stil.shadow_color = Color(0, 0, 0, 0.3)
+		mini_stil.shadow_size = 3
 		minimap_panel.add_theme_stylebox_override("panel", mini_stil)
 		ui_root.add_child(minimap_panel)
 	minimap_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -1126,17 +1128,17 @@ func minimap_olustur() -> void:
 	if minimap_margin == null:
 		minimap_margin = MarginContainer.new()
 		minimap_margin.name = "MinimapMargin"
-		minimap_margin.add_theme_constant_override("margin_left", 6)
-		minimap_margin.add_theme_constant_override("margin_right", 6)
-		minimap_margin.add_theme_constant_override("margin_top", 6)
-		minimap_margin.add_theme_constant_override("margin_bottom", 6)
+		minimap_margin.add_theme_constant_override("margin_left", 5)
+		minimap_margin.add_theme_constant_override("margin_right", 5)
+		minimap_margin.add_theme_constant_override("margin_top", 5)
+		minimap_margin.add_theme_constant_override("margin_bottom", 5)
 		minimap_panel.add_child(minimap_margin)
 
 	var minimap_surface = ui_node("MinimapSurface") as ColorRect
 	if minimap_surface == null:
 		minimap_surface = ColorRect.new()
 		minimap_surface.name = "MinimapSurface"
-		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(12, 12)
+		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(10, 10)
 		minimap_surface.color = Color(0.16, 0.22, 0.14, 0.95)
 		minimap_margin.add_child(minimap_surface)
 
@@ -1514,14 +1516,14 @@ func _savas_hud_wireframe_duzenle() -> void:
 
 	var alt_satir = HBoxContainer.new()
 	alt_satir.name = "SavasHudAltSatir"
-	alt_satir.add_theme_constant_override("separation", 8)
+	alt_satir.add_theme_constant_override("separation", 6)
 	alt_satir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hud_main.add_child(alt_satir)
 	ui_system.register_battle_panel_widget(alt_satir)
 
 	var sol_modul = PanelContainer.new()
 	sol_modul.name = "HudSolModul"
-	sol_modul.custom_minimum_size = Vector2(200, 102)
+	sol_modul.custom_minimum_size = Vector2(182, 96)
 	_hud_modul_stili_uygula(sol_modul)
 	alt_satir.add_child(sol_modul)
 	ui_system.register_battle_panel_widget(sol_modul)
@@ -1539,7 +1541,7 @@ func _savas_hud_wireframe_duzenle() -> void:
 
 	var orta_modul = PanelContainer.new()
 	orta_modul.name = "HudOrtaModul"
-	orta_modul.custom_minimum_size = Vector2(440, 102)
+	orta_modul.custom_minimum_size = Vector2(420, 96)
 	orta_modul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hud_modul_stili_uygula(orta_modul)
 	alt_satir.add_child(orta_modul)
@@ -1557,7 +1559,7 @@ func _savas_hud_wireframe_duzenle() -> void:
 
 	var sag_modul = PanelContainer.new()
 	sag_modul.name = "HudSagModul"
-	sag_modul.custom_minimum_size = Vector2(140, 102)
+	sag_modul.custom_minimum_size = Vector2(132, 96)
 	_hud_modul_stili_uygula(sag_modul)
 	alt_satir.add_child(sag_modul)
 	ui_system.register_battle_panel_widget(sag_modul)
@@ -1569,7 +1571,7 @@ func _savas_hud_wireframe_duzenle() -> void:
 	sag_modul.add_child(sag_margin)
 	var sag_vbox = VBoxContainer.new()
 	sag_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	sag_vbox.add_theme_constant_override("separation", 6)
+	sag_vbox.add_theme_constant_override("separation", 5)
 	sag_margin.add_child(sag_vbox)
 	var komut_baslik = Label.new()
 	komut_baslik.text = "KOMUT"
@@ -1579,8 +1581,8 @@ func _savas_hud_wireframe_duzenle() -> void:
 	sag_vbox.add_child(komut_baslik)
 	var komut_grid = GridContainer.new()
 	komut_grid.columns = 3
-	komut_grid.add_theme_constant_override("h_separation", 4)
-	komut_grid.add_theme_constant_override("v_separation", 4)
+	komut_grid.add_theme_constant_override("h_separation", 3)
+	komut_grid.add_theme_constant_override("v_separation", 3)
 	sag_vbox.add_child(komut_grid)
 	hud_komut_butonlari.clear()
 	var komutler = [
@@ -1593,7 +1595,7 @@ func _savas_hud_wireframe_duzenle() -> void:
 	]
 	for komut in komutler:
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(30, 28)
+		btn.custom_minimum_size = Vector2(28, 26)
 		btn.text = str(komut["text"])
 		var komut_id = str(komut["id"])
 		btn.pressed.connect(func(): _komut_paneli_buton_tiklandi(komut_id))
@@ -1617,61 +1619,68 @@ func _savas_sag_bolum_duzenle() -> void:
 		panel_sag_log_hiz.name = "PanelSagLogHiz"
 		ui_root.add_child(panel_sag_log_hiz)
 	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	panel_sag_log_hiz.mouse_filter = Control.MOUSE_FILTER_STOP
 	panel_sag_log_hiz.offset_left = -340
-	panel_sag_log_hiz.offset_top = -236
+	panel_sag_log_hiz.offset_top = -224
 	panel_sag_log_hiz.offset_right = -12
 	panel_sag_log_hiz.offset_bottom = -8
 	_sag_hud_panel_stili_uygula(panel_sag_log_hiz)
 	for c in panel_sag_log_hiz.get_children():
 		c.queue_free()
 	var log_margin = MarginContainer.new()
-	log_margin.add_theme_constant_override("margin_left", 10)
-	log_margin.add_theme_constant_override("margin_right", 10)
-	log_margin.add_theme_constant_override("margin_top", 8)
-	log_margin.add_theme_constant_override("margin_bottom", 8)
+	log_margin.add_theme_constant_override("margin_left", 9)
+	log_margin.add_theme_constant_override("margin_right", 9)
+	log_margin.add_theme_constant_override("margin_top", 7)
+	log_margin.add_theme_constant_override("margin_bottom", 7)
 	panel_sag_log_hiz.add_child(log_margin)
 	var log_vbox = VBoxContainer.new()
-	log_vbox.add_theme_constant_override("separation", 5)
+	log_vbox.add_theme_constant_override("separation", 4)
 	log_margin.add_child(log_vbox)
 	var savas_baslik = Label.new()
 	savas_baslik.text = "SAVAS"
 	savas_baslik.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	savas_baslik.add_theme_font_size_override("font_size", 10)
+	savas_baslik.add_theme_font_size_override("font_size", 9)
 	savas_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	savas_baslik.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(savas_baslik)
 	log_vbox.add_child(HSeparator.new())
 	label_sag_osmanli = Label.new()
 	label_sag_osmanli.text = "Skor OSM 0/0 • ROM 0/0"
-	label_sag_osmanli.add_theme_font_size_override("font_size", 9)
+	label_sag_osmanli.add_theme_font_size_override("font_size", 8)
 	label_sag_osmanli.add_theme_color_override("font_color", Color(0.92, 0.78, 0.3))
+	label_sag_osmanli.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(label_sag_osmanli)
 	label_sag_roma = Label.new()
 	label_sag_roma.text = "Moral OSM 0 • ROM 0"
-	label_sag_roma.add_theme_font_size_override("font_size", 9)
+	label_sag_roma.add_theme_font_size_override("font_size", 8)
 	label_sag_roma.add_theme_color_override("font_color", Color(0.78, 0.68, 0.95))
+	label_sag_roma.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(label_sag_roma)
 	var puan_hedef = Label.new()
 	puan_hedef.text = "Hedef Puan: " + str(kazanma_puani)
-	puan_hedef.add_theme_font_size_override("font_size", 9)
+	puan_hedef.add_theme_font_size_override("font_size", 8)
 	puan_hedef.add_theme_color_override("font_color", Color(0.82, 0.83, 0.8))
+	puan_hedef.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(puan_hedef)
 	var log_baslik = Label.new()
 	log_baslik.text = "BILDIRIM"
-	log_baslik.add_theme_font_size_override("font_size", 9)
+	log_baslik.add_theme_font_size_override("font_size", 8)
 	log_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	log_baslik.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(log_baslik)
 	log_vbox.add_child(HSeparator.new())
 	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
 	if savas_bilgi != null:
 		savas_bilgi.reparent(log_vbox)
-		savas_bilgi.add_theme_font_size_override("font_size", 9)
+		savas_bilgi.add_theme_font_size_override("font_size", 8)
 		savas_bilgi.add_theme_color_override("font_color", Color(0.87, 0.88, 0.84))
+		savas_bilgi.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var hiz_satir = HBoxContainer.new()
 	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
 	log_vbox.add_child(hiz_satir)
 	var hiz_btn = ui_node("HizBtn") as Button
 	if hiz_btn != null:
-		hiz_btn.custom_minimum_size = Vector2(96, 28)
+		hiz_btn.custom_minimum_size = Vector2(92, 26)
 		hiz_btn.reparent(hiz_satir)
 	panel_sag_log_hiz.visible = false
 

@@ -607,12 +607,13 @@ func _ensure_ust_bilgi_bari() -> void:
 	ust_bilgi_bari.offset_left = 0
 	ust_bilgi_bari.offset_top = 0
 	ust_bilgi_bari.offset_right = 0
-	ust_bilgi_bari.offset_bottom = 40
+	ust_bilgi_bari.offset_bottom = 38
 	ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bar_style = StyleBoxFlat.new()
-	bar_style.bg_color = Color(0.07, 0.08, 0.1, 0.93)
-	bar_style.border_color = Color(0.42, 0.35, 0.24, 0.65)
+	bar_style.bg_color = Color(0.06, 0.08, 0.1, 0.9)
+	bar_style.border_color = Color(0.4, 0.34, 0.24, 0.58)
 	bar_style.set_border_width_all(1)
+	bar_style.set_corner_radius_all(5)
 	bar_style.shadow_color = Color(0, 0, 0, 0.35)
 	bar_style.shadow_size = 3
 	ust_bilgi_bari.add_theme_stylebox_override("panel", bar_style)
@@ -620,10 +621,10 @@ func _ensure_ust_bilgi_bari() -> void:
 		c.queue_free()
 	var bar_margin = MarginContainer.new()
 	bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar_margin.add_theme_constant_override("margin_left", 10)
-	bar_margin.add_theme_constant_override("margin_right", 10)
-	bar_margin.add_theme_constant_override("margin_top", 5)
-	bar_margin.add_theme_constant_override("margin_bottom", 5)
+	bar_margin.add_theme_constant_override("margin_left", 9)
+	bar_margin.add_theme_constant_override("margin_right", 9)
+	bar_margin.add_theme_constant_override("margin_top", 4)
+	bar_margin.add_theme_constant_override("margin_bottom", 4)
 	ust_bilgi_bari.add_child(bar_margin)
 	var bar_row = HBoxContainer.new()
 	bar_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -632,7 +633,7 @@ func _ensure_ust_bilgi_bari() -> void:
 	logo_label.name = "Label_UstLogo"
 	logo_label.text = "BLOOD & BONE"
 	logo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	logo_label.add_theme_font_size_override("font_size", 13)
+	logo_label.add_theme_font_size_override("font_size", 12)
 	logo_label.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
 	logo_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar_row.add_child(logo_label)
@@ -641,6 +642,7 @@ func _ensure_ust_bilgi_bari() -> void:
 	ust_bilgi_kaynak_label.text = "30🪙 | G0 M100 | Acik | U0%"
 	ust_bilgi_kaynak_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ust_bilgi_kaynak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ust_bilgi_kaynak_label.add_theme_font_size_override("font_size", 10)
 	ust_bilgi_kaynak_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
 	bar_row.add_child(ust_bilgi_kaynak_label)
 
@@ -655,36 +657,38 @@ func _ensure_hedefler_paneli() -> void:
 	hedefler_paneli.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	hedefler_paneli.offset_left = 12
 	hedefler_paneli.offset_top = 52
-	hedefler_paneli.offset_right = 272
-	hedefler_paneli.offset_bottom = 192
+	hedefler_paneli.offset_right = 254
+	hedefler_paneli.offset_bottom = 176
 	hedefler_paneli.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var hedef_style = StyleBoxFlat.new()
-	hedef_style.bg_color = Color(0.06, 0.08, 0.1, 0.88)
-	hedef_style.border_color = Color(0.4, 0.34, 0.24, 0.6)
+	hedef_style.bg_color = Color(0.06, 0.08, 0.1, 0.9)
+	hedef_style.border_color = Color(0.4, 0.34, 0.24, 0.58)
 	hedef_style.set_border_width_all(1)
+	hedef_style.set_corner_radius_all(5)
 	hedef_style.shadow_color = Color(0, 0, 0, 0.3)
 	hedef_style.shadow_size = 3
 	hedefler_paneli.add_theme_stylebox_override("panel", hedef_style)
 	for c in hedefler_paneli.get_children():
 		c.queue_free()
 	var hedef_margin = MarginContainer.new()
-	hedef_margin.add_theme_constant_override("margin_left", 10)
-	hedef_margin.add_theme_constant_override("margin_right", 10)
-	hedef_margin.add_theme_constant_override("margin_top", 8)
-	hedef_margin.add_theme_constant_override("margin_bottom", 8)
+	hedef_margin.add_theme_constant_override("margin_left", 8)
+	hedef_margin.add_theme_constant_override("margin_right", 8)
+	hedef_margin.add_theme_constant_override("margin_top", 7)
+	hedef_margin.add_theme_constant_override("margin_bottom", 7)
 	hedefler_paneli.add_child(hedef_margin)
 	var hedef_vbox = VBoxContainer.new()
+	hedef_vbox.add_theme_constant_override("separation", 4)
 	hedef_margin.add_child(hedef_vbox)
 	var baslik = Label.new()
 	baslik.text = "HEDEFLER"
-	baslik.add_theme_font_size_override("font_size", 12)
+	baslik.add_theme_font_size_override("font_size", 11)
 	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
 	hedef_vbox.add_child(baslik)
 	hedefler_label = Label.new()
 	hedefler_label.name = "Label_HedeflerIcerik"
 	hedefler_label.text = "• Tum dusman birliklerini etkisiz hale getir\n• Gizli gecidi ele gecir\n• Ana karargahi koru"
 	hedefler_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hedefler_label.add_theme_font_size_override("font_size", 10)
+	hedefler_label.add_theme_font_size_override("font_size", 9)
 	hedefler_label.add_theme_color_override("font_color", Color(0.88, 0.89, 0.86))
 	hedef_vbox.add_child(hedefler_label)
 
@@ -700,7 +704,7 @@ func _savas_panel_alt_konumla() -> void:
 		return
 	savas_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	savas_panel_root.offset_left = 12
-	savas_panel_root.offset_top = -170
+	savas_panel_root.offset_top = -156
 	savas_panel_root.offset_right = -12
 	savas_panel_root.offset_bottom = -8
 	if savas_panel_root.get_theme_stylebox("panel") == null:
@@ -708,12 +712,12 @@ func _savas_panel_alt_konumla() -> void:
 
 func _uygula_panel_stili(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.09, 0.1, 0.12, 0.9)
-	stil.border_color = Color(0.38, 0.34, 0.28, 0.55)
+	stil.bg_color = Color(0.07, 0.09, 0.11, 0.9)
+	stil.border_color = Color(0.4, 0.34, 0.24, 0.55)
 	stil.set_border_width_all(1)
-	stil.set_corner_radius_all(6)
+	stil.set_corner_radius_all(5)
 	stil.shadow_color = Color(0, 0, 0, 0.35)
-	stil.shadow_size = 4
+	stil.shadow_size = 3
 	panel.add_theme_stylebox_override("panel", stil)
 
 func _apply_font_size(node: Node, font_size: int) -> void:
