@@ -155,7 +155,6 @@ var komut_menusu_panel: PanelContainer = null
 var komut_menusu_hedef_birim = null
 var takviye_sag_tik_menu: PanelContainer = null
 var takviye_sag_tik_secili_idx = -1
-var pan_aktif = false
 var kamera: Camera2D = null
 var camera_controller: CameraController = CameraController.new()
 var input_router: InputRouter = InputRouter.new()
@@ -164,7 +163,6 @@ var minimap_controller: MinimapController = MinimapController.new()
 var minimap_panel: PanelContainer = null
 var minimap_boyut = Vector2(206, 124)
 var ui_root: Control = null
-var ust_bilgi_paneli: HBoxContainer = null
 var yan_hud_tetik: PanelContainer = null
 var yan_hud_panel: PanelContainer = null
 var yan_hud_icerik: VBoxContainer = null
@@ -174,21 +172,10 @@ var hazirlik_tabs_row: HBoxContainer = null
 var hazirlik_tabs_content: VBoxContainer = null
 var hazirlik_tab_container_map = {}
 var savas_panel_root: PanelContainer = null
-var savas_icerik_vbox: VBoxContainer = null
 var envanter_scroll: ScrollContainer = null
 var envanter_grid: GridContainer = null
 var mevcut_hiz_carpani = 1.0
 var hiz_tek_btn: Button = null
-var takviye_liste_satiri: HBoxContainer = null
-var takviye_baslik_label: Label = null
-var takviye_toggle_satir: HBoxContainer = null
-var takviye_adet_satiri: HBoxContainer = null
-var takviye_butonlari = []
-var takviye_secili_idx = 0
-var takviye_secili_adet = 1
-var takviye_adet_label: Label = null
-var takviye_toplu_btn: Button = null
-var panel_sag_savas_bilgi: PanelContainer = null
 var panel_sag_log_hiz: PanelContainer = null
 var label_sag_osmanli: Label = null
 var label_sag_roma: Label = null
@@ -342,12 +329,10 @@ func _ui_system_hazirla() -> void:
 
 func _ui_refs_sync() -> void:
 	ui_root = ui_system.get_ui_root()
-	ust_bilgi_paneli = ui_system.get_ust_bilgi_paneli()
 	hazirlik_panel_root = ui_system.get_hazirlik_panel_root()
 	hazirlik_tabs_row = ui_system.get_hazirlik_tabs_row()
 	hazirlik_tabs_content = ui_system.get_hazirlik_tabs_content()
 	savas_panel_root = ui_system.get_savas_panel_root()
-	savas_icerik_vbox = ui_system.get_savas_icerik_vbox()
 	yan_hud_tetik = ui_system.get_yan_hud_tetik()
 	yan_hud_panel = ui_system.get_yan_hud_panel()
 	yan_hud_icerik = ui_system.get_yan_hud_icerik()
@@ -640,71 +625,6 @@ func _envanter_kart_genislik_hesapla() -> float:
 		if parent is Control and (parent as Control).size.x > 0.0:
 			alan = (parent as Control).size.x - 12.0
 	return HudInventory.calculate_card_width(kart_sayisi, alan)
-
-func takviye_gorunurluk_guncelle(acik: bool) -> void:
-	if takviye_liste_satiri != null:
-		takviye_liste_satiri.visible = false
-	if takviye_adet_satiri != null:
-		takviye_adet_satiri.visible = false
-
-func takviye_ui_guncelle() -> void:
-	if takviye_butonlari.is_empty():
-		return
-	for i in range(takviye_butonlari.size()):
-		var btn = takviye_butonlari[i]
-		if is_instance_valid(btn):
-			btn.modulate = Color(1.35, 1.35, 1.0) if i == takviye_secili_idx else Color(1, 1, 1)
-	var tip = osmanli_birim_tipleri[takviye_secili_idx]
-	var maliyet = int(tip["maliyet"])
-	var alinabilir = int(osmanli_altini / max(1, maliyet))
-	takviye_secili_adet = clampi(takviye_secili_adet, 1, max(1, alinabilir))
-	if takviye_adet_label != null:
-		takviye_adet_label.text = "x" + str(takviye_secili_adet)
-	if takviye_toplu_btn != null:
-		takviye_toplu_btn.text = "Toplu Ekle (" + str(takviye_secili_adet * maliyet) + "🪙)"
-
-func takviye_birim_sec(idx: int) -> void:
-	if idx < 0 or idx >= osmanli_birim_tipleri.size():
-		return
-	takviye_secili_idx = idx
-	takviye_secili_adet = 1
-	takviye_ui_guncelle()
-
-func takviye_adet_degistir(delta: int) -> void:
-	var tip = osmanli_birim_tipleri[takviye_secili_idx]
-	var maliyet = int(tip["maliyet"])
-	var alinabilir = max(1, int(osmanli_altini / max(1, maliyet)))
-	takviye_secili_adet = clampi(takviye_secili_adet + delta, 1, alinabilir)
-	takviye_ui_guncelle()
-
-func takviye_toplu_ekle() -> void:
-	var tip = osmanli_birim_tipleri[takviye_secili_idx]
-	var maliyet = int(tip["maliyet"])
-	var alinabilir = int(osmanli_altini / max(1, maliyet))
-	var adet = min(takviye_secili_adet, alinabilir)
-	if adet <= 0:
-		var s0 = ui_node("Label_SavasBilgi")
-		if s0 != null:
-			s0.text = "Yeterli altin yok!"
-		return
-	osmanli_altini -= maliyet * adet
-	mac_istatistik["osmanli"]["altin_harcama"] += maliyet * adet
-	for i in range(adet):
-		envanter.append(tip.duplicate())
-	envanter_olustur()
-	var s1 = ui_node("Label_SavasBilgi")
-	if s1 != null:
-		s1.text = str(adet) + " " + tip["isim"] + " envantere eklendi"
-	ui_guncelle()
-
-func _yan_hud_goster() -> void:
-	ui_system.show_side_hud()
-
-func _yan_hud_kaybol_zamanla() -> void:
-	ui_system.schedule_side_hud_hide()
-
-func _yan_hud_kaybet() -> void:
-	ui_system.hide_side_hud()
 
 func _yan_hud_hazirla() -> void:
 	ui_system.build_side_hud()
@@ -1114,9 +1034,6 @@ func birim_detay_popup_olustur() -> void:
 func _birim_detay_popup_konumla() -> void:
 	ui_system.reposition_unit_detail_popup()
 
-func _birim_detay_popup_goster(metin: String) -> void:
-	ui_system.show_unit_detail_popup(metin)
-
 func birim_detay_hover_basla(tip: Dictionary) -> void:
 	ui_system.begin_unit_detail_hover(tip)
 
@@ -1160,9 +1077,6 @@ func birim_detay_metni(tip: Dictionary) -> String:
 		guclu,
 		zayif
 	]
-
-func birim_detay_goster(tip: Dictionary) -> void:
-	birim_detay_hover_bitir()
 
 func kart_secenekleri_hazirla() -> void:
 	var eski_satir = ui_node("KartSecimSatiri")
@@ -1295,7 +1209,6 @@ func _savas_hud_wireframe_duzenle() -> void:
 
 func _savas_sag_bolum_duzenle() -> void:
 	var result = hud_composer.compose_right_panel(ui_root, Callable(self, "ui_node"), kazanma_puani)
-	panel_sag_savas_bilgi = null
 	panel_sag_log_hiz = result.get("panel_sag_log_hiz")
 	label_sag_osmanli = result.get("label_sag_osmanli")
 	label_sag_roma = result.get("label_sag_roma")
@@ -1332,81 +1245,6 @@ func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()
 	ui_system.build_battle_panel_skeleton(func(): ult_kullan("osmanli"))
 	_ui_refs_sync()
-
-	var satin_baslik = Label.new()
-	satin_baslik.text = "Takviye:"
-	satin_baslik.visible = false
-	ui_system.add_battle_panel_element(satin_baslik)
-	takviye_baslik_label = satin_baslik
-
-	var satin_toggle_satir = HBoxContainer.new()
-	satin_toggle_satir.visible = false
-	ui_system.add_battle_panel_element(satin_toggle_satir)
-	takviye_toggle_satir = satin_toggle_satir
-
-	var satin_toggle_btn = Button.new()
-	satin_toggle_btn.text = "Birim Ekle"
-	satin_toggle_btn.custom_minimum_size = Vector2(120, 28)
-	satin_toggle_btn.pressed.connect(func():
-		var yeni = not (takviye_liste_satiri != null and takviye_liste_satiri.visible)
-		takviye_gorunurluk_guncelle(yeni)
-	)
-	satin_toggle_satir.add_child(satin_toggle_btn)
-	ui_system.register_battle_panel_widget(satin_toggle_btn)
-
-	takviye_liste_satiri = HBoxContainer.new()
-	takviye_liste_satiri.visible = false
-	ui_system.add_battle_panel_element(takviye_liste_satiri)
-	takviye_butonlari.clear()
-	for i in range(osmanli_birim_tipleri.size()):
-		var tip = osmanli_birim_tipleri[i]
-		var btn = Button.new()
-		btn.text = tip["sembol"] + " " + str(tip["maliyet"]) + "🪙"
-		btn.custom_minimum_size = Vector2(78, 28)
-		var idx = i
-		btn.pressed.connect(func(): takviye_birim_sec(idx))
-		var hover_tip = tip
-		btn.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-		btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
-		takviye_liste_satiri.add_child(btn)
-		takviye_butonlari.append(btn)
-		ui_system.register_battle_panel_widget(btn)
-
-	takviye_adet_satiri = HBoxContainer.new()
-	takviye_adet_satiri.visible = false
-	ui_system.add_battle_panel_element(takviye_adet_satiri)
-	var satin_adet_baslik = Label.new()
-	satin_adet_baslik.text = "Adet:"
-	takviye_adet_satiri.add_child(satin_adet_baslik)
-	ui_system.register_battle_panel_widget(satin_adet_baslik)
-	var satin_eksi = Button.new()
-	satin_eksi.text = "-"
-	satin_eksi.custom_minimum_size = Vector2(26, 26)
-	satin_eksi.pressed.connect(func(): takviye_adet_degistir(-1))
-	takviye_adet_satiri.add_child(satin_eksi)
-	ui_system.register_battle_panel_widget(satin_eksi)
-	takviye_adet_label = Label.new()
-	takviye_adet_label.text = "x1"
-	takviye_adet_satiri.add_child(takviye_adet_label)
-	ui_system.register_battle_panel_widget(takviye_adet_label)
-	var satin_arti = Button.new()
-	satin_arti.text = "+"
-	satin_arti.custom_minimum_size = Vector2(26, 26)
-	satin_arti.pressed.connect(func(): takviye_adet_degistir(1))
-	takviye_adet_satiri.add_child(satin_arti)
-	ui_system.register_battle_panel_widget(satin_arti)
-	takviye_toplu_btn = Button.new()
-	takviye_toplu_btn.text = "Toplu Ekle"
-	takviye_toplu_btn.custom_minimum_size = Vector2(120, 26)
-	takviye_toplu_btn.pressed.connect(func(): takviye_toplu_ekle())
-	takviye_adet_satiri.add_child(takviye_toplu_btn)
-	ui_system.register_battle_panel_widget(takviye_toplu_btn)
-	takviye_ui_guncelle()
-
-	satin_baslik.visible = false
-	satin_toggle_satir.visible = false
-	takviye_liste_satiri.visible = false
-	takviye_adet_satiri.visible = false
 
 	var env_baslik = Label.new()
 	env_baslik.name = "Label_Envanter"
@@ -1695,7 +1533,7 @@ func envanter_sec(anahtar: String) -> void:
 	command_system.select_unit(null)
 	secili_birim = command_system.get_selected_unit()
 	var tip = envanter_gruplari[anahtar]["tip"]
-	birim_detay_goster(tip)
+	birim_detay_hover_bitir()
 	var s = ui_node("Label_SavasBilgi")
 	if s != null:
 		var adet = _envanter_secili_grup_indeksleri().size()
@@ -1969,8 +1807,6 @@ func hazirlik_baslat() -> void:
 			el.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = false
-	if panel_sag_savas_bilgi != null:
-		panel_sag_savas_bilgi.visible = false
 	if panel_sag_log_hiz != null:
 		panel_sag_log_hiz.visible = false
 	komut_sec("hareket")
@@ -2024,17 +1860,9 @@ func savas_baslat() -> void:
 	for el in savas_paneli:
 		if is_instance_valid(el):
 			el.visible = true
-	if takviye_baslik_label != null:
-		takviye_baslik_label.visible = false
-	if takviye_toggle_satir != null:
-		takviye_toggle_satir.visible = false
-	if takviye_liste_satiri != null:
-		takviye_liste_satiri.visible = false
 	var nokta_plus = ui_node("NoktaPlusGrup")
 	if nokta_plus != null:
 		nokta_plus.visible = false
-	if takviye_adet_satiri != null:
-		takviye_adet_satiri.visible = false
 	if envanter_adet_satiri != null:
 		envanter_adet_satiri.visible = false
 	var savas_kaynak = ui_node("SavasKaynakSatir")
@@ -2042,8 +1870,6 @@ func savas_baslat() -> void:
 		savas_kaynak.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = true
-	if panel_sag_savas_bilgi != null:
-		panel_sag_savas_bilgi.visible = true
 	if panel_sag_log_hiz != null:
 		panel_sag_log_hiz.visible = true
 	if is_instance_valid(gorus_hucre_katmani):
@@ -2262,7 +2088,7 @@ func birim_tikla(birim: Dictionary) -> void:
 		return
 	_command_refs_sync()
 	_command_status_line_uygula(result)
-	birim_detay_goster(birim)
+	birim_detay_hover_bitir()
 	if result.get("deselect_inventory", false):
 		secili_envanter_idx = -1
 		secili_envanter_tip_anahtari = ""
@@ -2387,7 +2213,6 @@ func _process(delta: float) -> void:
 	ai_birimleri_guncelle(delta)
 	istatistik_nokta_sure_guncelle(delta)
 	pusu_tetik_kontrolu()
-	savas_sisi_guncelle()
 	nokta_gorunurluklerini_guncelle()
 	birim_gorunurluklerini_guncelle()
 
@@ -2951,7 +2776,6 @@ func _hud_snapshot_olustur() -> Dictionary:
 
 func ui_guncelle() -> void:
 	ui_system.update_hud(_hud_snapshot_olustur())
-	takviye_ui_guncelle()
 	_komut_paneli_guncelle()
 	if label_sag_osmanli != null:
 		label_sag_osmanli.text = "Skor OSM " + str(osmanli_puani) + "/" + str(kazanma_puani) + " • ROM " + str(dogu_roma_puani) + "/" + str(kazanma_puani)
@@ -3074,13 +2898,7 @@ func _input(event) -> void:
 		komut_menusu_kapat()
 		return
 
-	if input_router.handle_camera_input(
-		event,
-		kamera,
-		camera_controller,
-		pan_aktif,
-		Callable(self, "kamera_sinirla")
-	):
+	if input_router.handle_camera_input(event, kamera, camera_controller):
 		return
 
 	if event.is_action_pressed("cmd_primary_click"):
