@@ -191,6 +191,7 @@ var panel_sag_savas_bilgi: PanelContainer = null
 var panel_sag_log_hiz: PanelContainer = null
 var label_sag_osmanli: Label = null
 var label_sag_roma: Label = null
+var hud_komut_butonlari = {}
 
 # === SAVAS SISI / KESIF / PUSU ===
 var gorus_hucre_boyutu = 40.0
@@ -1457,6 +1458,40 @@ func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
 	stil.shadow_size = 4
 	panel.add_theme_stylebox_override("panel", stil)
 
+func _komut_paneli_buton_tiklandi(komut_id: String) -> void:
+	if komut_id == "savun":
+		if secili_birim != null:
+			birim_nokta_savun(secili_birim)
+		return
+	if komut_id == "geri_cekil":
+		if secili_birim != null:
+			birim_geri_cekil_baslat(secili_birim)
+		return
+	if komut_id == "ult":
+		ult_kullan("osmanli")
+		return
+	komut_sec(komut_id)
+
+func _komut_paneli_guncelle() -> void:
+	if hud_komut_butonlari.is_empty():
+		return
+	var secili_var = secili_birim != null
+	for komut_id in hud_komut_butonlari:
+		var btn = hud_komut_butonlari[komut_id] as Button
+		if btn == null:
+			continue
+		var secim_gerektirir = komut_id in ["saldir", "pusu", "savun", "geri_cekil"]
+		btn.disabled = secim_gerektirir and not secili_var
+		if btn.disabled:
+			btn.modulate = Color(0.7, 0.7, 0.72, 0.65)
+			continue
+		if komut_id in ["hareket", "saldir", "pusu"] and secili_komut == komut_id:
+			btn.modulate = Color(1.22, 1.16, 0.92, 1.0)
+		elif komut_id == "ult" and ult_sarj["osmanli"] >= 100.0:
+			btn.modulate = Color(1.18, 1.12, 0.78, 1.0)
+		else:
+			btn.modulate = Color(1, 1, 1, 1)
+
 func _savas_hud_wireframe_duzenle() -> void:
 	var savas_icerik = ui_node("SavasIcerik") as VBoxContainer
 	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
@@ -1536,12 +1571,37 @@ func _savas_hud_wireframe_duzenle() -> void:
 	sag_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	sag_vbox.add_theme_constant_override("separation", 6)
 	sag_margin.add_child(sag_vbox)
+	var komut_baslik = Label.new()
+	komut_baslik.text = "KOMUT"
+	komut_baslik.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	komut_baslik.add_theme_font_size_override("font_size", 9)
+	komut_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	sag_vbox.add_child(komut_baslik)
+	var komut_grid = GridContainer.new()
+	komut_grid.columns = 3
+	komut_grid.add_theme_constant_override("h_separation", 4)
+	komut_grid.add_theme_constant_override("v_separation", 4)
+	sag_vbox.add_child(komut_grid)
+	hud_komut_butonlari.clear()
+	var komutler = [
+		{"id": "hareket", "text": "↔"},
+		{"id": "saldir", "text": "⚔"},
+		{"id": "pusu", "text": "🌲"},
+		{"id": "savun", "text": "🛡"},
+		{"id": "geri_cekil", "text": "↩"},
+		{"id": "ult", "text": "★"},
+	]
+	for komut in komutler:
+		var btn = Button.new()
+		btn.custom_minimum_size = Vector2(30, 28)
+		btn.text = str(komut["text"])
+		var komut_id = str(komut["id"])
+		btn.pressed.connect(func(): _komut_paneli_buton_tiklandi(komut_id))
+		komut_grid.add_child(btn)
+		hud_komut_butonlari[komut_id] = btn
 	if ult_btn != null:
-		ult_btn.custom_minimum_size = Vector2(96, 28)
-		ult_btn.reparent(sag_vbox)
-	if hiz_btn != null:
-		hiz_btn.custom_minimum_size = Vector2(96, 28)
-		hiz_btn.reparent(sag_vbox)
+		ult_btn.visible = false
+	_komut_paneli_guncelle()
 
 func _savas_sag_bolum_duzenle() -> void:
 	if ui_root == null:
@@ -3256,6 +3316,7 @@ func _hud_snapshot_olustur() -> Dictionary:
 func ui_guncelle() -> void:
 	ui_system.update_hud(_hud_snapshot_olustur())
 	takviye_ui_guncelle()
+	_komut_paneli_guncelle()
 	if label_sag_osmanli != null:
 		label_sag_osmanli.text = "OSM " + str(osmanli_puani) + "/" + str(kazanma_puani) + "  •  M" + str(int(taraf_moral["osmanli"]))
 	if label_sag_roma != null:
