@@ -178,6 +178,8 @@ var envanter_grid: GridContainer = null
 var mevcut_hiz_carpani = 1.0
 var hiz_tek_btn: Button = null
 var takviye_liste_satiri: HBoxContainer = null
+var takviye_baslik_label: Label = null
+var takviye_toggle_satir: HBoxContainer = null
 var takviye_adet_satiri: HBoxContainer = null
 var takviye_butonlari = []
 var takviye_secili_idx = 0
@@ -646,7 +648,7 @@ func _envanter_anahtari(tip: Dictionary) -> String:
 
 func takviye_gorunurluk_guncelle(acik: bool) -> void:
 	if takviye_liste_satiri != null:
-		takviye_liste_satiri.visible = acik
+		takviye_liste_satiri.visible = false
 	if takviye_adet_satiri != null:
 		takviye_adet_satiri.visible = false
 
@@ -1420,10 +1422,14 @@ func savas_paneli_olustur() -> void:
 
 	var satin_baslik = Label.new()
 	satin_baslik.text = "Takviye:"
+	satin_baslik.visible = false
 	ui_system.add_battle_panel_element(satin_baslik)
+	takviye_baslik_label = satin_baslik
 
 	var satin_toggle_satir = HBoxContainer.new()
+	satin_toggle_satir.visible = false
 	ui_system.add_battle_panel_element(satin_toggle_satir)
+	takviye_toggle_satir = satin_toggle_satir
 
 	var satin_toggle_btn = Button.new()
 	satin_toggle_btn.text = "Birim Ekle"
@@ -2074,6 +2080,12 @@ func savas_baslat() -> void:
 	for el in savas_paneli:
 		if is_instance_valid(el):
 			el.visible = true
+	if takviye_baslik_label != null:
+		takviye_baslik_label.visible = false
+	if takviye_toggle_satir != null:
+		takviye_toggle_satir.visible = false
+	if takviye_liste_satiri != null:
+		takviye_liste_satiri.visible = false
 	var nokta_plus = ui_node("NoktaPlusGrup")
 	if nokta_plus != null:
 		nokta_plus.visible = false
