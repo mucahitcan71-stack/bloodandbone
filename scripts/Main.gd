@@ -192,20 +192,7 @@ var label_sag_roma: Label = null
 var hud_komut_butonlari = {}
 
 # === SAVAS SISI / KESIF / PUSU ===
-var gorus_hucre_boyutu = 40.0
-var kesfedilen_alanlar = {}
-var su_anki_gorus_alani = {}
-var ai_su_anki_gorus_alani = {}
-var gorus_hucre_katmani: Control = null
-var gorus_hucreleri = {}
-var kesfedilen_noktalar = {}
 var nokta_son_bilgi = {}
-var dusman_son_gorulen_konum = {}
-var dusman_hayalet_ikonlari = {}
-var hayalet_ikon_suresi = 4.0
-var normal_birim_gorus_bonus = 30.0
-var kontrol_noktasi_gorus_yaricapi = 100.0
-var kesif_tespit_esigi = 135.0
 var pusu_ilk_saldiri_carpani = 2.0
 var birim_id_sayaci = 1
 var orman_bolgeleri: Array = []
@@ -287,8 +274,7 @@ func _world_system_hazirla() -> void:
 	world_system = WorldSystem.new()
 	world_system.configure(self)
 	world_system.set_on_map_applied(func():
-		if is_instance_valid(gorus_hucre_katmani):
-			savas_sisi_hucrelerini_sifirla()
+		fog_system.reset_fog_on_map_change()
 	)
 	world_system.set_on_map_visuals_extra(func():
 		var positions = world_system.get_point_positions()
@@ -313,21 +299,6 @@ func _world_refs_sync() -> void:
 func _fog_system_hazirla() -> void:
 	fog_system = FogSystem.new()
 	fog_system.configure(self, world_system)
-	_fog_refs_sync()
-
-func _fog_refs_sync() -> void:
-	gorus_hucre_boyutu = fog_system.get_cell_size()
-	gorus_hucre_katmani = fog_system.get_fog_layer()
-	gorus_hucreleri = fog_system.gorus_hucreleri
-	kesfedilen_alanlar = fog_system.get_discovered_cells()
-	su_anki_gorus_alani = fog_system.get_current_vision("osmanli")
-	ai_su_anki_gorus_alani = fog_system.get_current_vision("dogu_roma")
-	kesfedilen_noktalar = fog_system.get_discovered_points()
-	kesif_tespit_esigi = fog_system.kesif_tespit_esigi
-	kontrol_noktasi_gorus_yaricapi = fog_system.kontrol_noktasi_gorus_yaricapi
-	normal_birim_gorus_bonus = fog_system.normal_birim_gorus_bonus
-	hayalet_ikon_suresi = fog_system.hayalet_ikon_suresi
-	dusman_son_gorulen_konum = fog_system.get_last_known_enemy_positions()
 
 func _ui_system_hazirla() -> void:
 	ui_system = UISystem.new()
@@ -432,51 +403,14 @@ func arazi_gorsellerini_guncelle() -> void:
 func harita_gorsellerini_guncelle() -> void:
 	world_system.harita_gorsellerini_guncelle()
 
-func _hucre_anahtari(pos: Vector2) -> Vector2i:
-	return fog_system._hucre_anahtari(pos)
-
-func _hucre_merkezi(anahtar: Vector2i) -> Vector2:
-	return fog_system._hucre_merkezi(anahtar)
-
-func _goruste_mi(pos: Vector2, gorus_alani: Dictionary) -> bool:
-	return fog_system._goruste_mi(pos, gorus_alani)
-
-func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> void:
-	fog_system._gorus_ekle(gorus_alani, merkez, yaricap)
-
-func _birim_gorus_yaricapi(tip: Dictionary) -> float:
-	if tip.has("gorus_yaricapi"):
-		return float(tip["gorus_yaricapi"])
-	return float(tip.get("menzil", 80.0)) + normal_birim_gorus_bonus
-
-func savas_sisi_hucrelerini_sifirla() -> void:
-	if not is_instance_valid(gorus_hucre_katmani):
-		return
-	fog_system.reset_fog_grid()
-	_fog_refs_sync()
-
 func savas_sisi_katmani_olustur() -> void:
 	fog_system.create_fog_layer()
-	_fog_refs_sync()
-
-func _nokta_renk(taraf: String) -> Color:
-	if taraf == "osmanli":
-		return Color.GOLD
-	if taraf == "dogu_roma":
-		return Color.PURPLE
-	return Color.GRAY
 
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	return world_system.birimin_arazisini_bul(konum)
 
 func _orman_bolge_index(pos: Vector2) -> int:
 	return world_system.orman_bolge_index(pos)
-
-func _kesif_birimi_mi(birim: Dictionary) -> bool:
-	return fog_system.is_scout_unit(birim)
-
-func _orman_gizlisi_tespit_edildi_mi(hedef: Dictionary, goren_taraf: String) -> bool:
-	return fog_system.is_forest_stealth_broken(hedef, goren_taraf, aktif_birimler)
 
 func birim_gorunur_mu_tarafa(hedef: Dictionary, goren_taraf: String) -> bool:
 	return fog_system.is_unit_visible_to_faction(hedef, goren_taraf, aktif_birimler)
@@ -499,56 +433,12 @@ func pusu_tetik_kontrolu() -> void:
 
 func savas_sisi_guncelle() -> void:
 	fog_system.update_vision(aktif_birimler, nokta_sahipleri)
-	_fog_refs_sync()
-
-func _hayalet_ikon_temizle(id: int) -> void:
-	fog_system.clear_ghost_icon(id)
-
-func _dusman_hayaletlerini_guncelle() -> void:
-	fog_system.refresh_ghost_icons()
-	_fog_refs_sync()
 
 func birim_gorunurluklerini_guncelle() -> void:
-	for birim in aktif_birimler:
-		if not is_instance_valid(birim["node"]):
-			continue
-		birim["node"].visible = fog_system.is_unit_visible_to_player(birim, aktif_birimler)
-	fog_system.update_enemy_intel(aktif_birimler)
-	_fog_refs_sync()
+	fog_system.update_unit_visibility()
 
 func nokta_gorunurluklerini_guncelle() -> void:
-	for nokta in nokta_konumlari:
-		var kesfedildi = fog_system.is_point_discovered(nokta)
-		var kare = get_node_or_null("Nokta_" + nokta)
-		var isim_l = get_node_or_null("Label_Nokta_" + nokta)
-		var puan_l = get_node_or_null("Label_Puan_" + nokta)
-		var bg = get_node_or_null("CaptureBg_" + nokta)
-		var bar = capture_barlar.get(nokta, null)
-		if not kesfedildi:
-			if kare: kare.visible = false
-			if isim_l: isim_l.visible = false
-			if puan_l: puan_l.visible = false
-			if bg: bg.visible = false
-			if bar: bar.visible = false
-			continue
-
-		if kare: kare.visible = true
-		if isim_l: isim_l.visible = true
-		if puan_l:
-			puan_l.visible = true
-			puan_l.modulate = Color(1, 1, 1, 1)
-		nokta_son_bilgi[nokta] = {
-			"sahip": nokta_sahipleri[nokta],
-			"capture": nokta_capture[nokta]
-		}
-		if kare:
-			kare.color = _nokta_renk(nokta_sahipleri[nokta])
-			kare.modulate = Color(1, 1, 1, 1)
-		if bg: bg.visible = true
-		if bar:
-			bar.visible = true
-			bar.size.x = 80.0 * (nokta_capture[nokta] / 100.0)
-			bar.color = Color(1, 0.8, 0)
+	fog_system.update_point_visibility()
 
 func kampanya_haritasini_yukle() -> void:
 	if kampanya_harita_idleri.is_empty():
@@ -1024,7 +914,6 @@ func minimap_guncelle() -> void:
 	minimap_controller.update(
 		fog_system,
 		nokta_konumlari,
-		kesfedilen_noktalar,
 		nokta_sahipleri,
 		aktif_birimler,
 		kamera,
@@ -1068,7 +957,7 @@ func birim_detay_metni(tip: Dictionary) -> String:
 	var hp = int(tip.get("hp", 0))
 	var hiz = int(tip.get("hiz", 0))
 	var menzil = int(tip.get("menzil", 0))
-	var gorus = int(tip.get("gorus_yaricapi", menzil + normal_birim_gorus_bonus))
+	var gorus = int(tip.get("gorus_yaricapi", menzil + fog_system.normal_birim_gorus_bonus))
 	var maliyet = int(tip.get("maliyet", 0))
 	var kontenjan = int(tip.get("kontenjan", 0))
 	var asker = int(tip.get("asker_sayisi", 0))

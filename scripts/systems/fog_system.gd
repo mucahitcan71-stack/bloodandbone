@@ -83,6 +83,77 @@ func reset_enemy_intel() -> void:
 			hayalet.queue_free()
 	dusman_hayalet_ikonlari.clear()
 
+func reset_match_discovery(point_ids: Array) -> void:
+	kesfedilen_noktalar.clear()
+	for nokta in point_ids:
+		kesfedilen_noktalar[nokta] = false
+
+func set_layer_visible(visible: bool) -> void:
+	if is_instance_valid(gorus_hucre_katmani):
+		gorus_hucre_katmani.visible = visible
+
+func reset_fog_on_map_change() -> void:
+	if is_instance_valid(gorus_hucre_katmani):
+		reset_fog_grid()
+
+func unit_vision_radius(unit_type: Dictionary) -> float:
+	if unit_type.has("gorus_yaricapi"):
+		return float(unit_type["gorus_yaricapi"])
+	return float(unit_type.get("menzil", 80.0)) + normal_birim_gorus_bonus
+
+func update_point_visibility() -> void:
+	for nokta in _root.nokta_konumlari:
+		var kesfedildi = is_point_discovered(nokta)
+		var kare = _root.get_node_or_null("Nokta_" + nokta)
+		var isim_l = _root.get_node_or_null("Label_Nokta_" + nokta)
+		var puan_l = _root.get_node_or_null("Label_Puan_" + nokta)
+		var bg = _root.get_node_or_null("CaptureBg_" + nokta)
+		var bar = _root.capture_barlar.get(nokta, null)
+		if not kesfedildi:
+			if kare: kare.visible = false
+			if isim_l: isim_l.visible = false
+			if puan_l: puan_l.visible = false
+			if bg: bg.visible = false
+			if bar: bar.visible = false
+			continue
+
+		if kare: kare.visible = true
+		if isim_l: isim_l.visible = true
+		if puan_l:
+			puan_l.visible = true
+			puan_l.modulate = Color(1, 1, 1, 1)
+		_root.nokta_son_bilgi[nokta] = {
+			"sahip": _root.nokta_sahipleri[nokta],
+			"capture": _root.nokta_capture[nokta]
+		}
+		if kare:
+			kare.color = _point_owner_color(_root.nokta_sahipleri[nokta])
+			kare.modulate = Color(1, 1, 1, 1)
+		if bg: bg.visible = true
+		if bar:
+			bar.visible = true
+			bar.size.x = 80.0 * (_root.nokta_capture[nokta] / 100.0)
+			bar.color = Color(1, 0.8, 0)
+
+func update_unit_visibility() -> void:
+	for birim in _root.aktif_birimler:
+		if not is_instance_valid(birim["node"]):
+			continue
+		birim["node"].visible = is_unit_visible_to_player(birim, _root.aktif_birimler)
+	update_enemy_intel(_root.aktif_birimler)
+
+func tick_battle_fog() -> void:
+	update_vision(_root.aktif_birimler, _root.nokta_sahipleri)
+	update_point_visibility()
+	update_unit_visibility()
+
+func _point_owner_color(taraf: String) -> Color:
+	if taraf == "osmanli":
+		return Color.GOLD
+	if taraf == "dogu_roma":
+		return Color.PURPLE
+	return Color.GRAY
+
 func refresh_ghost_icons() -> void:
 	_update_ghost_icons()
 

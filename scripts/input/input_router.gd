@@ -106,7 +106,7 @@ func _is_click_on_takviye_menu(event_position: Vector2) -> bool:
 
 func _try_empty_area_point_selection(dunya_pos: Vector2) -> bool:
 	for nokta in _host.nokta_konumlari:
-		if not _host.kesfedilen_noktalar.get(nokta, false):
+		if not _host.fog_system.is_point_discovered(nokta):
 			continue
 		if dunya_pos.distance_to(_host.nokta_merkezi(nokta)) <= 70.0:
 			_host.nokta_sec(nokta)

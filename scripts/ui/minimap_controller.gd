@@ -122,7 +122,7 @@ func panel_to_world(pos: Vector2, harita_sinir: Dictionary) -> Vector2:
 		harita_sinir["min_y"] + (pos.y / panel_size.y) * h
 	)
 
-func update(fog_system: Object, nokta_konumlari: Dictionary, kesfedilen_noktalar: Dictionary, nokta_sahipleri: Dictionary, aktif_birimler: Array, kamera: Camera2D, viewport_size: Vector2, harita_sinir: Dictionary) -> void:
+func update(fog_system: Object, nokta_konumlari: Dictionary, nokta_sahipleri: Dictionary, aktif_birimler: Array, kamera: Camera2D, viewport_size: Vector2, harita_sinir: Dictionary) -> void:
 	if minimap_panel == null:
 		return
 	if fog_system != null and minimap_fow_rect != null:
@@ -130,6 +130,7 @@ func update(fog_system: Object, nokta_konumlari: Dictionary, kesfedilen_noktalar
 		var doku = fog_system.get_minimap_fow_texture()
 		if doku != null:
 			minimap_fow_rect.texture = doku
+	var kesfedilen_noktalar = fog_system.get_discovered_points() if fog_system != null else {}
 	for nokta in minimap_nokta_isaretleri:
 		var isaret = minimap_nokta_isaretleri[nokta]
 		if not is_instance_valid(isaret) or not nokta_konumlari.has(nokta):

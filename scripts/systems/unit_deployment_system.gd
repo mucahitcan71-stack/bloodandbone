@@ -331,7 +331,7 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	var guc = tip["guc"]
 	var savunma = tip["savunma"]
 	var hp = float(tip["hp"] * tip["asker_sayisi"])
-	var gorus_yaricapi = _host._birim_gorus_yaricapi(tip)
+	var gorus_yaricapi = _host.fog_system.unit_vision_radius(tip)
 	if taraf == "dogu_roma":
 		guc = int(guc * _host.zorluk_ayarlari[_host.zorluk]["guc_carpan"])
 		savunma = int(savunma * _host.zorluk_ayarlari[_host.zorluk]["savunma_carpan"])

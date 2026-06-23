@@ -26,15 +26,13 @@ func start_preparation() -> void:
 	_host.nokta_gelistirme.clear()
 	_host.nokta_capture.clear()
 	_host.nokta_sahipleri.clear()
-	_host.kesfedilen_noktalar.clear()
+	_host.fog_system.reset_match_discovery(_host.nokta_konumlari.keys())
 	_host.nokta_son_bilgi.clear()
 	_host.fog_system.reset_enemy_intel()
-	_host._fog_refs_sync()
 	for nokta in _host.nokta_konumlari:
 		_host.nokta_capture[nokta] = 50.0
 		_host.nokta_sahipleri[nokta] = "tarafsiz"
 		_host.nokta_gelistirme[nokta] = 0
-		_host.kesfedilen_noktalar[nokta] = false
 		_host.nokta_son_bilgi[nokta] = {"sahip": "tarafsiz", "capture": 50.0}
 	_host.osmanli_puani = 0
 	_host.dogu_roma_puani = 0
@@ -121,10 +119,10 @@ func start_preparation() -> void:
 	if _host.panel_sag_log_hiz != null:
 		_host.panel_sag_log_hiz.visible = false
 	_host.komut_sec("hareket")
-	if is_instance_valid(_host.gorus_hucre_katmani):
-		_host.gorus_hucre_katmani.visible = false
-	_host.savas_sisi_hucrelerini_sifirla()
-	_host.nokta_gorunurluklerini_guncelle()
+	if is_instance_valid(_host.fog_system.get_fog_layer()):
+		_host.fog_system.set_layer_visible(false)
+	_host.fog_system.reset_fog_grid()
+	_host.fog_system.update_point_visibility()
 	_host.nokta_renkleri_sifirla()
 	if _host.kamera != null:
 		_host.kamera.position = Vector2(
@@ -186,17 +184,15 @@ func start_battle() -> void:
 		_host.savas_panel_root.visible = true
 	if _host.panel_sag_log_hiz != null:
 		_host.panel_sag_log_hiz.visible = true
-	if is_instance_valid(_host.gorus_hucre_katmani):
-		_host.gorus_hucre_katmani.visible = true
+	if is_instance_valid(_host.fog_system.get_fog_layer()):
+		_host.fog_system.set_layer_visible(true)
 
 	_host.envanter_olustur()
 	_host.komut_sec("hareket")
 	if _host.kamera != null and _host.nokta_konumlari.has("C"):
 		_host.kamera.position = _host.nokta_merkezi("C")
 		_host.kamera_sinirla()
-	_host.savas_sisi_guncelle()
-	_host.nokta_gorunurluklerini_guncelle()
-	_host.birim_gorunurluklerini_guncelle()
+	_host.fog_system.tick_battle_fog()
 	_host.ui_guncelle()
 	_host.ai_spawn_timer = _host.ai_spawn_suresi * 0.4
 	print("=== SAVAS BASLADI === Zorluk: " + _host.zorluk)

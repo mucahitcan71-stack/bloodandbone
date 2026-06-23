@@ -10,9 +10,7 @@ func tick(delta: float) -> void:
 	_process_attacks(delta)
 	_apply_pending_damage()
 	_process_movement_and_deaths(delta)
-	_host.savas_sisi_guncelle()
-	_host.nokta_gorunurluklerini_guncelle()
-	_host.birim_gorunurluklerini_guncelle()
+	_host.fog_system.tick_battle_fog()
 
 func _process_attacks(delta: float) -> void:
 	for birim in _host.aktif_birimler:
