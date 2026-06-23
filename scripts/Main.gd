@@ -15,11 +15,13 @@ const MinimapController = preload("res://scripts/ui/minimap_controller.gd")
 const HudComposer = preload("res://scripts/ui/hud_composer.gd")
 const CameraController = preload("res://scripts/camera/camera_controller.gd")
 const InputRouter = preload("res://scripts/input/input_router.gd")
+const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
 var ui_system: UISystem
 var command_system: CommandSystem
+var battle_flow: BattleFlowSystem = BattleFlowSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -359,6 +361,9 @@ func _command_system_hazirla() -> void:
 		birimin_arazisini_bul
 	)
 
+func _battle_flow_hazirla() -> void:
+	battle_flow.configure(self)
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -541,6 +546,7 @@ func _ready() -> void:
 	_fog_system_hazirla()
 	_ui_system_hazirla()
 	_command_system_hazirla()
+	_battle_flow_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -1696,196 +1702,10 @@ func birim_satin_al(idx: int) -> void:
 	ui_guncelle()
 
 func hazirlik_baslat() -> void:
-	hiz_carpani_sifirla()
-	kampanya_haritasini_yukle()
-	hazirlik_fazi = true
-	kalan_sure = hazirlik_suresi
-	mevcut_kontenjan = max_kontenjan
-	kompozisyon_dizisi_sifirla()
-	savas_baslangic_kompozisyon.clear()
-	envanter.clear()
-	secili_nokta = ""
-	secili_envanter_idx = -1
-	secili_envanter_tip_anahtari = ""
-	secili_envanter_gonder_adedi = 1
-	command_system.reset_for_preparation()
-	secili_birim = command_system.get_selected_unit()
-	secili_komut = command_system.get_selected_command()
-	komut_menusu_kapat()
-	nokta_gelistirme.clear()
-	nokta_capture.clear()
-	nokta_sahipleri.clear()
-	kesfedilen_noktalar.clear()
-	nokta_son_bilgi.clear()
-	fog_system.reset_enemy_intel()
-	_fog_refs_sync()
-	for nokta in nokta_konumlari:
-		nokta_capture[nokta] = 50.0
-		nokta_sahipleri[nokta] = "tarafsiz"
-		nokta_gelistirme[nokta] = 0
-		kesfedilen_noktalar[nokta] = false
-		nokta_son_bilgi[nokta] = {"sahip": "tarafsiz", "capture": 50.0}
-	osmanli_puani = 0
-	dogu_roma_puani = 0
-	osmanli_altini = zorluk_ayarlari[zorluk]["oyuncu_altin"]
-	dogu_roma_altini = zorluk_ayarlari[zorluk]["ai_altin"]
-	osmanli_gelisim_altini = 0
-	dogu_roma_gelisim_altini = 0
-	oyun_suresi = 0.0
-	puan_timer = 0.0
-	oyun_bitti = false
-	ai_spawn_timer = 0.0
-	ai_dalga_sayisi = 0
-	ai_spawn_suresi = zorluk_ayarlari[zorluk]["spawn"]
-	ai_envanter.clear()
-	ai_ordu_hazirlik_sifirla()
-	taraf_moral = {"osmanli": 100.0, "dogu_roma": 100.0}
-	taraf_formasyon = {"osmanli": "dengeli", "dogu_roma": "dengeli"}
-	ult_sarj = {"osmanli": 0.0, "dogu_roma": 0.0}
-	ult_aktif_sure = {"osmanli": 0.0, "dogu_roma": 0.0}
-	hava_durumu = "Acik"
-	mac_istatistik = {
-		"osmanli": {"oldurme": 0, "kayip": 0, "hasar": 0.0, "altin_harcama": 0, "nokta_sure": 0.0},
-		"dogu_roma": {"oldurme": 0, "kayip": 0, "hasar": 0.0, "altin_harcama": 0, "nokta_sure": 0.0},
-	}
-	taraf_carpanlari = {
-		"osmanli": {"guc": 1.0, "savunma": 1.0, "hiz": 1.0, "menzil": 1.0},
-		"dogu_roma": {"guc": 1.0, "savunma": 1.0, "hiz": 1.0, "menzil": 1.0}
-	}
-	secili_kart = {}
-	secili_ekipman = ""
-	var lf = ui_node("Label_Formasyon")
-	if lf != null:
-		lf.text = "Formasyon: Dengeli"
-	var le = ui_node("Label_Ekipman")
-	if le != null:
-		le.text = "Ekipman:"
-	var lk = ui_node("Label_Kart")
-	if lk != null:
-		lk.text = "Kart (3'ten 1):"
-	var lm = ui_node("Label_MacOzeti")
-	if lm != null:
-		lm.text = ""
-	hazirlik_bilgi_guncelle()
-	kart_secenekleri_hazirla()
-	ekipman_secimleri_hazirla()
-	ekipman_sec("celik")
-	ai_secili_kart = kart_havuzu[randi() % kart_havuzu.size()]
-	var ai_ek_keys = ["celik", "zirh", "durbun"]
-	ai_secili_ekipman = ai_ek_keys[randi() % ai_ek_keys.size()]
-
-	for birim in aktif_birimler:
-		if is_instance_valid(birim["node"]):
-			birim["node"].queue_free()
-	aktif_birimler.clear()
-
-	for btn in envanter_butonlari:
-		if is_instance_valid(btn):
-			btn.queue_free()
-	envanter_butonlari.clear()
-
-	for i in range(sayi_labellar.size()):
-		sayi_labellar[i].text = "0"
-	var kont_l = ui_node("Label_Kontenjan")
-	if kont_l != null:
-		kont_l.text = "Kontenjan: " + str(max_kontenjan) + "/" + str(max_kontenjan) + " | Ordu: 0"
-
-	if is_instance_valid(tekrar_oyna_btn):
-		tekrar_oyna_btn.visible = false
-
-	_ui_refs_sync()
-	for el in hazirlik_paneli:
-		if is_instance_valid(el):
-			el.visible = true
-	if hazirlik_panel_root != null:
-		hazirlik_panel_root.visible = true
-	hazirlik_tab_degistir("genel")
-	for z in zorluk_butonlari:
-		zorluk_butonlari[z].modulate = Color(1.5, 1.5, 1.5) if z == zorluk else Color(1, 1, 1)
-	for el in savas_paneli:
-		if is_instance_valid(el):
-			el.visible = false
-	if savas_panel_root != null:
-		savas_panel_root.visible = false
-	if panel_sag_log_hiz != null:
-		panel_sag_log_hiz.visible = false
-	komut_sec("hareket")
-	if is_instance_valid(gorus_hucre_katmani):
-		gorus_hucre_katmani.visible = false
-	savas_sisi_hucrelerini_sifirla()
-	nokta_gorunurluklerini_guncelle()
-	nokta_renkleri_sifirla()
-	if kamera != null:
-		kamera.position = Vector2((harita_sinir["min_x"] + harita_sinir["max_x"]) * 0.5, (harita_sinir["min_y"] + harita_sinir["max_y"]) * 0.5)
-		kamera.zoom = Vector2(0.7, 0.7)
-		kamera_sinirla()
-	ui_guncelle()
+	battle_flow.start_preparation()
 
 func savas_baslat() -> void:
-	if oyun_bitti:
-		return
-	if kompozisyon_toplami() <= 0:
-		hazirlik_tab_degistir("ordu")
-		var kont_l2 = ui_node("Label_Kontenjan")
-		if kont_l2 != null:
-			kont_l2.text = "En az 1 birim sec!"
-		return
-	hazirlik_fazi = false
-	kalan_sure = max_sure
-	ai_spawn_suresi = zorluk_ayarlari[zorluk]["spawn"]
-	savas_baslangic_kompozisyon = kompozisyon.duplicate()
-
-	for i in range(osmanli_birim_tipleri.size()):
-		for j in range(kompozisyon[i]):
-			envanter.append(osmanli_birim_tipleri[i].duplicate())
-
-	ai_savas_envanteri_hazirla()
-	if secili_kart.is_empty():
-		kart_sec(kart_secenekleri[0] if kart_secenekleri.size() > 0 else {})
-	if secili_ekipman == "":
-		ekipman_sec("celik")
-	kart_uygula("osmanli", secili_kart)
-	kart_uygula("dogu_roma", ai_secili_kart)
-	ekipman_uygula("osmanli", secili_ekipman)
-	ekipman_uygula("dogu_roma", ai_secili_ekipman)
-	hava_sec()
-	general_olustur("osmanli")
-	general_olustur("dogu_roma")
-
-	for el in hazirlik_paneli:
-		if is_instance_valid(el):
-			el.visible = false
-	if hazirlik_panel_root != null:
-		hazirlik_panel_root.visible = false
-	for el in savas_paneli:
-		if is_instance_valid(el):
-			el.visible = true
-	var nokta_plus = ui_node("NoktaPlusGrup")
-	if nokta_plus != null:
-		nokta_plus.visible = false
-	if envanter_adet_satiri != null:
-		envanter_adet_satiri.visible = false
-	var savas_kaynak = ui_node("SavasKaynakSatir")
-	if savas_kaynak != null:
-		savas_kaynak.visible = false
-	if savas_panel_root != null:
-		savas_panel_root.visible = true
-	if panel_sag_log_hiz != null:
-		panel_sag_log_hiz.visible = true
-	if is_instance_valid(gorus_hucre_katmani):
-		gorus_hucre_katmani.visible = true
-
-	envanter_olustur()
-	komut_sec("hareket")
-	if kamera != null and nokta_konumlari.has("C"):
-		kamera.position = nokta_merkezi("C")
-		kamera_sinirla()
-	savas_sisi_guncelle()
-	nokta_gorunurluklerini_guncelle()
-	birim_gorunurluklerini_guncelle()
-	ui_guncelle()
-	ai_spawn_timer = ai_spawn_suresi * 0.4
-	print("=== SAVAS BASLADI === Zorluk: " + zorluk)
+	battle_flow.start_battle()
 
 func hava_sec() -> void:
 	var olasi = ["Acik", "Yagmur", "Sis", "Ruzgar"]
@@ -2723,37 +2543,16 @@ func ai_hedef_sec() -> String:
 	return noktalar[randi() % noktalar.size()]
 
 func oyun_sonu_paneli_goster() -> void:
-	ui_system.show_game_over_panel(mac_ozeti_metni())
+	battle_flow.show_game_over_panel()
 
 func tekrar_oyna() -> void:
-	hazirlik_baslat()
+	battle_flow.restart_match()
 
 func oyun_bitir_kazanan(kazanan: String) -> void:
-	hiz_carpani_sifirla()
-	oyun_bitti = true
-	if kazanan == "osmanli":
-		ui_system.set_game_over_round("OSMANLI KAZANDI!")
-		kampanya_index = MetaSystem.campaign_next_index(kampanya_index, true, kampanya_harita_idleri.size())
-		mac_istatistik_kayit["galibiyet"] = int(mac_istatistik_kayit.get("galibiyet", 0)) + 1
-	else:
-		ui_system.set_game_over_round("DOGU ROMA KAZANDI!")
-		kampanya_index = MetaSystem.campaign_next_index(kampanya_index, false, kampanya_harita_idleri.size())
-		mac_istatistik_kayit["maglubiyet"] = int(mac_istatistik_kayit.get("maglubiyet", 0)) + 1
-	kayit_kaydet()
-	oyun_sonu_paneli_goster()
+	battle_flow.end_match_with_winner(kazanan)
 
 func oyun_bitir() -> void:
-	if osmanli_puani > dogu_roma_puani:
-		oyun_bitir_kazanan("osmanli")
-	elif dogu_roma_puani > osmanli_puani:
-		oyun_bitir_kazanan("dogu_roma")
-	else:
-		hiz_carpani_sifirla()
-		oyun_bitti = true
-		ui_system.set_game_over_round("BERABERE!")
-		mac_istatistik_kayit["beraberlik"] = int(mac_istatistik_kayit.get("beraberlik", 0)) + 1
-		kayit_kaydet()
-		oyun_sonu_paneli_goster()
+	battle_flow.end_match_by_score()
 
 func mac_ozeti_metni() -> String:
 	var ozet = HudFormatter.match_summary(mac_istatistik["osmanli"], mac_istatistik["dogu_roma"])
