@@ -718,6 +718,10 @@ func _yan_hud_kaybet() -> void:
 func _yan_hud_hazirla() -> void:
 	ui_system.build_side_hud()
 	_ui_refs_sync()
+	if yan_hud_tetik != null:
+		yan_hud_tetik.visible = false
+	if yan_hud_panel != null:
+		yan_hud_panel.visible = false
 
 func hazirlik_eleman_ekle(tab: String, node: Control) -> void:
 	ui_system.add_preparation_element(tab, node)
