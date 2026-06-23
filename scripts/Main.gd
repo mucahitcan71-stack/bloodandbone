@@ -186,6 +186,10 @@ var takviye_secili_idx = 0
 var takviye_secili_adet = 1
 var takviye_adet_label: Label = null
 var takviye_toplu_btn: Button = null
+var panel_sag_savas_bilgi: PanelContainer = null
+var panel_sag_log_hiz: PanelContainer = null
+var label_sag_osmanli: Label = null
+var label_sag_roma: Label = null
 
 # === SAVAS SISI / KESIF / PUSU ===
 var gorus_hucre_boyutu = 40.0
@@ -1425,6 +1429,16 @@ func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
 	stil.shadow_size = 3
 	panel.add_theme_stylebox_override("panel", stil)
 
+func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
+	var stil = StyleBoxFlat.new()
+	stil.bg_color = Color(0.06, 0.08, 0.1, 0.92)
+	stil.border_color = Color(0.4, 0.34, 0.24, 0.6)
+	stil.set_border_width_all(1)
+	stil.set_corner_radius_all(5)
+	stil.shadow_color = Color(0, 0, 0, 0.32)
+	stil.shadow_size = 4
+	panel.add_theme_stylebox_override("panel", stil)
+
 func _savas_hud_wireframe_duzenle() -> void:
 	var savas_icerik = ui_node("SavasIcerik") as VBoxContainer
 	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
@@ -1507,6 +1521,82 @@ func _savas_hud_wireframe_duzenle() -> void:
 	if hiz_btn != null:
 		hiz_btn.custom_minimum_size = Vector2(96, 28)
 		hiz_btn.reparent(sag_vbox)
+
+func _savas_sag_bolum_duzenle() -> void:
+	if ui_root == null:
+		return
+	panel_sag_savas_bilgi = ui_node("PanelSagSavasBilgi") as PanelContainer
+	if panel_sag_savas_bilgi == null:
+		panel_sag_savas_bilgi = PanelContainer.new()
+		panel_sag_savas_bilgi.name = "PanelSagSavasBilgi"
+		ui_root.add_child(panel_sag_savas_bilgi)
+	panel_sag_savas_bilgi.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	panel_sag_savas_bilgi.offset_left = -356
+	panel_sag_savas_bilgi.offset_top = -280
+	panel_sag_savas_bilgi.offset_right = -12
+	panel_sag_savas_bilgi.offset_bottom = -128
+	_sag_hud_panel_stili_uygula(panel_sag_savas_bilgi)
+	for c in panel_sag_savas_bilgi.get_children():
+		c.queue_free()
+	var savas_margin = MarginContainer.new()
+	savas_margin.add_theme_constant_override("margin_left", 10)
+	savas_margin.add_theme_constant_override("margin_right", 10)
+	savas_margin.add_theme_constant_override("margin_top", 8)
+	savas_margin.add_theme_constant_override("margin_bottom", 8)
+	panel_sag_savas_bilgi.add_child(savas_margin)
+	var savas_vbox = VBoxContainer.new()
+	savas_vbox.add_theme_constant_override("separation", 6)
+	savas_margin.add_child(savas_vbox)
+	var baslik = Label.new()
+	baslik.text = "SAVAS"
+	baslik.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	baslik.add_theme_font_size_override("font_size", 12)
+	savas_vbox.add_child(baslik)
+	label_sag_osmanli = Label.new()
+	label_sag_osmanli.text = "OSMANLI: 0"
+	label_sag_osmanli.add_theme_font_size_override("font_size", 10)
+	savas_vbox.add_child(label_sag_osmanli)
+	label_sag_roma = Label.new()
+	label_sag_roma.text = "DOGU ROMA: 0"
+	label_sag_roma.add_theme_font_size_override("font_size", 10)
+	savas_vbox.add_child(label_sag_roma)
+
+	panel_sag_log_hiz = ui_node("PanelSagLogHiz") as PanelContainer
+	if panel_sag_log_hiz == null:
+		panel_sag_log_hiz = PanelContainer.new()
+		panel_sag_log_hiz.name = "PanelSagLogHiz"
+		ui_root.add_child(panel_sag_log_hiz)
+	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	panel_sag_log_hiz.offset_left = -356
+	panel_sag_log_hiz.offset_top = -122
+	panel_sag_log_hiz.offset_right = -12
+	panel_sag_log_hiz.offset_bottom = -8
+	_sag_hud_panel_stili_uygula(panel_sag_log_hiz)
+	for c in panel_sag_log_hiz.get_children():
+		c.queue_free()
+	var log_margin = MarginContainer.new()
+	log_margin.add_theme_constant_override("margin_left", 10)
+	log_margin.add_theme_constant_override("margin_right", 10)
+	log_margin.add_theme_constant_override("margin_top", 8)
+	log_margin.add_theme_constant_override("margin_bottom", 8)
+	panel_sag_log_hiz.add_child(log_margin)
+	var log_vbox = VBoxContainer.new()
+	log_vbox.add_theme_constant_override("separation", 6)
+	log_margin.add_child(log_vbox)
+	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
+	if savas_bilgi != null:
+		savas_bilgi.reparent(log_vbox)
+		savas_bilgi.add_theme_font_size_override("font_size", 10)
+	var hiz_satir = HBoxContainer.new()
+	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
+	log_vbox.add_child(hiz_satir)
+	var hiz_btn = ui_node("HizBtn") as Button
+	if hiz_btn != null:
+		hiz_btn.custom_minimum_size = Vector2(96, 28)
+		hiz_btn.reparent(hiz_satir)
+	panel_sag_savas_bilgi.visible = false
+	panel_sag_log_hiz.visible = false
 
 func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()
@@ -1658,6 +1748,7 @@ func savas_paneli_olustur() -> void:
 
 	ui_system.build_battle_panel_footer(func(): hiz_carpani_arttir())
 	_savas_hud_wireframe_duzenle()
+	_savas_sag_bolum_duzenle()
 	_ui_refs_sync()
 	hiz_butonunu_guncelle()
 
@@ -2123,6 +2214,10 @@ func hazirlik_baslat() -> void:
 			el.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = false
+	if panel_sag_savas_bilgi != null:
+		panel_sag_savas_bilgi.visible = false
+	if panel_sag_log_hiz != null:
+		panel_sag_log_hiz.visible = false
 	komut_sec("hareket")
 	if is_instance_valid(gorus_hucre_katmani):
 		gorus_hucre_katmani.visible = false
@@ -2192,6 +2287,10 @@ func savas_baslat() -> void:
 		savas_kaynak.visible = false
 	if savas_panel_root != null:
 		savas_panel_root.visible = true
+	if panel_sag_savas_bilgi != null:
+		panel_sag_savas_bilgi.visible = true
+	if panel_sag_log_hiz != null:
+		panel_sag_log_hiz.visible = true
 	if is_instance_valid(gorus_hucre_katmani):
 		gorus_hucre_katmani.visible = true
 
@@ -3097,6 +3196,10 @@ func _hud_snapshot_olustur() -> Dictionary:
 func ui_guncelle() -> void:
 	ui_system.update_hud(_hud_snapshot_olustur())
 	takviye_ui_guncelle()
+	if label_sag_osmanli != null:
+		label_sag_osmanli.text = "OSMANLI: " + str(osmanli_puani) + "/" + str(kazanma_puani) + " | M" + str(int(taraf_moral["osmanli"]))
+	if label_sag_roma != null:
+		label_sag_roma.text = "DOGU ROMA: " + str(dogu_roma_puani) + "/" + str(kazanma_puani) + " | M" + str(int(taraf_moral["dogu_roma"]))
 
 func nokta_renkleri_sifirla() -> void:
 	for nokta in nokta_konumlari:
