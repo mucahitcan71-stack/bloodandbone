@@ -1440,7 +1440,7 @@ func hiz_carpani_arttir() -> void:
 func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
 	stil.bg_color = Color(0.06, 0.08, 0.1, 0.9)
-	stil.border_color = Color(0.4, 0.34, 0.24, 0.58)
+	stil.border_color = Color(0.4, 0.34, 0.24, 0.52)
 	stil.set_border_width_all(1)
 	stil.set_corner_radius_all(5)
 	stil.shadow_color = Color(0, 0, 0, 0.3)
@@ -1450,7 +1450,7 @@ func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
 func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
 	stil.bg_color = Color(0.06, 0.08, 0.1, 0.92)
-	stil.border_color = Color(0.4, 0.34, 0.24, 0.6)
+	stil.border_color = Color(0.4, 0.34, 0.24, 0.55)
 	stil.set_border_width_all(1)
 	stil.set_corner_radius_all(5)
 	stil.shadow_color = Color(0, 0, 0, 0.32)
@@ -1552,10 +1552,10 @@ func _savas_sag_bolum_duzenle() -> void:
 		panel_sag_savas_bilgi.name = "PanelSagSavasBilgi"
 		ui_root.add_child(panel_sag_savas_bilgi)
 	panel_sag_savas_bilgi.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	panel_sag_savas_bilgi.offset_left = -340
-	panel_sag_savas_bilgi.offset_top = -266
+	panel_sag_savas_bilgi.offset_left = -332
+	panel_sag_savas_bilgi.offset_top = -248
 	panel_sag_savas_bilgi.offset_right = -12
-	panel_sag_savas_bilgi.offset_bottom = -140
+	panel_sag_savas_bilgi.offset_bottom = -138
 	_sag_hud_panel_stili_uygula(panel_sag_savas_bilgi)
 	for c in panel_sag_savas_bilgi.get_children():
 		c.queue_free()
@@ -1574,14 +1574,15 @@ func _savas_sag_bolum_duzenle() -> void:
 	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
 	baslik.add_theme_font_size_override("font_size", 11)
 	savas_vbox.add_child(baslik)
+	savas_vbox.add_child(HSeparator.new())
 	label_sag_osmanli = Label.new()
 	label_sag_osmanli.text = "OSMANLI: 0/0 | M0"
-	label_sag_osmanli.add_theme_font_size_override("font_size", 10)
+	label_sag_osmanli.add_theme_font_size_override("font_size", 9)
 	label_sag_osmanli.add_theme_color_override("font_color", Color(0.92, 0.78, 0.3))
 	savas_vbox.add_child(label_sag_osmanli)
 	label_sag_roma = Label.new()
 	label_sag_roma.text = "DOGU ROMA: 0/0 | M0"
-	label_sag_roma.add_theme_font_size_override("font_size", 10)
+	label_sag_roma.add_theme_font_size_override("font_size", 9)
 	label_sag_roma.add_theme_color_override("font_color", Color(0.78, 0.68, 0.95))
 	savas_vbox.add_child(label_sag_roma)
 	var puan_hedef = Label.new()
@@ -1596,8 +1597,8 @@ func _savas_sag_bolum_duzenle() -> void:
 		panel_sag_log_hiz.name = "PanelSagLogHiz"
 		ui_root.add_child(panel_sag_log_hiz)
 	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	panel_sag_log_hiz.offset_left = -340
-	panel_sag_log_hiz.offset_top = -132
+	panel_sag_log_hiz.offset_left = -332
+	panel_sag_log_hiz.offset_top = -136
 	panel_sag_log_hiz.offset_right = -12
 	panel_sag_log_hiz.offset_bottom = -8
 	_sag_hud_panel_stili_uygula(panel_sag_log_hiz)
@@ -1614,13 +1615,14 @@ func _savas_sag_bolum_duzenle() -> void:
 	log_margin.add_child(log_vbox)
 	var log_baslik = Label.new()
 	log_baslik.text = "BILDIRIM"
-	log_baslik.add_theme_font_size_override("font_size", 10)
+	log_baslik.add_theme_font_size_override("font_size", 9)
 	log_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
 	log_vbox.add_child(log_baslik)
+	log_vbox.add_child(HSeparator.new())
 	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
 	if savas_bilgi != null:
 		savas_bilgi.reparent(log_vbox)
-		savas_bilgi.add_theme_font_size_override("font_size", 10)
+		savas_bilgi.add_theme_font_size_override("font_size", 9)
 		savas_bilgi.add_theme_color_override("font_color", Color(0.87, 0.88, 0.84))
 	var hiz_satir = HBoxContainer.new()
 	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
@@ -3255,9 +3257,9 @@ func ui_guncelle() -> void:
 	ui_system.update_hud(_hud_snapshot_olustur())
 	takviye_ui_guncelle()
 	if label_sag_osmanli != null:
-		label_sag_osmanli.text = "OSMANLI: " + str(osmanli_puani) + "/" + str(kazanma_puani) + " | M" + str(int(taraf_moral["osmanli"]))
+		label_sag_osmanli.text = "OSM " + str(osmanli_puani) + "/" + str(kazanma_puani) + "  •  M" + str(int(taraf_moral["osmanli"]))
 	if label_sag_roma != null:
-		label_sag_roma.text = "DOGU ROMA: " + str(dogu_roma_puani) + "/" + str(kazanma_puani) + " | M" + str(int(taraf_moral["dogu_roma"]))
+		label_sag_roma.text = "ROM " + str(dogu_roma_puani) + "/" + str(kazanma_puani) + "  •  M" + str(int(taraf_moral["dogu_roma"]))
 
 func nokta_renkleri_sifirla() -> void:
 	for nokta in nokta_konumlari:
