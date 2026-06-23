@@ -17,6 +17,7 @@ const CameraController = preload("res://scripts/camera/camera_controller.gd")
 const InputRouter = preload("res://scripts/input/input_router.gd")
 const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
 const CombatLoopSystem = preload("res://scripts/systems/combat_loop_system.gd")
+const UnitDeploymentSystem = preload("res://scripts/systems/unit_deployment_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -24,6 +25,7 @@ var ui_system: UISystem
 var command_system: CommandSystem
 var battle_flow: BattleFlowSystem = BattleFlowSystem.new()
 var combat_loop: CombatLoopSystem = CombatLoopSystem.new()
+var unit_deployment: UnitDeploymentSystem = UnitDeploymentSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -272,9 +274,7 @@ func veri_yukle() -> void:
 	harita_uygula(aktif_harita_id)
 
 func kompozisyon_dizisi_sifirla() -> void:
-	kompozisyon.clear()
-	kompozisyon.resize(max(1, osmanli_birim_tipleri.size()))
-	kompozisyon.fill(0)
+	unit_deployment.reset_composition()
 
 func ai_kompozisyon_dizisi_sifirla() -> void:
 	ai_kompozisyon.clear()
@@ -368,6 +368,9 @@ func _battle_flow_hazirla() -> void:
 
 func _combat_loop_hazirla() -> void:
 	combat_loop.configure(self)
+
+func _unit_deployment_hazirla() -> void:
+	unit_deployment.configure(self)
 
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
@@ -553,6 +556,7 @@ func _ready() -> void:
 	_command_system_hazirla()
 	_battle_flow_hazirla()
 	_combat_loop_hazirla()
+	_unit_deployment_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -620,23 +624,6 @@ func ui_fontlarini_optimize_et() -> void:
 func ui_container_altyapi_olustur() -> void:
 	ui_system.build_container_infrastructure()
 	_ui_refs_sync()
-
-func _envanter_anahtari(tip: Dictionary) -> String:
-	var id = str(tip.get("id", ""))
-	if id != "":
-		return id
-	return str(tip.get("isim", "birim"))
-
-func _envanter_kart_genislik_hesapla() -> float:
-	var kart_sayisi = max(1, osmanli_birim_tipleri.size())
-	var alan = 420.0
-	if is_instance_valid(envanter_scroll) and envanter_scroll.size.x > 0.0:
-		alan = envanter_scroll.size.x - 12.0
-	elif is_instance_valid(envanter_grid):
-		var parent = envanter_grid.get_parent()
-		if parent is Control and (parent as Control).size.x > 0.0:
-			alan = (parent as Control).size.x - 12.0
-	return HudInventory.calculate_card_width(kart_sayisi, alan)
 
 func _yan_hud_hazirla() -> void:
 	ui_system.build_side_hud()
@@ -1291,7 +1278,7 @@ func savas_paneli_olustur() -> void:
 	envanter_adet_eksi_btn.custom_minimum_size = Vector2(28, 28)
 	envanter_adet_eksi_btn.pressed.connect(func():
 		secili_envanter_gonder_adedi = max(1, secili_envanter_gonder_adedi - 1)
-		_envanter_secim_ui_guncelle()
+		unit_deployment.update_selection_ui()
 	)
 	envanter_adet_satiri.add_child(envanter_adet_eksi_btn)
 	ui_system.register_battle_panel_widget(envanter_adet_eksi_btn)
@@ -1305,9 +1292,9 @@ func savas_paneli_olustur() -> void:
 	envanter_adet_arti_btn.text = "+"
 	envanter_adet_arti_btn.custom_minimum_size = Vector2(28, 28)
 	envanter_adet_arti_btn.pressed.connect(func():
-		var max_adet = _envanter_secili_grup_indeksleri().size()
+		var max_adet = unit_deployment.get_selected_group_indices().size()
 		secili_envanter_gonder_adedi = min(max_adet, secili_envanter_gonder_adedi + 1)
-		_envanter_secim_ui_guncelle()
+		unit_deployment.update_selection_ui()
 	)
 	envanter_adet_satiri.add_child(envanter_adet_arti_btn)
 	ui_system.register_battle_panel_widget(envanter_adet_arti_btn)
@@ -1358,198 +1345,34 @@ func tekrar_oyna_butonu_olustur() -> void:
 	$CanvasLayer.add_child(tekrar_oyna_btn)
 
 func kompozisyon_toplami() -> int:
-	var toplam = 0
-	for sayi in kompozisyon:
-		toplam += sayi
-	return toplam
+	return unit_deployment.composition_total()
 
 func kompozisyon_ekle(idx: int) -> void:
-	var tip = osmanli_birim_tipleri[idx]
-	if mevcut_kontenjan < tip["kontenjan"]:
-		return
-	mevcut_kontenjan -= tip["kontenjan"]
-	kompozisyon[idx] += 1
-	sayi_labellar[idx].text = str(kompozisyon[idx])
-	var kont_l = ui_node("Label_Kontenjan")
-	if kont_l != null:
-		kont_l.text = "Kontenjan: " + str(mevcut_kontenjan) + "/" + str(max_kontenjan) + " | Ordu: " + str(kompozisyon_toplami())
+	unit_deployment.composition_add(idx)
 
 func kompozisyon_cikar(idx: int) -> void:
-	if kompozisyon[idx] <= 0:
-		return
-	var tip = osmanli_birim_tipleri[idx]
-	mevcut_kontenjan += tip["kontenjan"]
-	kompozisyon[idx] -= 1
-	sayi_labellar[idx].text = str(kompozisyon[idx])
-	var kont_l2 = ui_node("Label_Kontenjan")
-	if kont_l2 != null:
-		kont_l2.text = "Kontenjan: " + str(mevcut_kontenjan) + "/" + str(max_kontenjan) + " | Ordu: " + str(kompozisyon_toplami())
+	unit_deployment.composition_remove(idx)
 
 func _envanter_secili_grup_indeksleri() -> Array:
-	if secili_envanter_tip_anahtari == "" or not envanter_gruplari.has(secili_envanter_tip_anahtari):
-		return []
-	return (envanter_gruplari[secili_envanter_tip_anahtari]["indeksler"] as Array).duplicate()
-
-func _envanter_secili_tip() -> Dictionary:
-	if secili_envanter_tip_anahtari == "" or not envanter_gruplari.has(secili_envanter_tip_anahtari):
-		return {}
-	return envanter_gruplari[secili_envanter_tip_anahtari]["tip"]
+	return unit_deployment.get_selected_group_indices()
 
 func _envanter_secim_ui_guncelle() -> void:
-	var secili_indeksler = _envanter_secili_grup_indeksleri()
-	var secili_toplam = secili_indeksler.size()
-	for btn in envanter_butonlari:
-		if not is_instance_valid(btn):
-			continue
-		var b_silik = bool(btn.get_meta("env_silik", false))
-		if b_silik:
-			btn.modulate = Color(1, 1, 1, 0.38)
-			continue
-		var b_anahtar = str(btn.get_meta("env_anahtar", ""))
-		btn.modulate = Color(1.2, 1.17, 1.02, 1.0) if b_anahtar != "" and b_anahtar == secili_envanter_tip_anahtari else Color(1, 1, 1, 1)
-	if envanter_adet_satiri != null:
-		envanter_adet_satiri.visible = false
-	if secili_toplam <= 0:
-		secili_envanter_idx = -1
-		secili_envanter_tip_anahtari = ""
-		secili_envanter_gonder_adedi = 1
-		return
-	secili_envanter_idx = int(secili_indeksler[0])
-	secili_envanter_gonder_adedi = clampi(secili_envanter_gonder_adedi, 1, secili_toplam)
-	if envanter_adet_label != null:
-		envanter_adet_label.text = "x" + str(secili_envanter_gonder_adedi)
-	if envanter_adet_eksi_btn != null:
-		envanter_adet_eksi_btn.disabled = secili_envanter_gonder_adedi <= 1
-	if envanter_adet_arti_btn != null:
-		envanter_adet_arti_btn.disabled = secili_envanter_gonder_adedi >= secili_toplam
+	unit_deployment.update_selection_ui()
 
 func envanter_olustur() -> void:
-	for btn in envanter_butonlari:
-		if is_instance_valid(btn):
-			btn.queue_free()
-	envanter_butonlari.clear()
-	envanter_gruplari.clear()
-
-	if envanter_grid == null:
-		return
-	if is_instance_valid(envanter_scroll) and envanter_scroll.get_parent() == null:
-		return
-	envanter_grid.columns = max(1, osmanli_birim_tipleri.size())
-	for child in envanter_grid.get_children():
-		child.queue_free()
-	var kart_genislik = _envanter_kart_genislik_hesapla()
-
-	var sira: Array = []
-	for i in range(envanter.size()):
-		var tip = envanter[i]
-		var anahtar = _envanter_anahtari(tip)
-		if not envanter_gruplari.has(anahtar):
-			envanter_gruplari[anahtar] = {"tip": tip, "indeksler": []}
-			sira.append(anahtar)
-		(envanter_gruplari[anahtar]["indeksler"] as Array).append(i)
-
-	if hazirlik_fazi:
-		secili_envanter_idx = -1
-		secili_envanter_tip_anahtari = ""
-		secili_envanter_gonder_adedi = 1
-		_envanter_secim_ui_guncelle()
-		var env_l = ui_node("Label_Envanter")
-		if env_l != null:
-			env_l.text = "Envanter: (bos)"
-		return
-
-	for idx in range(osmanli_birim_tipleri.size()):
-		var tip = osmanli_birim_tipleri[idx]
-		var anahtar = _envanter_anahtari(tip)
-		var adet = 0
-		if envanter_gruplari.has(anahtar):
-			adet = (envanter_gruplari[anahtar]["indeksler"] as Array).size()
-		var orduda = savas_baslangic_kompozisyon.size() > idx and int(savas_baslangic_kompozisyon[idx]) > 0
-		var silik = HudInventory.is_dimmed(orduda, adet)
-
-		var btn = Button.new()
-		btn.text = ""
-		btn.custom_minimum_size = Vector2(kart_genislik, 42)
-		btn.set_meta("env_anahtar", anahtar)
-		btn.set_meta("env_silik", silik)
-		btn.gui_input.connect(_envanter_kart_gui_input.bind(idx, silik))
-		var hover_tip = tip
-		btn.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-		btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
-		if silik:
-			btn.modulate = Color(1, 1, 1, 0.38)
-		elif adet > 0:
-			btn.pressed.connect(func(): envanter_sec(anahtar))
-
-		var kart = VBoxContainer.new()
-		kart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		kart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		kart.alignment = BoxContainer.ALIGNMENT_CENTER
-
-		var isim_l = Label.new()
-		isim_l.text = str(tip.get("isim", "Birim"))
-		isim_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		isim_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		isim_l.add_theme_font_size_override("font_size", 9)
-
-		var alt_satir = HBoxContainer.new()
-		alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
-		alt_satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-		var sembol_l = Label.new()
-		sembol_l.text = str(tip.get("sembol", "•"))
-		sembol_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sembol_l.add_theme_font_size_override("font_size", 10)
-
-		var adet_l = Label.new()
-		adet_l.text = "x" + str(adet)
-		adet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		adet_l.add_theme_font_size_override("font_size", 9)
-
-		alt_satir.add_child(sembol_l)
-		alt_satir.add_child(adet_l)
-		kart.add_child(isim_l)
-		kart.add_child(alt_satir)
-		btn.add_child(kart)
-		envanter_grid.add_child(btn)
-		envanter_butonlari.append(btn)
-
-	var env_l2 = ui_node("Label_Envanter")
-	if env_l2 != null:
-		env_l2.text = "Envanter: " + str(envanter.size()) + " birim"
-
-	if secili_envanter_tip_anahtari != "" and envanter_gruplari.has(secili_envanter_tip_anahtari):
-		if _envanter_secili_grup_indeksleri().is_empty():
-			secili_envanter_tip_anahtari = ""
-	elif secili_envanter_tip_anahtari == "":
-		for idx in range(osmanli_birim_tipleri.size()):
-			var tip_key = _envanter_anahtari(osmanli_birim_tipleri[idx])
-			if envanter_gruplari.has(tip_key) and _envanter_gruplari_adet(tip_key) > 0:
-				secili_envanter_tip_anahtari = tip_key
-				break
-	secili_envanter_gonder_adedi = 1
-	_envanter_secim_ui_guncelle()
-	ui_fontlarini_optimize_et()
-
-func _envanter_gruplari_adet(anahtar: String) -> int:
-	if not envanter_gruplari.has(anahtar):
-		return 0
-	return (envanter_gruplari[anahtar]["indeksler"] as Array).size()
+	unit_deployment.rebuild_inventory()
 
 func envanter_sec(anahtar: String) -> void:
-	if not envanter_gruplari.has(anahtar):
-		return
-	secili_envanter_tip_anahtari = anahtar
-	secili_envanter_gonder_adedi = 1
-	_envanter_secim_ui_guncelle()
-	command_system.select_unit(null)
-	secili_birim = command_system.get_selected_unit()
-	var tip = envanter_gruplari[anahtar]["tip"]
-	birim_detay_hover_bitir()
-	var s = ui_node("Label_SavasBilgi")
-	if s != null:
-		var adet = _envanter_secili_grup_indeksleri().size()
-		s.text = "Secili: " + tip["isim"] + " (x" + str(adet) + ") — + / - ile adet, haritaya tikla"
+	unit_deployment.select_inventory(anahtar)
+
+func birimi_gonder() -> void:
+	unit_deployment.send_from_point()
+
+func birim_haritadan_gonder(hedef_pos: Vector2) -> void:
+	unit_deployment.send_from_map(hedef_pos)
+
+func birim_satin_al(idx: int) -> void:
+	unit_deployment.purchase_unit(idx)
 
 func nokta_sec(nokta: String) -> void:
 	secili_nokta = nokta
@@ -1610,102 +1433,6 @@ func noktadaki_taraf_sayisi(nokta: String, taraf: String) -> int:
 		if birim_nokta_menzilinde(b, nokta):
 			say += 1
 	return say
-
-func birim_konumu_hesapla(nokta: String, taraf: String) -> Vector2:
-	var taraf_sayisi = 0
-	for b in aktif_birimler:
-		if b["hp"] <= 0 or b["taraf"] != taraf:
-			continue
-		if b["hedef_nokta"] == nokta:
-			taraf_sayisi += 1
-
-	var sutun = taraf_sayisi % 5
-	var satir = taraf_sayisi / 5
-
-	if taraf == "osmanli":
-		# Osmanlı aşağıda
-		return Vector2(
-			nokta_konumlari[nokta].x - 60 + sutun * 35,
-			nokta_konumlari[nokta].y + 100 + satir * 35
-		)
-	else:
-		# Doğu Roma yukarıda
-		return Vector2(
-			nokta_konumlari[nokta].x - 60 + sutun * 35,
-			nokta_konumlari[nokta].y - 120 - satir * 35
-		)
-
-func birimi_gonder() -> void:
-	if secili_nokta == "":
-		print("Once nokta sec!")
-		return
-	var secili_indeksler = _envanter_secili_grup_indeksleri()
-	if secili_indeksler.is_empty():
-		print("Once birim sec!")
-		return
-
-	var adet = min(secili_envanter_gonder_adedi, secili_indeksler.size())
-	var tip = _envanter_secili_tip()
-	secili_indeksler.sort()
-	for i in range(adet):
-		var sil_idx = int(secili_indeksler[secili_indeksler.size() - 1 - i])
-		envanter.remove_at(sil_idx)
-	secili_envanter_idx = -1
-	secili_envanter_tip_anahtari = ""
-	secili_envanter_gonder_adedi = 1
-	var s3 = ui_node("Label_SavasBilgi")
-	if s3 != null:
-		s3.text = str(adet) + " birim gonderildi"
-
-	var hedef_pos = birim_konumu_hesapla(secili_nokta, "osmanli")
-	var oyuncu_spawn_y = harita_sinir["max_y"] - 60.0
-	for i in range(adet):
-		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
-		birim_olustur(
-			Vector2(nokta_konumlari[secili_nokta].x + dagilim.x, oyuncu_spawn_y),
-			secili_nokta, "osmanli", tip, hedef_pos + dagilim
-		)
-	envanter_olustur()
-
-func birim_haritadan_gonder(hedef_pos: Vector2) -> void:
-	var secili_indeksler = _envanter_secili_grup_indeksleri()
-	if secili_indeksler.is_empty():
-		return
-
-	hedef_pos = harita_sinirla(hedef_pos)
-	var adet = min(1, secili_indeksler.size())
-	var tip = _envanter_secili_tip()
-	secili_indeksler.sort()
-	for i in range(adet):
-		var sil_idx = int(secili_indeksler[secili_indeksler.size() - 1 - i])
-		envanter.remove_at(sil_idx)
-	secili_envanter_idx = -1
-	secili_envanter_tip_anahtari = ""
-	secili_envanter_gonder_adedi = 1
-	var s4 = ui_node("Label_SavasBilgi")
-	if s4 != null:
-		s4.text = str(adet) + " birim gonderildi"
-
-	var nokta = en_yakin_nokta_bul(hedef_pos)
-	var oyuncu_spawn_y = harita_sinir["max_y"] - 60.0
-	for i in range(adet):
-		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
-		birim_olustur(
-			Vector2(hedef_pos.x + dagilim.x, oyuncu_spawn_y),
-			nokta, "osmanli", tip, hedef_pos + dagilim
-		)
-	envanter_olustur()
-
-func birim_satin_al(idx: int) -> void:
-	var tip = osmanli_birim_tipleri[idx]
-	if osmanli_altini < tip["maliyet"]:
-		print("Yeterli altin yok!")
-		return
-	osmanli_altini -= tip["maliyet"]
-	mac_istatistik["osmanli"]["altin_harcama"] += int(tip["maliyet"])
-	envanter.append(tip.duplicate())
-	envanter_olustur()
-	ui_guncelle()
 
 func hazirlik_baslat() -> void:
 	battle_flow.start_preparation()
@@ -1808,96 +1535,7 @@ func birim_etkin_degerleri(birim: Dictionary) -> Dictionary:
 	return etkiler
 
 func birim_olustur(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Dictionary, hedef_konum: Vector2 = Vector2(-1, -1)) -> void:
-	var cerceve = ColorRect.new()
-	cerceve.color = Color(0.05, 0.05, 0.08, 0.55) if taraf == "osmanli" else Color(0.15, 0.05, 0.25, 0.65)
-	cerceve.size = Vector2(34, 34)
-	cerceve.position = baslangic - Vector2(2, 2)
-	cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cerceve.z_index = 19
-	add_child(cerceve)
-
-	var kare = ColorRect.new()
-	kare.color = tip["renk"]
-	kare.size = Vector2(30, 30)
-	kare.position = baslangic
-	kare.z_index = 20
-	add_child(kare)
-
-	var sembol = Label.new()
-	sembol.text = tip["sembol"]
-	sembol.position = Vector2(5, 5)
-	sembol.add_theme_font_size_override("font_size", 14)
-	kare.add_child(sembol)
-
-	var asker_l = Label.new()
-	asker_l.name = "AskerSayisi"
-	asker_l.text = str(tip["asker_sayisi"])
-	asker_l.position = Vector2(0, -18)
-	asker_l.add_theme_font_size_override("font_size", 10)
-	asker_l.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
-	kare.add_child(asker_l)
-
-	var hp_bg = ColorRect.new()
-	hp_bg.color = Color(0.15, 0.05, 0.05, 0.9)
-	hp_bg.size = Vector2(30, 4)
-	hp_bg.position = Vector2(0, -6)
-	kare.add_child(hp_bg)
-
-	var hp_bar = ColorRect.new()
-	hp_bar.color = Color(0.25, 0.78, 0.32, 1.0)
-	hp_bar.size = Vector2(30, 4)
-	hp_bar.position = Vector2(0, -6)
-	hp_bar.name = "HPBar"
-	kare.add_child(hp_bar)
-
-	var gidilecek = hedef_konum if hedef_konum != Vector2(-1, -1) else nokta_konumlari[hedef_nokta] + Vector2(25, 25)
-
-	var guc = tip["guc"]
-	var savunma = tip["savunma"]
-	var hp = float(tip["hp"] * tip["asker_sayisi"])
-	var gorus_yaricapi = _birim_gorus_yaricapi(tip)
-	if taraf == "dogu_roma":
-		guc = int(guc * zorluk_ayarlari[zorluk]["guc_carpan"])
-		savunma = int(savunma * zorluk_ayarlari[zorluk]["savunma_carpan"])
-		hp = hp * zorluk_ayarlari[zorluk]["hp_carpan"]
-
-	var birim = {
-		"id": birim_id_sayaci,
-		"node": kare,
-		"konum": baslangic,
-		"hedef": gidilecek,
-		"hedef_nokta": hedef_nokta,
-		"taraf": taraf,
-		"hiz": tip["hiz"],
-		"guc": guc,
-		"savunma": savunma,
-		"hp": hp,
-		"max_hp": hp,
-		"asker_sayisi": tip["asker_sayisi"],
-		"isim": tip["isim"],
-		"menzil": tip.get("menzil", 80.0),
-		"saldirim_timer": 0.0,
-		"hasar_verilen": 0,
-		"bekleyen_hasar": 0.0,
-		"gorus_yaricapi": gorus_yaricapi,
-		"pusu_modunda": false,
-		"pusu_arazi_gizli": false,
-		"pusu_ilk_saldiri_kullanildi": false,
-		"pusu_hasar_carpani": pusu_ilk_saldiri_carpani,
-		"geri_cekiliyor": false,
-		"savunma_modunda": false,
-		"takip_edilen_dusman": -1,
-		"secili": false,
-		"savas_halinde": false,
-		"ai_timer": 0.0 if taraf == "dogu_roma" else -1.0,
-		"is_general": tip.get("is_general", false),
-		"aura_menzil": tip.get("aura_menzil", 0.0),
-		"aura_guc": tip.get("aura_guc", 1.0),
-		"aura_savunma": tip.get("aura_savunma", 1.0)
-	}
-	birim_id_sayaci += 1
-	aktif_birimler.append(birim)
-	terfi_kullanimi_artir(taraf, tip["isim"])
+	unit_deployment.create_unit(baslangic, hedef_nokta, taraf, tip, hedef_konum)
 
 func hasar_carpani_hesapla(saldiran: String, hedef: String) -> float:
 	if not ustunluk_tablosu.has(saldiran):
