@@ -1121,6 +1121,9 @@ func birim_detay_hover_basla(tip: Dictionary) -> void:
 func birim_detay_hover_bitir() -> void:
 	ui_system.end_unit_detail_hover()
 
+func _birim_detay_hover_durumunu_guncelle() -> void:
+	ui_system.sync_unit_detail_hover_visibility()
+
 func _liste_metni(arr: Array) -> String:
 	if arr.is_empty():
 		return "-"
@@ -1157,7 +1160,7 @@ func birim_detay_metni(tip: Dictionary) -> String:
 	]
 
 func birim_detay_goster(tip: Dictionary) -> void:
-	_birim_detay_popup_goster(birim_detay_metni(tip))
+	birim_detay_hover_bitir()
 
 func kart_secenekleri_hazirla() -> void:
 	var eski_satir = ui_node("KartSecimSatiri")
@@ -1585,6 +1588,7 @@ func savas_paneli_olustur() -> void:
 	envanter_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	envanter_scroll.custom_minimum_size = Vector2(0, 56)
 	ui_system.add_battle_panel_element(envanter_scroll)
+	envanter_scroll.mouse_exited.connect(birim_detay_hover_bitir)
 
 	envanter_grid = GridContainer.new()
 	envanter_grid.columns = max(1, osmanli_birim_tipleri.size())
@@ -1788,13 +1792,13 @@ func envanter_olustur() -> void:
 		btn.set_meta("env_anahtar", anahtar)
 		btn.set_meta("env_silik", silik)
 		btn.gui_input.connect(_envanter_kart_gui_input.bind(idx, silik))
+		var hover_tip = tip
+		btn.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
+		btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
 		if silik:
 			btn.modulate = Color(1, 1, 1, 0.38)
 		elif adet > 0:
 			btn.pressed.connect(func(): envanter_sec(anahtar))
-			var hover_tip = tip
-			btn.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-			btn.mouse_exited.connect(func(): birim_detay_hover_bitir())
 
 		var kart = VBoxContainer.new()
 		kart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -2489,6 +2493,7 @@ func _process(delta: float) -> void:
 
 	if detay_popup_panel != null and detay_popup_panel.visible:
 		_birim_detay_popup_konumla()
+		_birim_detay_hover_durumunu_guncelle()
 
 	kalan_sure -= delta
 	oyun_suresi += delta
@@ -3249,6 +3254,7 @@ func _input(event) -> void:
 
 	if event.is_action_pressed("cmd_primary_click"):
 			if _minimap_tiklamasini_isle(event.position):
+				birim_detay_hover_bitir()
 				return
 
 			_komut_menusu_disina_tiklandi_mi(event.position)
@@ -3262,8 +3268,10 @@ func _input(event) -> void:
 			var savas_icerik = ui_node("SavasIcerik") as Control
 			if savas_icerik != null and savas_icerik.visible:
 				if savas_icerik.get_global_rect().has_point(event.position):
+					birim_detay_hover_bitir()
 					return
 
+			birim_detay_hover_bitir()
 			var dunya_pos = get_global_mouse_position()
 			if not hazirlik_fazi:
 				var tiklama_sonucu = _tiklanan_birimi_bul(dunya_pos)

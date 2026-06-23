@@ -447,6 +447,14 @@ func end_unit_detail_hover() -> void:
 	if detay_popup_panel != null:
 		detay_popup_panel.visible = false
 
+func sync_unit_detail_hover_visibility() -> void:
+	if detay_popup_panel == null or not detay_popup_panel.visible:
+		return
+	if _hover_birim_detay.is_empty():
+		detay_popup_panel.visible = false
+		if detay_popup_timer != null:
+			detay_popup_timer.stop()
+
 func show_unit_detail_popup(metin: String) -> void:
 	if detay_popup_panel == null or detay_popup_label == null:
 		return
