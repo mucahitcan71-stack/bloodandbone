@@ -9,6 +9,8 @@ const FogSystem = preload("res://scripts/systems/fog_system.gd")
 const UISystem = preload("res://scripts/systems/ui_system.gd")
 const CommandSystem = preload("res://scripts/systems/command_system.gd")
 const HudStyle = preload("res://scripts/ui/hud_style.gd")
+const HudCommands = preload("res://scripts/ui/hud_commands.gd")
+const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -662,9 +664,7 @@ func _envanter_kart_genislik_hesapla() -> float:
 		var parent = envanter_grid.get_parent()
 		if parent is Control and (parent as Control).size.x > 0.0:
 			alan = (parent as Control).size.x - 12.0
-	var bosluk = 4.0
-	var toplam_bosluk = bosluk * float(kart_sayisi - 1)
-	return clampf((alan - toplam_bosluk) / float(kart_sayisi), 56.0, 86.0)
+	return HudInventory.calculate_card_width(kart_sayisi, alan)
 
 func takviye_gorunurluk_guncelle(acik: bool) -> void:
 	if takviye_liste_satiri != null:
@@ -1077,12 +1077,10 @@ func _takviye_sag_tik_menu_secildi() -> void:
 	birim_satin_al(idx)
 
 func _envanter_kart_gui_input(event: InputEvent, idx: int, silik: bool) -> void:
-	if not (event is InputEventMouseButton and event.pressed):
-		return
-	if event.button_index == MOUSE_BUTTON_RIGHT:
+	if HudInventory.should_show_context_menu(event):
 		takviye_sag_tik_menu_ac(idx, event.global_position)
 		get_viewport().set_input_as_handled()
-	elif silik and event.button_index == MOUSE_BUTTON_LEFT:
+	elif HudInventory.should_block_left_click(event, silik):
 		get_viewport().set_input_as_handled()
 
 func komut_menusu_komut_sec(komut: String) -> void:
@@ -1441,15 +1439,16 @@ func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
 	panel.add_theme_stylebox_override("panel", HudStyle.right_panel_style())
 
 func _komut_paneli_buton_tiklandi(komut_id: String) -> void:
-	if komut_id == "savun":
+	var action = HudCommands.resolve_click_action(komut_id)
+	if action == "savun":
 		if secili_birim != null:
 			birim_nokta_savun(secili_birim)
 		return
-	if komut_id == "geri_cekil":
+	if action == "geri_cekil":
 		if secili_birim != null:
 			birim_geri_cekil_baslat(secili_birim)
 		return
-	if komut_id == "ult":
+	if action == "ult":
 		ult_kullan("osmanli")
 		return
 	komut_sec(komut_id)
@@ -1458,21 +1457,14 @@ func _komut_paneli_guncelle() -> void:
 	if hud_komut_butonlari.is_empty():
 		return
 	var secili_var = secili_birim != null
+	var ult_hazir = ult_sarj["osmanli"] >= 100.0
 	for komut_id in hud_komut_butonlari:
 		var btn = hud_komut_butonlari[komut_id] as Button
 		if btn == null:
 			continue
-		var secim_gerektirir = komut_id in ["saldir", "pusu", "savun", "geri_cekil"]
-		btn.disabled = secim_gerektirir and not secili_var
-		if btn.disabled:
-			btn.modulate = Color(0.7, 0.7, 0.72, 0.65)
-			continue
-		if komut_id in ["hareket", "saldir", "pusu"] and secili_komut == komut_id:
-			btn.modulate = Color(1.22, 1.16, 0.92, 1.0)
-		elif komut_id == "ult" and ult_sarj["osmanli"] >= 100.0:
-			btn.modulate = Color(1.18, 1.12, 0.78, 1.0)
-		else:
-			btn.modulate = Color(1, 1, 1, 1)
+		var state = HudCommands.button_state(str(komut_id), secili_var, secili_komut, ult_hazir)
+		btn.disabled = bool(state.get("disabled", false))
+		btn.modulate = state.get("modulate", Color(1, 1, 1, 1))
 
 func _savas_hud_wireframe_duzenle() -> void:
 	var savas_icerik = ui_node("SavasIcerik") as VBoxContainer
@@ -1565,14 +1557,7 @@ func _savas_hud_wireframe_duzenle() -> void:
 	komut_grid.add_theme_constant_override("v_separation", 3)
 	sag_vbox.add_child(komut_grid)
 	hud_komut_butonlari.clear()
-	var komutler = [
-		{"id": "hareket", "text": "↔"},
-		{"id": "saldir", "text": "⚔"},
-		{"id": "pusu", "text": "🌲"},
-		{"id": "savun", "text": "🛡"},
-		{"id": "geri_cekil", "text": "↩"},
-		{"id": "ult", "text": "★"},
-	]
+	var komutler = HudCommands.button_definitions()
 	for komut in komutler:
 		var btn = Button.new()
 		btn.custom_minimum_size = Vector2(28, 26)
@@ -1950,7 +1935,7 @@ func envanter_olustur() -> void:
 		if envanter_gruplari.has(anahtar):
 			adet = (envanter_gruplari[anahtar]["indeksler"] as Array).size()
 		var orduda = savas_baslangic_kompozisyon.size() > idx and int(savas_baslangic_kompozisyon[idx]) > 0
-		var silik = not orduda and adet <= 0
+		var silik = HudInventory.is_dimmed(orduda, adet)
 
 		var btn = Button.new()
 		btn.text = ""
