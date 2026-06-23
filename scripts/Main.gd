@@ -19,6 +19,7 @@ const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
 const CombatLoopSystem = preload("res://scripts/systems/combat_loop_system.gd")
 const UnitDeploymentSystem = preload("res://scripts/systems/unit_deployment_system.gd")
 const AiSystem = preload("res://scripts/systems/ai_system.gd")
+const PointEconomySystem = preload("res://scripts/systems/point_economy_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -28,6 +29,7 @@ var battle_flow: BattleFlowSystem = BattleFlowSystem.new()
 var combat_loop: CombatLoopSystem = CombatLoopSystem.new()
 var unit_deployment: UnitDeploymentSystem = UnitDeploymentSystem.new()
 var ai_system: AiSystem = AiSystem.new()
+var point_economy: PointEconomySystem = PointEconomySystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -375,6 +377,9 @@ func _unit_deployment_hazirla() -> void:
 func _ai_system_hazirla() -> void:
 	ai_system.configure(self)
 
+func _point_economy_hazirla() -> void:
+	point_economy.configure(self)
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -561,6 +566,7 @@ func _ready() -> void:
 	_combat_loop_hazirla()
 	_unit_deployment_hazirla()
 	_ai_system_hazirla()
+	_point_economy_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -1410,33 +1416,19 @@ func en_yakin_nokta_bul(pos: Vector2) -> String:
 	return en_yakin
 
 func nokta_oncelik_listesi() -> Array:
-	var sirali: Array = []
-	for nokta in ["C", "A", "B", "D", "E"]:
-		if nokta_konumlari.has(nokta):
-			sirali.append(nokta)
-	for nokta in nokta_konumlari.keys():
-		if not sirali.has(nokta):
-			sirali.append(nokta)
-	return sirali
+	return point_economy.priority_list()
 
 func nokta_taban_puan(nokta: String) -> int:
-	return 3 if nokta == "C" else 1
+	return point_economy.base_score(nokta)
 
 func nokta_taban_altin(nokta: String) -> int:
-	return 6 if nokta == "C" else 3
+	return point_economy.base_gold(nokta)
 
 func birim_nokta_menzilinde(birim: Dictionary, nokta: String) -> bool:
-	var etkiler = birim_etkin_degerleri(birim)
-	return birim["konum"].distance_to(nokta_merkezi(nokta)) <= etkiler["menzil"]
+	return point_economy.unit_in_point_range(birim, nokta)
 
 func noktadaki_taraf_sayisi(nokta: String, taraf: String) -> int:
-	var say = 0
-	for b in aktif_birimler:
-		if b["hp"] <= 0 or b["taraf"] != taraf:
-			continue
-		if birim_nokta_menzilinde(b, nokta):
-			say += 1
-	return say
+	return point_economy.faction_count_at_point(nokta, taraf)
 
 func hazirlik_baslat() -> void:
 	battle_flow.start_preparation()
@@ -1652,13 +1644,13 @@ func _process(delta: float) -> void:
 	puan_timer += delta
 	if puan_timer >= puan_interval:
 		puan_timer = 0.0
-		puan_uret()
+		point_economy.generate_score()
 		ai_system.upgrade_point()
 
-	capture_guncelle(delta)
+	point_economy.tick_capture(delta)
 	savas_sisi_guncelle()
 	ai_system.update_units(delta)
-	istatistik_nokta_sure_guncelle(delta)
+	point_economy.tick_hold_stats(delta)
 	pusu_tetik_kontrolu()
 	nokta_gorunurluklerini_guncelle()
 	birim_gorunurluklerini_guncelle()
@@ -1672,108 +1664,8 @@ func _process(delta: float) -> void:
 	elif dogu_roma_puani >= kazanma_puani:
 		oyun_bitir_kazanan("dogu_roma")
 
-func capture_guncelle(delta: float) -> void:
-	for nokta in nokta_konumlari:
-		var osmanli_sayisi = noktadaki_taraf_sayisi(nokta, "osmanli")
-		var dogu_roma_sayisi = noktadaki_taraf_sayisi(nokta, "dogu_roma")
-		var osmanli_bonus = 1.0 + float(nokta_gelistirme[nokta]) * 0.08 if nokta_sahipleri[nokta] == "osmanli" else 1.0
-		var dogu_roma_bonus = 1.0 + float(nokta_gelistirme[nokta]) * 0.08 if nokta_sahipleri[nokta] == "dogu_roma" else 1.0
-
-		if osmanli_sayisi > dogu_roma_sayisi:
-			nokta_capture[nokta] = min(100.0, nokta_capture[nokta] + capture_hizi * delta * osmanli_sayisi * osmanli_bonus)
-		elif dogu_roma_sayisi > osmanli_sayisi:
-			nokta_capture[nokta] = max(0.0, nokta_capture[nokta] - capture_hizi * delta * dogu_roma_sayisi * dogu_roma_bonus)
-
-		capture_sahip_guncelle(nokta)
-
-func capture_sahip_guncelle(nokta: String) -> void:
-	if nokta_capture[nokta] >= 100.0:
-		nokta_al(nokta, "osmanli")
-	elif nokta_capture[nokta] <= 0.0:
-		nokta_al(nokta, "dogu_roma")
-	else:
-		nokta_al(nokta, "tarafsiz")
-
-func sure_altin_miktari() -> int:
-	var dakika_bonus = int(oyun_suresi / 60.0)
-	return sure_altin_taban + dakika_bonus
-
-func puan_uret() -> void:
-	var sure_altin = sure_altin_miktari()
-	osmanli_altini += sure_altin
-	dogu_roma_altini += sure_altin
-
-	for nokta in nokta_sahipleri:
-		if nokta_sahipleri[nokta] == "osmanli":
-			osmanli_puani += nokta_puan[nokta]
-			osmanli_altini += nokta_altin[nokta]
-			osmanli_gelisim_altini += nokta_altin[nokta]
-		elif nokta_sahipleri[nokta] == "dogu_roma":
-			dogu_roma_puani += nokta_puan[nokta]
-			dogu_roma_altini += nokta_altin[nokta]
-			dogu_roma_gelisim_altini += nokta_altin[nokta]
-
-	var osmanli_nokta = 0
-	var dogu_roma_nokta = 0
-	for nokta in nokta_sahipleri:
-		if nokta_sahipleri[nokta] == "osmanli":
-			osmanli_nokta += 1
-		elif nokta_sahipleri[nokta] == "dogu_roma":
-			dogu_roma_nokta += 1
-
-	if osmanli_nokta >= 3:
-		osmanli_puani += 1
-		osmanli_altini += 5
-		osmanli_gelisim_altini += 5
-		if osmanli_nokta == nokta_sahipleri.size():
-			osmanli_puani += 2
-			osmanli_altini += 10
-			osmanli_gelisim_altini += 10
-	elif dogu_roma_nokta >= 3:
-		dogu_roma_puani += 1
-		dogu_roma_altini += 5
-		dogu_roma_gelisim_altini += 5
-		if dogu_roma_nokta == nokta_sahipleri.size():
-			dogu_roma_puani += 2
-			dogu_roma_altini += 10
-			dogu_roma_gelisim_altini += 10
-
-	ui_guncelle()
-
-func istatistik_nokta_sure_guncelle(delta: float) -> void:
-	var ult_hiz = {
-		"kolay": {"oyuncu": 0.26, "ai": 0.48},
-		"orta": {"oyuncu": 0.22, "ai": 0.52},
-		"zor": {"oyuncu": 0.18, "ai": 0.56},
-	}
-	var hiz = ult_hiz.get(zorluk, ult_hiz["orta"])
-	var oyuncu_ult_hiz = float(hiz["oyuncu"])
-	var ai_ult_hiz = float(hiz["ai"])
-	for nokta in nokta_sahipleri:
-		if nokta_sahipleri[nokta] == "osmanli":
-			mac_istatistik["osmanli"]["nokta_sure"] += delta
-			ult_sarj["osmanli"] = min(100.0, ult_sarj["osmanli"] + delta * oyuncu_ult_hiz)
-		elif nokta_sahipleri[nokta] == "dogu_roma":
-			mac_istatistik["dogu_roma"]["nokta_sure"] += delta
-			ult_sarj["dogu_roma"] = min(100.0, ult_sarj["dogu_roma"] + delta * ai_ult_hiz)
-
 func nokta_gelistir(nokta: String) -> void:
-	if hazirlik_fazi or oyun_bitti:
-		return
-	if nokta_sahipleri[nokta] != "osmanli":
-		return
-	var seviye = nokta_gelistirme[nokta]
-	if seviye >= 3:
-		return
-	var maliyet = 20 + seviye * 15
-	if osmanli_gelisim_altini < maliyet:
-		return
-	osmanli_gelisim_altini -= maliyet
-	mac_istatistik["osmanli"]["altin_harcama"] += maliyet
-	nokta_gelistirme[nokta] += 1
-	nokta_puan[nokta] = nokta_taban_puan(nokta) + nokta_gelistirme[nokta]
-	nokta_altin[nokta] = nokta_taban_altin(nokta) + nokta_gelistirme[nokta]
-	ui_guncelle()
+	point_economy.upgrade_point(nokta)
 
 func ai_nokta_gelistir() -> void:
 	ai_system.upgrade_point()
@@ -1836,34 +1728,13 @@ func ui_guncelle() -> void:
 		label_sag_roma.text = "Moral OSM " + str(int(taraf_moral["osmanli"])) + " • ROM " + str(int(taraf_moral["dogu_roma"]))
 
 func nokta_renkleri_sifirla() -> void:
-	for nokta in nokta_konumlari:
-		nokta_al(nokta, "tarafsiz")
-		nokta_capture[nokta] = 50.0
-		if capture_barlar.has(nokta):
-			capture_barlar[nokta].size.x = 40.0
+	point_economy.reset_point_colors()
 
 func nokta_renk_guncelle(nokta: String) -> void:
-	var kare = get_node("Nokta_" + nokta)
-	if nokta_sahipleri[nokta] == "osmanli":
-		kare.color = Color.GOLD
-	elif nokta_sahipleri[nokta] == "dogu_roma":
-		kare.color = Color.PURPLE
-	else:
-		kare.color = Color.GRAY
+	point_economy.update_point_color(nokta)
 
 func nokta_al(nokta: String, taraf: String) -> void:
-	if nokta_sahipleri[nokta] == taraf:
-		return
-	var onceki = nokta_sahipleri[nokta]
-	nokta_sahipleri[nokta] = taraf
-	if onceki == "osmanli":
-		moral_degistir("osmanli", -10.0)
-	elif onceki == "dogu_roma":
-		moral_degistir("dogu_roma", -10.0)
-	if taraf == "osmanli":
-		moral_degistir("osmanli", 10.0)
-	elif taraf == "dogu_roma":
-		moral_degistir("dogu_roma", 10.0)
+	point_economy.capture_point(nokta, taraf)
 
 func _minimap_tiklamasini_isle(event_position: Vector2) -> bool:
 	return minimap_controller.handle_click(event_position, kamera, harita_sinir, Callable(self, "kamera_sinirla"))
