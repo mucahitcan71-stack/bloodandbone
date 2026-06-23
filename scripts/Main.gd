@@ -1415,6 +1415,96 @@ func hiz_carpani_arttir() -> void:
 	var sonraki = float(sirali[(idx + 1) % sirali.size()])
 	hiz_sec(sonraki)
 
+func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
+	var stil = StyleBoxFlat.new()
+	stil.bg_color = Color(0.06, 0.08, 0.1, 0.9)
+	stil.border_color = Color(0.4, 0.34, 0.24, 0.58)
+	stil.set_border_width_all(1)
+	stil.set_corner_radius_all(5)
+	stil.shadow_color = Color(0, 0, 0, 0.3)
+	stil.shadow_size = 3
+	panel.add_theme_stylebox_override("panel", stil)
+
+func _savas_hud_wireframe_duzenle() -> void:
+	var savas_icerik = ui_node("SavasIcerik") as VBoxContainer
+	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
+	var env_baslik = ui_node("Label_Envanter") as Label
+	var ult_btn = ui_node("UltBtn") as Button
+	var hiz_btn = ui_node("HizBtn") as Button
+	if savas_icerik == null or savas_bilgi == null or envanter_grid == null or env_baslik == null:
+		return
+
+	var hud_main = VBoxContainer.new()
+	hud_main.name = "SavasHudMain"
+	hud_main.add_theme_constant_override("separation", 8)
+	hud_main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_system.add_battle_panel_element(hud_main)
+	savas_icerik.move_child(hud_main, 0)
+
+	savas_bilgi.reparent(hud_main)
+	savas_bilgi.add_theme_font_size_override("font_size", 11)
+	savas_bilgi.add_theme_color_override("font_color", Color(0.9, 0.9, 0.86))
+
+	var alt_satir = HBoxContainer.new()
+	alt_satir.name = "SavasHudAltSatir"
+	alt_satir.add_theme_constant_override("separation", 10)
+	alt_satir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hud_main.add_child(alt_satir)
+	ui_system.register_battle_panel_widget(alt_satir)
+
+	var sol_modul = PanelContainer.new()
+	sol_modul.name = "HudSolModul"
+	sol_modul.custom_minimum_size = Vector2(230, 132)
+	_hud_modul_stili_uygula(sol_modul)
+	alt_satir.add_child(sol_modul)
+	ui_system.register_battle_panel_widget(sol_modul)
+	var sol_margin = MarginContainer.new()
+	sol_margin.add_theme_constant_override("margin_left", 8)
+	sol_margin.add_theme_constant_override("margin_right", 8)
+	sol_margin.add_theme_constant_override("margin_top", 8)
+	sol_margin.add_theme_constant_override("margin_bottom", 8)
+	sol_modul.add_child(sol_margin)
+	var sol_vbox = VBoxContainer.new()
+	sol_vbox.add_theme_constant_override("separation", 6)
+	sol_margin.add_child(sol_vbox)
+	env_baslik.reparent(sol_vbox)
+
+	var orta_modul = PanelContainer.new()
+	orta_modul.name = "HudOrtaModul"
+	orta_modul.custom_minimum_size = Vector2(520, 132)
+	orta_modul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hud_modul_stili_uygula(orta_modul)
+	alt_satir.add_child(orta_modul)
+	ui_system.register_battle_panel_widget(orta_modul)
+	var orta_margin = MarginContainer.new()
+	orta_margin.add_theme_constant_override("margin_left", 8)
+	orta_margin.add_theme_constant_override("margin_right", 8)
+	orta_margin.add_theme_constant_override("margin_top", 8)
+	orta_margin.add_theme_constant_override("margin_bottom", 8)
+	orta_modul.add_child(orta_margin)
+	envanter_grid.reparent(orta_margin)
+
+	var sag_modul = PanelContainer.new()
+	sag_modul.name = "HudSagModul"
+	sag_modul.custom_minimum_size = Vector2(180, 132)
+	_hud_modul_stili_uygula(sag_modul)
+	alt_satir.add_child(sag_modul)
+	ui_system.register_battle_panel_widget(sag_modul)
+	var sag_margin = MarginContainer.new()
+	sag_margin.add_theme_constant_override("margin_left", 8)
+	sag_margin.add_theme_constant_override("margin_right", 8)
+	sag_margin.add_theme_constant_override("margin_top", 8)
+	sag_margin.add_theme_constant_override("margin_bottom", 8)
+	sag_modul.add_child(sag_margin)
+	var sag_vbox = VBoxContainer.new()
+	sag_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	sag_vbox.add_theme_constant_override("separation", 8)
+	sag_margin.add_child(sag_vbox)
+	if ult_btn != null:
+		ult_btn.reparent(sag_vbox)
+	if hiz_btn != null:
+		hiz_btn.reparent(sag_vbox)
+
 func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()
 	ui_system.build_battle_panel_skeleton(func(): ult_kullan("osmanli"))
@@ -1564,6 +1654,7 @@ func savas_paneli_olustur() -> void:
 	nokta_plus_grup.visible = false
 
 	ui_system.build_battle_panel_footer(func(): hiz_carpani_arttir())
+	_savas_hud_wireframe_duzenle()
 	_ui_refs_sync()
 	hiz_butonunu_guncelle()
 
