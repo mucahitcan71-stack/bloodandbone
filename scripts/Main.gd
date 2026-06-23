@@ -18,6 +18,7 @@ const InputRouter = preload("res://scripts/input/input_router.gd")
 const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
 const CombatLoopSystem = preload("res://scripts/systems/combat_loop_system.gd")
 const UnitDeploymentSystem = preload("res://scripts/systems/unit_deployment_system.gd")
+const AiSystem = preload("res://scripts/systems/ai_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -26,6 +27,7 @@ var command_system: CommandSystem
 var battle_flow: BattleFlowSystem = BattleFlowSystem.new()
 var combat_loop: CombatLoopSystem = CombatLoopSystem.new()
 var unit_deployment: UnitDeploymentSystem = UnitDeploymentSystem.new()
+var ai_system: AiSystem = AiSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -277,9 +279,7 @@ func kompozisyon_dizisi_sifirla() -> void:
 	unit_deployment.reset_composition()
 
 func ai_kompozisyon_dizisi_sifirla() -> void:
-	ai_kompozisyon.clear()
-	ai_kompozisyon.resize(max(1, dogu_roma_birim_tipleri.size()))
-	ai_kompozisyon.fill(0)
+	ai_system.reset_composition()
 
 func _world_system_hazirla() -> void:
 	world_system = WorldSystem.new()
@@ -371,6 +371,9 @@ func _combat_loop_hazirla() -> void:
 
 func _unit_deployment_hazirla() -> void:
 	unit_deployment.configure(self)
+
+func _ai_system_hazirla() -> void:
+	ai_system.configure(self)
 
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
@@ -557,6 +560,7 @@ func _ready() -> void:
 	_battle_flow_hazirla()
 	_combat_loop_hazirla()
 	_unit_deployment_hazirla()
+	_ai_system_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -1622,10 +1626,7 @@ func _process(delta: float) -> void:
 	minimap_guncelle()
 
 	if hazirlik_fazi:
-		ai_hazirlik_timer += delta
-		if ai_hazirlik_timer >= ai_hazirlik_araligi:
-			ai_hazirlik_timer = 0.0
-			ai_ordu_birim_ekle()
+		ai_system.tick_preparation(delta)
 		if kalan_sure <= 0:
 			if kompozisyon_toplami() > 0:
 				savas_baslat()
@@ -1646,35 +1647,17 @@ func _process(delta: float) -> void:
 	if ult_sarj["dogu_roma"] >= 100.0:
 		ult_kullan("dogu_roma")
 
-	ai_spawn_timer += delta
-	if ai_spawn_timer >= ai_spawn_suresi:
-		ai_spawn_timer = 0.0
-		ai_dalga_sayisi += 1
-		ai_birim_gonder()
-		if zorluk == "kolay" and ai_dalga_sayisi % 2 == 0:
-			ai_birim_gonder()
-			if randf() < 0.3:
-				ai_birim_gonder()
-		elif zorluk == "orta" and ai_dalga_sayisi % 2 == 0:
-			ai_birim_gonder()
-			if randf() < 0.4:
-				ai_birim_gonder()
-		elif zorluk == "zor":
-			ai_birim_gonder()
-			if ai_dalga_sayisi % 2 == 0:
-				ai_birim_gonder()
-			if randf() < 0.65:
-				ai_birim_gonder()
+	ai_system.tick_spawn_waves(delta)
 
 	puan_timer += delta
 	if puan_timer >= puan_interval:
 		puan_timer = 0.0
 		puan_uret()
-		ai_nokta_gelistir()
+		ai_system.upgrade_point()
 
 	capture_guncelle(delta)
 	savas_sisi_guncelle()
-	ai_birimleri_guncelle(delta)
+	ai_system.update_units(delta)
 	istatistik_nokta_sure_guncelle(delta)
 	pusu_tetik_kontrolu()
 	nokta_gorunurluklerini_guncelle()
@@ -1793,275 +1776,25 @@ func nokta_gelistir(nokta: String) -> void:
 	ui_guncelle()
 
 func ai_nokta_gelistir() -> void:
-	if hazirlik_fazi or oyun_bitti:
-		return
-	var secim = ""
-	var secim_seviye = 999
-	for nokta in nokta_oncelik_listesi():
-		if nokta_sahipleri[nokta] != "dogu_roma":
-			continue
-		if nokta_gelistirme[nokta] < secim_seviye and nokta_gelistirme[nokta] < 3:
-			secim = nokta
-			secim_seviye = nokta_gelistirme[nokta]
-	if secim == "":
-		return
-	var maliyet = 20 + secim_seviye * 15
-	if dogu_roma_gelisim_altini < maliyet:
-		return
-	dogu_roma_gelisim_altini -= maliyet
-	mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet
-	nokta_gelistirme[secim] += 1
-	nokta_puan[secim] = nokta_taban_puan(secim) + nokta_gelistirme[secim]
-	nokta_altin[secim] = nokta_taban_altin(secim) + nokta_gelistirme[secim]
-	if zorluk == "kolay" and randf() < 0.42 and dogu_roma_gelisim_altini >= maliyet + 8 and nokta_gelistirme[secim] < 3:
-		dogu_roma_gelisim_altini -= maliyet + 8
-		mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 8
-		nokta_gelistirme[secim] += 1
-		nokta_puan[secim] = nokta_taban_puan(secim) + nokta_gelistirme[secim]
-		nokta_altin[secim] = nokta_taban_altin(secim) + nokta_gelistirme[secim]
-	if zorluk == "orta" and randf() < 0.62 and dogu_roma_gelisim_altini >= maliyet + 12 and nokta_gelistirme[secim] < 3:
-		dogu_roma_gelisim_altini -= maliyet + 12
-		mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 12
-		nokta_gelistirme[secim] += 1
-		nokta_puan[secim] = nokta_taban_puan(secim) + nokta_gelistirme[secim]
-		nokta_altin[secim] = nokta_taban_altin(secim) + nokta_gelistirme[secim]
-	if zorluk == "zor" and randf() < 0.82 and dogu_roma_gelisim_altini >= maliyet + 15 and nokta_gelistirme[secim] < 3:
-		dogu_roma_gelisim_altini -= maliyet + 15
-		mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 15
-		nokta_gelistirme[secim] += 1
-		nokta_puan[secim] = nokta_taban_puan(secim) + nokta_gelistirme[secim]
-		nokta_altin[secim] = nokta_taban_altin(secim) + nokta_gelistirme[secim]
-
-func ai_kompozisyon_toplami_kt() -> int:
-	var toplam = 0
-	for i in range(ai_kompozisyon.size()):
-		toplam += ai_kompozisyon[i] * dogu_roma_birim_tipleri[i]["kontenjan"]
-	return toplam
+	ai_system.upgrade_point()
 
 func ai_ordu_hazirlik_sifirla() -> void:
-	ai_kompozisyon_dizisi_sifirla()
-	ai_hazirlik_timer = 0.0
-	taraf_formasyon["dogu_roma"] = "hucum"
-	ai_ordu_ui_guncelle()
+	ai_system.reset_preparation_army()
 
 func ai_ordu_ui_guncelle() -> void:
-	var ai_l = ui_node("Label_AiOrdu")
-	if ai_l == null:
-		return
-	var hedef = zorluk_ayarlari[zorluk]["kontenjan_hedef"]
-	var kt = ai_kompozisyon_toplami_kt()
-	var parcalar: Array = []
-	for i in range(dogu_roma_birim_tipleri.size()):
-		if ai_kompozisyon[i] > 0:
-			var tip = dogu_roma_birim_tipleri[i]
-			parcalar.append(tip["sembol"] + " " + tip["isim"] + " x" + str(ai_kompozisyon[i]))
-	ai_l.text = HudFormatter.ai_army_label(parcalar, kt, hedef)
-
-func ai_birim_tipi_sec(kalan_kontenjan: int) -> int:
-	return MetaSystem.choose_ai_army_type(dogu_roma_birim_tipleri, kalan_kontenjan, zorluk)
+	ai_system.update_army_ui()
 
 func ai_ordu_birim_ekle() -> void:
-	var hedef = zorluk_ayarlari[zorluk]["kontenjan_hedef"]
-	var mevcut = ai_kompozisyon_toplami_kt()
-	if mevcut >= hedef:
-		return
-	var idx = ai_birim_tipi_sec(hedef - mevcut)
-	if idx < 0:
-		return
-	ai_kompozisyon[idx] += 1
-	ai_ordu_ui_guncelle()
-
-func ai_ordu_kur_tam() -> void:
-	ai_kompozisyon_dizisi_sifirla()
-	var hedef = zorluk_ayarlari[zorluk]["kontenjan_hedef"]
-	while ai_kompozisyon_toplami_kt() < hedef:
-		var onceki = ai_kompozisyon_toplami_kt()
-		ai_ordu_birim_ekle()
-		if ai_kompozisyon_toplami_kt() == onceki:
-			break
-	ai_ordu_ui_guncelle()
-
-func ai_kompozisyon_toplami() -> int:
-	var toplam = 0
-	for sayi in ai_kompozisyon:
-		toplam += sayi
-	return toplam
+	ai_system.add_army_unit()
 
 func ai_savas_envanteri_hazirla() -> void:
-	if ai_kompozisyon_toplami() <= 0 or ai_kompozisyon_toplami_kt() < zorluk_ayarlari[zorluk]["kontenjan_hedef"] * 0.5:
-		ai_ordu_kur_tam()
-	ai_envanter.clear()
-	for i in range(dogu_roma_birim_tipleri.size()):
-		for j in range(ai_kompozisyon[i]):
-			ai_envanter.append(dogu_roma_birim_tipleri[i].duplicate())
-	ai_envanter.shuffle()
-	print("=== AI ORDUSU === " + str(ai_envanter.size()) + " birim hazir")
-
-func ai_hedef_konum_sec(nokta: String) -> Vector2:
-	var merkez = nokta_merkezi(nokta)
-	var aci = randf() * TAU
-	var uzaklik = randf_range(25.0, 110.0)
-	return harita_sinirla(merkez + Vector2(cos(aci), sin(aci)) * uzaklik)
-
-func ai_yakin_dusman_bul(birim: Dictionary) -> Dictionary:
-	var en_yakin: Dictionary = {}
-	var en_kisa = ai_takip_menzili
-	for b in aktif_birimler:
-		if b["taraf"] != "osmanli" or b["hp"] <= 0:
-			continue
-		if not birim_gorunur_mu_tarafa(b, "dogu_roma"):
-			continue
-		var d = birim["konum"].distance_to(b["konum"])
-		if d < en_kisa:
-			en_kisa = d
-			en_yakin = b
-	return en_yakin
-
-func ai_birim_menzilde_dusman_var(birim: Dictionary) -> bool:
-	var etkiler = birim_etkin_degerleri(birim)
-	for b in aktif_birimler:
-		if b["taraf"] != "osmanli" or b["hp"] <= 0:
-			continue
-		if not birim_gorunur_mu_tarafa(b, "dogu_roma"):
-			continue
-		if birim["konum"].distance_to(b["konum"]) <= etkiler["menzil"]:
-			return true
-	return false
-
-func ai_birim_hedefi_hesapla(birim: Dictionary) -> Vector2:
-	var dusman = ai_yakin_dusman_bul(birim)
-	if not dusman.is_empty():
-		var mesafe = birim["konum"].distance_to(dusman["konum"])
-		var etkiler = birim_etkin_degerleri(birim)
-		if mesafe <= etkiler["menzil"]:
-			return birim["konum"]
-		var yon = (dusman["konum"] - birim["konum"]).normalized()
-		var adim = clamp(mesafe - etkiler["menzil"] * 0.6, 40.0, 180.0)
-		return harita_sinirla(birim["konum"] + yon * adim)
-
-	var nokta = ai_hedef_sec()
-	return ai_hedef_konum_sec(nokta)
+	ai_system.prepare_battle_inventory()
 
 func ai_birimleri_guncelle(delta: float) -> void:
-	var karar_suresi = ai_karar_araligi.get(zorluk, 3.5)
-	if zorluk == "zor":
-		karar_suresi *= 0.7
-	for birim in aktif_birimler:
-		if birim["taraf"] != "dogu_roma" or birim["hp"] <= 0:
-			continue
-		if birim.get("pusu_modunda", false):
-			continue
-
-		if ai_birim_menzilde_dusman_var(birim):
-			continue
-
-		var dusman = ai_yakin_dusman_bul(birim)
-		if not dusman.is_empty():
-			var mesafe = birim["konum"].distance_to(dusman["konum"])
-			var ai_etki = birim_etkin_degerleri(birim)
-			if mesafe <= ai_etki["menzil"] * 1.5:
-				birim["hedef"] = ai_birim_hedefi_hesapla(birim)
-				birim["hedef_nokta"] = en_yakin_nokta_bul(birim["hedef"])
-				birim["ai_timer"] = 0.0
-				continue
-
-		birim["ai_timer"] += delta
-		var hedefe_varildi = birim["konum"].distance_to(birim["hedef"]) <= 8.0
-		var yeni_hedef_zamani = hedefe_varildi and birim["ai_timer"] >= karar_suresi
-		var uzun_yuruyus = birim["ai_timer"] >= karar_suresi * 2.5
-
-		if not yeni_hedef_zamani and not uzun_yuruyus:
-			continue
-
-		birim["ai_timer"] = 0.0
-		birim["hedef"] = ai_birim_hedefi_hesapla(birim)
-		birim["hedef_nokta"] = en_yakin_nokta_bul(birim["hedef"])
-
-func ai_birim_sec() -> Dictionary:
-	var uygun: Array = []
-	for tip in dogu_roma_birim_tipleri:
-		if dogu_roma_altini >= tip["maliyet"]:
-			uygun.append(tip)
-	if uygun.is_empty():
-		return {}
-	uygun.sort_custom(func(a, b): return a["maliyet"] > b["maliyet"])
-	if zorluk == "zor":
-		return uygun[0]
-	if zorluk == "orta":
-		return uygun[randi() % mini(2, uygun.size())]
-	return uygun[randi() % mini(3, uygun.size())]
+	ai_system.update_units(delta)
 
 func ai_birim_gonder() -> void:
-	var tip: Dictionary = {}
-	var kaynak = "ordu"
-	if ai_envanter.size() > 0:
-		tip = ai_envanter.pop_back()
-	else:
-		tip = ai_birim_sec()
-		if tip.is_empty():
-			return
-		dogu_roma_altini -= tip["maliyet"]
-		mac_istatistik["dogu_roma"]["altin_harcama"] += int(tip["maliyet"])
-		kaynak = "altin"
-
-	var hedef_nokta = ai_hedef_sec()
-	var hedef_pos = ai_hedef_konum_sec(hedef_nokta)
-	var baslangic = harita_sinirla(Vector2(
-		randf_range(harita_sinir["min_x"] + 80.0, harita_sinir["max_x"] - 80.0),
-		randf_range(harita_sinir["min_y"] + 40.0, harita_sinir["min_y"] + 180.0)
-	))
-	birim_olustur(baslangic, hedef_nokta, "dogu_roma", tip, hedef_pos)
-	print("AI " + tip["isim"] + " (" + kaynak + ") -> " + hedef_nokta + " | kalan ordu: " + str(ai_envanter.size()))
-
-func ai_hedef_sec() -> String:
-	var oncelik = nokta_oncelik_listesi()
-	if zorluk == "zor":
-		if nokta_sahipleri.get("C", "tarafsiz") != "dogu_roma":
-			return "C"
-		for nokta in oncelik:
-			if nokta_sahipleri[nokta] == "osmanli":
-				return nokta
-	elif zorluk == "orta":
-		if nokta_sahipleri.get("C", "tarafsiz") == "osmanli" and randf() < 0.9:
-			return "C"
-		for nokta in oncelik:
-			if nokta_sahipleri[nokta] == "osmanli":
-				return nokta
-	elif zorluk == "kolay":
-		if nokta_sahipleri.get("C", "tarafsiz") == "osmanli" and randf() < 0.82:
-			return "C"
-		for nokta in oncelik:
-			if nokta_sahipleri[nokta] == "osmanli":
-				return nokta
-
-	for nokta in oncelik:
-		if nokta_sahipleri[nokta] == "tarafsiz":
-			return nokta
-
-	var en_zayif = ""
-	var en_az = 999
-	for nokta in nokta_sahipleri:
-		if nokta_sahipleri[nokta] == "osmanli":
-			var say = noktadaki_taraf_sayisi(nokta, "osmanli")
-			if say < en_az:
-				en_az = say
-				en_zayif = nokta
-
-	if en_zayif != "":
-		return en_zayif
-
-	var en_tehlikeli = ""
-	var en_dusuk = 100.0
-	for nokta in nokta_capture:
-		if nokta_sahipleri[nokta] == "dogu_roma" and nokta_capture[nokta] < en_dusuk:
-			en_dusuk = nokta_capture[nokta]
-			en_tehlikeli = nokta
-
-	if en_tehlikeli != "":
-		return en_tehlikeli
-
-	var noktalar = nokta_oncelik_listesi()
-	return noktalar[randi() % noktalar.size()]
+	ai_system.send_unit()
 
 func oyun_sonu_paneli_goster() -> void:
 	battle_flow.show_game_over_panel()
