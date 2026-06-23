@@ -27,6 +27,8 @@ var savas_paneli: Array = []
 var hiz_tek_btn: Button = null
 var ust_bilgi_bari: PanelContainer = null
 var ust_bilgi_kaynak_label: Label = null
+var hedefler_paneli: PanelContainer = null
+var hedefler_label: Label = null
 var savas_kaynak_satir: HBoxContainer = null
 
 func configure(root_node: Node2D) -> void:
@@ -295,6 +297,10 @@ func update_hud(snapshot: Dictionary) -> void:
 			ust_bilgi_kaynak_label.text = altin_metin + " " + durum_metin
 	if ust_bilgi_bari != null:
 		ust_bilgi_bari.visible = not hazirlik
+	if hedefler_paneli == null:
+		hedefler_paneli = get_node_by_name("HedeflerPaneli") as PanelContainer
+	if hedefler_paneli != null:
+		hedefler_paneli.visible = not hazirlik
 	if savas_kaynak_satir == null:
 		savas_kaynak_satir = get_node_by_name("SavasKaynakSatir") as HBoxContainer
 	if savas_kaynak_satir != null:
@@ -489,6 +495,7 @@ func build_container_infrastructure() -> void:
 		_savas_panel_alt_konumla()
 		_uygula_panel_stili(hazirlik_panel_root)
 		_ensure_ust_bilgi_bari()
+		_ensure_hedefler_paneli()
 		return
 
 	ui_root = Control.new()
@@ -585,43 +592,101 @@ func build_container_infrastructure() -> void:
 	savas_icerik_vbox.name = "SavasIcerik"
 	savas_scroll.add_child(savas_icerik_vbox)
 	_ensure_ust_bilgi_bari()
+	_ensure_hedefler_paneli()
 
 func _ensure_ust_bilgi_bari() -> void:
 	if ui_root == null:
 		return
 	ust_bilgi_bari = get_node_by_name("UstBilgiBari") as PanelContainer
-	if ust_bilgi_bari != null:
-		ust_bilgi_kaynak_label = get_node_by_name("Label_UstKaynak") as Label
-		ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		return
-	ust_bilgi_bari = PanelContainer.new()
-	ust_bilgi_bari.name = "UstBilgiBari"
+	if ust_bilgi_bari == null:
+		ust_bilgi_bari = PanelContainer.new()
+		ust_bilgi_bari.name = "UstBilgiBari"
+		ui_root.add_child(ust_bilgi_bari)
+		ui_root.move_child(ust_bilgi_bari, 0)
 	ust_bilgi_bari.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	ust_bilgi_bari.offset_left = 0
 	ust_bilgi_bari.offset_top = 0
 	ust_bilgi_bari.offset_right = 0
-	ust_bilgi_bari.offset_bottom = 36
+	ust_bilgi_bari.offset_bottom = 40
 	ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bar_style = StyleBoxFlat.new()
-	bar_style.bg_color = Color(0.12, 0.12, 0.14, 0.88)
+	bar_style.bg_color = Color(0.07, 0.08, 0.1, 0.93)
+	bar_style.border_color = Color(0.42, 0.35, 0.24, 0.65)
+	bar_style.set_border_width_all(1)
+	bar_style.shadow_color = Color(0, 0, 0, 0.35)
+	bar_style.shadow_size = 3
 	ust_bilgi_bari.add_theme_stylebox_override("panel", bar_style)
-	ui_root.add_child(ust_bilgi_bari)
-	ui_root.move_child(ust_bilgi_bari, 0)
+	for c in ust_bilgi_bari.get_children():
+		c.queue_free()
 	var bar_margin = MarginContainer.new()
 	bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar_margin.add_theme_constant_override("margin_left", 12)
-	bar_margin.add_theme_constant_override("margin_right", 12)
-	bar_margin.add_theme_constant_override("margin_top", 6)
-	bar_margin.add_theme_constant_override("margin_bottom", 6)
+	bar_margin.add_theme_constant_override("margin_left", 10)
+	bar_margin.add_theme_constant_override("margin_right", 10)
+	bar_margin.add_theme_constant_override("margin_top", 5)
+	bar_margin.add_theme_constant_override("margin_bottom", 5)
 	ust_bilgi_bari.add_child(bar_margin)
 	var bar_row = HBoxContainer.new()
 	bar_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_margin.add_child(bar_row)
+	var logo_label = Label.new()
+	logo_label.name = "Label_UstLogo"
+	logo_label.text = "BLOOD & BONE"
+	logo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	logo_label.add_theme_font_size_override("font_size", 13)
+	logo_label.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	logo_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar_row.add_child(logo_label)
 	ust_bilgi_kaynak_label = Label.new()
 	ust_bilgi_kaynak_label.name = "Label_UstKaynak"
 	ust_bilgi_kaynak_label.text = "30🪙 | G0 M100 | Acik | U0%"
 	ust_bilgi_kaynak_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ust_bilgi_kaynak_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ust_bilgi_kaynak_label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
 	bar_row.add_child(ust_bilgi_kaynak_label)
+
+func _ensure_hedefler_paneli() -> void:
+	if ui_root == null:
+		return
+	hedefler_paneli = get_node_by_name("HedeflerPaneli") as PanelContainer
+	if hedefler_paneli == null:
+		hedefler_paneli = PanelContainer.new()
+		hedefler_paneli.name = "HedeflerPaneli"
+		ui_root.add_child(hedefler_paneli)
+	hedefler_paneli.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	hedefler_paneli.offset_left = 12
+	hedefler_paneli.offset_top = 52
+	hedefler_paneli.offset_right = 272
+	hedefler_paneli.offset_bottom = 192
+	hedefler_paneli.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var hedef_style = StyleBoxFlat.new()
+	hedef_style.bg_color = Color(0.06, 0.08, 0.1, 0.88)
+	hedef_style.border_color = Color(0.4, 0.34, 0.24, 0.6)
+	hedef_style.set_border_width_all(1)
+	hedef_style.shadow_color = Color(0, 0, 0, 0.3)
+	hedef_style.shadow_size = 3
+	hedefler_paneli.add_theme_stylebox_override("panel", hedef_style)
+	for c in hedefler_paneli.get_children():
+		c.queue_free()
+	var hedef_margin = MarginContainer.new()
+	hedef_margin.add_theme_constant_override("margin_left", 10)
+	hedef_margin.add_theme_constant_override("margin_right", 10)
+	hedef_margin.add_theme_constant_override("margin_top", 8)
+	hedef_margin.add_theme_constant_override("margin_bottom", 8)
+	hedefler_paneli.add_child(hedef_margin)
+	var hedef_vbox = VBoxContainer.new()
+	hedef_margin.add_child(hedef_vbox)
+	var baslik = Label.new()
+	baslik.text = "HEDEFLER"
+	baslik.add_theme_font_size_override("font_size", 12)
+	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	hedef_vbox.add_child(baslik)
+	hedefler_label = Label.new()
+	hedefler_label.name = "Label_HedeflerIcerik"
+	hedefler_label.text = "• Tum dusman birliklerini etkisiz hale getir\n• Gizli gecidi ele gecir\n• Ana karargahi koru"
+	hedefler_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hedefler_label.add_theme_font_size_override("font_size", 10)
+	hedefler_label.add_theme_color_override("font_color", Color(0.88, 0.89, 0.86))
+	hedef_vbox.add_child(hedefler_label)
 
 func optimize_fonts(font_size: int, extra_roots: Array = []) -> void:
 	if ui_root != null:

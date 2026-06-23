@@ -1086,11 +1086,6 @@ func minimap_olustur() -> void:
 		minimap_panel = PanelContainer.new()
 		minimap_panel.name = "MinimapPanel"
 		minimap_panel.custom_minimum_size = minimap_boyut
-		minimap_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-		minimap_panel.offset_left = -minimap_boyut.x - 12
-		minimap_panel.offset_top = -minimap_boyut.y - 12
-		minimap_panel.offset_right = -12
-		minimap_panel.offset_bottom = -12
 		var mini_stil = StyleBoxFlat.new()
 		mini_stil.bg_color = Color(0.08, 0.09, 0.11, 0.92)
 		mini_stil.border_color = Color(0.35, 0.32, 0.28, 0.6)
@@ -1098,6 +1093,11 @@ func minimap_olustur() -> void:
 		mini_stil.set_corner_radius_all(4)
 		minimap_panel.add_theme_stylebox_override("panel", mini_stil)
 		ui_root.add_child(minimap_panel)
+	minimap_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	minimap_panel.offset_left = -minimap_boyut.x - 12
+	minimap_panel.offset_top = 52
+	minimap_panel.offset_right = -12
+	minimap_panel.offset_bottom = 52 + minimap_boyut.y
 
 	var minimap_margin = ui_node("MinimapMargin") as MarginContainer
 	if minimap_margin == null:
