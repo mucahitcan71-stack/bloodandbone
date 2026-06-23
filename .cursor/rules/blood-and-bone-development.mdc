@@ -1,0 +1,73 @@
+---
+description: Blood and Bone RTS geliştirme kuralları — mimari, sistem sahipliği, test ve öncelikler
+alwaysApply: true
+---
+
+# Blood and Bone — Cursor Geliştirme Kuralları
+
+Detaylı sürüm: `CURSOR_GELISTIRME_KURALLARI.md` (proje kökü).
+
+## Ana hedef
+
+Main.gd tekrar şişmesin. Her yeni değişiklik ilgili sisteme/modüle eklensin.
+
+## Oyun kimliği (öncelik)
+
+1. Keşif
+2. Pusu
+3. Harita hakimiyeti
+
+Bu üçünden hiçbirini güçlendirmeyen özellik düşük önceliklidir.
+
+## Çalışma kuralı
+
+Küçük adım → Test → Commit. Tek commit'te birden fazla büyük sistemi değiştirme (HUD, Fog, Minimap, Input, Combat, AI birlikte değil).
+
+## Main.gd
+
+Sadece: configure, faz orkestrasyonu, tick sırası, ince wrapper'lar. Yeni büyük oyun mantığı ekleme.
+
+Soru: "Bu kod Main.gd'ye mi ait?" — değilse ilgili sisteme ekle.
+
+## Sistem sahiplikleri
+
+- **WorldSystem**: harita, terrain, kamera sınırları
+- **FogSystem**: FoW, görüş, keşif, görünürlük, hayalet ikonlar
+- **UISystem**: HUD, panel yaşam döngüsü
+- **CommandSystem**: birim komutları (hareket, saldırı, savunma, pusu)
+- **InputRouter**: tıklama routing (davranış çalıştırmaz)
+- **CameraController**: kamera hareketi, zoom
+- **MinimapController**: minimap, FoW texture
+- **CombatLoopSystem**: saldırı, hasar, ölüm
+- **BattleFlowSystem**: hazırlık → savaş → bitiş
+- **UnitDeploymentSystem**: birim oluşturma, envanter, gönderme
+- **AiSystem**: AI ordu, spawn, hedef seçimi
+- **PointEconomySystem**: nokta capture, puan, altın
+- **PreparationController**: hazırlık paneli
+
+## Input akışı
+
+InputRouter → CommandSystem → ilgili sistem. Action-based input korunmalı.
+
+Sağ tık fazları (sırayla, aynı anda değil): boş arazi hareket → düşman saldırı → nokta ele geçir → dost takip → shift kuyruk (ileride).
+
+## Yasaklar
+
+Main'e büyük sistem ekleme; çoklu büyük sistem değişikliği; HUD+Fog+Minimap aynı anda; test etmeden ilerleme; çalışan sistemi gereksiz yeniden yazma.
+
+## Öncelik sırası
+
+1. Stabilize et
+2. InputRouter / CommandSystem sınırı
+3. Sağ tık boş arazi hareket
+4. Seçili komut göstergesi
+5. Sağ tık düşman saldırısı
+6. Sağ tık nokta ele geçirme
+7. Takviye havuzu (sonra)
+8. HUD polish
+9. Pusu derinleştirme
+10. Fog/minimap büyük değişiklik (en son)
+
+## Raporlama (her değişiklik sonrası)
+
+Değişen dosyalar, neden, Main.gd yükü, davranış değişen sistemler, test listesi, commit mesajı önerisi.

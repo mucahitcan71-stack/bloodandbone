@@ -35,6 +35,8 @@ tekrar yok, sadece gerekli kod ve 1 cümlelik açıklama.
 
 MİMARİ / REFACTOR KURALLARI (KALICI):
 
+Detaylı kurallar: CURSOR_GELISTIRME_KURALLARI.md ve .cursor/rules/blood-and-bone-development.mdc
+
 9. Kod yerleşim kuralı (zorunlu): Yeni kod veya değişiklik, sadece ilgili
    sorumluluk alanındaki dosyaya yapılır. Alakasız dosyaya "geçici"
    ekleme yapma.
