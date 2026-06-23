@@ -93,8 +93,7 @@ func start_preparation() -> void:
 			btn.queue_free()
 	_host.envanter_butonlari.clear()
 
-	for i in range(_host.sayi_labellar.size()):
-		_host.sayi_labellar[i].text = "0"
+	_host.prep_controller.reset_composition_labels()
 	var kont_l = _host.ui_node("Label_Kontenjan")
 	if kont_l != null:
 		kont_l.text = "Kontenjan: " + str(_host.max_kontenjan) + "/" + str(_host.max_kontenjan) + " | Ordu: 0"
@@ -102,15 +101,7 @@ func start_preparation() -> void:
 	if is_instance_valid(_host.tekrar_oyna_btn):
 		_host.tekrar_oyna_btn.visible = false
 
-	_host._ui_refs_sync()
-	for el in _host.hazirlik_paneli:
-		if is_instance_valid(el):
-			el.visible = true
-	if _host.hazirlik_panel_root != null:
-		_host.hazirlik_panel_root.visible = true
-	_host.hazirlik_tab_degistir("genel")
-	for z in _host.zorluk_butonlari:
-		_host.zorluk_butonlari[z].modulate = Color(1.5, 1.5, 1.5) if z == _host.zorluk else Color(1, 1, 1)
+	_host.prep_controller.show_ui()
 	for el in _host.savas_paneli:
 		if is_instance_valid(el):
 			el.visible = false
@@ -164,11 +155,7 @@ func start_battle() -> void:
 	_host.general_olustur("osmanli")
 	_host.general_olustur("dogu_roma")
 
-	for el in _host.hazirlik_paneli:
-		if is_instance_valid(el):
-			el.visible = false
-	if _host.hazirlik_panel_root != null:
-		_host.hazirlik_panel_root.visible = false
+	_host.prep_controller.hide_ui()
 	for el in _host.savas_paneli:
 		if is_instance_valid(el):
 			el.visible = true

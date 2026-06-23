@@ -23,7 +23,7 @@ func composition_add(idx: int) -> void:
 		return
 	_host.mevcut_kontenjan -= tip["kontenjan"]
 	_host.kompozisyon[idx] += 1
-	_host.sayi_labellar[idx].text = str(_host.kompozisyon[idx])
+	_host.prep_controller.sayi_labellar[idx].text = str(_host.kompozisyon[idx])
 	var kont_l = _host.ui_node("Label_Kontenjan")
 	if kont_l != null:
 		kont_l.text = "Kontenjan: " + str(_host.mevcut_kontenjan) + "/" + str(_host.max_kontenjan) + " | Ordu: " + str(composition_total())
@@ -34,7 +34,7 @@ func composition_remove(idx: int) -> void:
 	var tip = _host.osmanli_birim_tipleri[idx]
 	_host.mevcut_kontenjan += tip["kontenjan"]
 	_host.kompozisyon[idx] -= 1
-	_host.sayi_labellar[idx].text = str(_host.kompozisyon[idx])
+	_host.prep_controller.sayi_labellar[idx].text = str(_host.kompozisyon[idx])
 	var kont_l2 = _host.ui_node("Label_Kontenjan")
 	if kont_l2 != null:
 		kont_l2.text = "Kontenjan: " + str(_host.mevcut_kontenjan) + "/" + str(_host.max_kontenjan) + " | Ordu: " + str(composition_total())

@@ -13,6 +13,7 @@ const HudCommands = preload("res://scripts/ui/hud_commands.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 const MinimapController = preload("res://scripts/ui/minimap_controller.gd")
 const HudComposer = preload("res://scripts/ui/hud_composer.gd")
+const PreparationController = preload("res://scripts/ui/preparation_controller.gd")
 const CameraController = preload("res://scripts/camera/camera_controller.gd")
 const InputRouter = preload("res://scripts/input/input_router.gd")
 const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
@@ -30,6 +31,7 @@ var combat_loop: CombatLoopSystem = CombatLoopSystem.new()
 var unit_deployment: UnitDeploymentSystem = UnitDeploymentSystem.new()
 var ai_system: AiSystem = AiSystem.new()
 var point_economy: PointEconomySystem = PointEconomySystem.new()
+var prep_controller: PreparationController = PreparationController.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -143,12 +145,8 @@ var envanter_adet_satiri: HBoxContainer = null
 var envanter_adet_eksi_btn: Button = null
 var envanter_adet_arti_btn: Button = null
 var envanter_adet_label: Label = null
-var sayi_labellar = []
 var capture_barlar = {}
-var zorluk_butonlari = {}
 var tekrar_oyna_btn: Button = null
-var kart_butonlari = []
-var ekipman_butonlari = []
 var secili_kart = {}
 var ai_secili_kart = {}
 var secili_ekipman = ""
@@ -354,6 +352,9 @@ func _point_economy_hazirla() -> void:
 func _input_router_hazirla() -> void:
 	input_router.configure(self)
 
+func _prep_controller_hazirla() -> void:
+	prep_controller.configure(self)
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -461,6 +462,7 @@ func _ready() -> void:
 	_ai_system_hazirla()
 	_point_economy_hazirla()
 	_input_router_hazirla()
+	_prep_controller_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -538,30 +540,34 @@ func _yan_hud_hazirla() -> void:
 		yan_hud_panel.visible = false
 
 func hazirlik_eleman_ekle(tab: String, node: Control) -> void:
-	ui_system.add_preparation_element(tab, node)
-	_ui_refs_sync()
+	prep_controller._add_element(tab, node)
 
 func hazirlik_tab_degistir(tab: String) -> void:
-	ui_system.switch_preparation_tab(tab)
-	_ui_refs_sync()
+	prep_controller.switch_tab(tab)
 
 func terfi_ozet_metni() -> String:
 	return HudFormatter.promotion_summary(terfi_verisi.get("osmanli", {}))
 
 func hazirlik_bilgi_guncelle() -> void:
-	var kampanya_l = ui_node("Label_Kampanya")
-	if kampanya_l != null:
-		kampanya_l.text = "Bolge: " + kampanya_bolgeleri[kampanya_index]
-	var terfi_l = ui_node("Label_Terfi")
-	if terfi_l != null:
-		terfi_l.text = terfi_ozet_metni()
-	var kayit_l = ui_node("Label_Kayit")
-	if kayit_l != null:
-		kayit_l.text = HudFormatter.save_stats(mac_istatistik_kayit)
-	var zorluk_l = ui_node("Label_Zorluk")
-	if zorluk_l != null:
-		var isimler = {"kolay": "KOLAY", "orta": "ORTA", "zor": "ZOR"}
-		zorluk_l.text = "Zorluk: " + isimler.get(zorluk, "ORTA")
+	prep_controller.update_info()
+
+func hazirlik_paneli_olustur() -> void:
+	prep_controller.build_panel()
+
+func zorluk_sec(secilen: String) -> void:
+	prep_controller.select_difficulty(secilen)
+
+func kart_secenekleri_hazirla() -> void:
+	prep_controller.prepare_card_options()
+
+func kart_sec(kart: Dictionary) -> void:
+	prep_controller.select_card(kart)
+
+func ekipman_secimleri_hazirla() -> void:
+	prep_controller.prepare_equipment_options()
+
+func ekipman_sec(anahtar: String) -> void:
+	prep_controller.select_equipment(anahtar)
 
 func kontrol_noktalari_olustur() -> void:
 	for nokta in nokta_konumlari:
@@ -608,158 +614,6 @@ func kontrol_noktalari_olustur() -> void:
 		puan_l.text = "+" + str(nokta_puan[nokta])
 		puan_l.position = nokta_konumlari[nokta] + Vector2(30, -20)
 		add_child(puan_l)
-
-func hazirlik_paneli_olustur() -> void:
-	ui_system.build_preparation_panel()
-	_ui_refs_sync()
-
-	# --- GENEL ---
-	var zorluk_baslik = Label.new()
-	zorluk_baslik.text = "ZORLUK"
-	hazirlik_eleman_ekle("genel", zorluk_baslik)
-
-	var zorluklar = [
-		{"isim": "kolay", "text": "KOLAY"},
-		{"isim": "orta", "text": "ORTA"},
-		{"isim": "zor", "text": "ZOR"},
-	]
-	var zorluk_row = HBoxContainer.new()
-	hazirlik_eleman_ekle("genel", zorluk_row)
-	for z in zorluklar:
-		var btn = Button.new()
-		btn.text = z["text"]
-		btn.custom_minimum_size = Vector2(90, 32)
-		var z_isim = z["isim"]
-		btn.pressed.connect(func(): zorluk_sec(z_isim))
-		zorluk_row.add_child(btn)
-		ui_system.register_preparation_widget(btn, "genel")
-		zorluk_butonlari[z["isim"]] = btn
-
-	var secili_l = Label.new()
-	secili_l.name = "Label_Zorluk"
-	secili_l.text = "Zorluk: ORTA"
-	hazirlik_eleman_ekle("genel", secili_l)
-
-	var kampanya_l = Label.new()
-	kampanya_l.name = "Label_Kampanya"
-	kampanya_l.text = "Bolge: Trakya"
-	hazirlik_eleman_ekle("genel", kampanya_l)
-
-	var terfi_l = Label.new()
-	terfi_l.name = "Label_Terfi"
-	terfi_l.text = "Terfi: yok"
-	hazirlik_eleman_ekle("genel", terfi_l)
-
-	var kayit_l = Label.new()
-	kayit_l.name = "Label_Kayit"
-	kayit_l.text = "G:0 M:0"
-	hazirlik_eleman_ekle("genel", kayit_l)
-
-	var ai_baslik = Label.new()
-	ai_baslik.text = "DUSMAN ORDUSU"
-	hazirlik_eleman_ekle("genel", ai_baslik)
-
-	var ai_ordu_l = Label.new()
-	ai_ordu_l.name = "Label_AiOrdu"
-	ai_ordu_l.text = "Kuruluyor..."
-	hazirlik_eleman_ekle("genel", ai_ordu_l)
-
-	# --- ORDU ---
-	var baslik = Label.new()
-	baslik.text = "ORDU KUR"
-	hazirlik_eleman_ekle("ordu", baslik)
-
-	var lk = Label.new()
-	lk.name = "Label_Kontenjan"
-	lk.text = "Kontenjan: 30/30"
-	hazirlik_eleman_ekle("ordu", lk)
-
-	var birim_grid = GridContainer.new()
-	birim_grid.columns = 3
-	hazirlik_eleman_ekle("ordu", birim_grid)
-	for i in range(osmanli_birim_tipleri.size()):
-		var tip = osmanli_birim_tipleri[i]
-		var grup = VBoxContainer.new()
-		birim_grid.add_child(grup)
-		ui_system.register_preparation_widget(grup, "ordu")
-		var isim_l = Label.new()
-		isim_l.text = tip["sembol"] + " " + tip["isim"] + " (" + str(tip["kontenjan"]) + "kt, " + str(tip["maliyet"]) + "🪙)"
-		grup.add_child(isim_l)
-		var hover_tip = tip
-		isim_l.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-		isim_l.mouse_exited.connect(func(): birim_detay_hover_bitir())
-		var satir_h = HBoxContainer.new()
-		grup.add_child(satir_h)
-		var btn_eksi = Button.new()
-		btn_eksi.text = "-"
-		btn_eksi.custom_minimum_size = Vector2(36, 32)
-		var idx = i
-		btn_eksi.pressed.connect(func(): kompozisyon_cikar(idx))
-		btn_eksi.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-		btn_eksi.mouse_exited.connect(func(): birim_detay_hover_bitir())
-		satir_h.add_child(btn_eksi)
-
-		var sayi_l = Label.new()
-		sayi_l.text = "0"
-		sayi_l.name = "Komp_" + str(i)
-		sayi_labellar.append(sayi_l)
-		satir_h.add_child(sayi_l)
-
-		var btn_arti = Button.new()
-		btn_arti.text = "+"
-		btn_arti.custom_minimum_size = Vector2(36, 32)
-		btn_arti.pressed.connect(func(): kompozisyon_ekle(idx))
-		btn_arti.mouse_entered.connect(func(): birim_detay_hover_basla(hover_tip))
-		btn_arti.mouse_exited.connect(func(): birim_detay_hover_bitir())
-		satir_h.add_child(btn_arti)
-
-	# --- TAKTIK ---
-	var formasyon_l = Label.new()
-	formasyon_l.name = "Label_Formasyon"
-	formasyon_l.text = "Formasyon: Dengeli"
-	hazirlik_eleman_ekle("taktik", formasyon_l)
-
-	var formasyonlar_ui = [
-		{"id": "hucum", "text": "Hucum"},
-		{"id": "savunma", "text": "Savunma"},
-		{"id": "dengeli", "text": "Dengeli"},
-	]
-	var form_row = HBoxContainer.new()
-	hazirlik_eleman_ekle("taktik", form_row)
-	for f in formasyonlar_ui:
-		var fbtn = Button.new()
-		fbtn.text = f["text"]
-		fbtn.custom_minimum_size = Vector2(96, 32)
-		var f_id = f["id"]
-		fbtn.pressed.connect(func(): formasyon_sec(f_id))
-		form_row.add_child(fbtn)
-		ui_system.register_preparation_widget(fbtn, "taktik")
-
-	var kart_l = Label.new()
-	kart_l.name = "Label_Kart"
-	kart_l.text = "Kart (3'ten 1):"
-	hazirlik_eleman_ekle("taktik", kart_l)
-
-	var ekipman_l = Label.new()
-	ekipman_l.name = "Label_Ekipman"
-	ekipman_l.text = "Ekipman:"
-	hazirlik_eleman_ekle("taktik", ekipman_l)
-
-	var savas_btn = Button.new()
-	savas_btn.name = "SavasBtn"
-	savas_btn.text = "SAVASA BASLA"
-	savas_btn.custom_minimum_size = Vector2(200, 42)
-	savas_btn.pressed.connect(func(): savas_baslat())
-	ui_system.add_preparation_footer(savas_btn)
-	_ui_refs_sync()
-
-func zorluk_sec(secilen: String) -> void:
-	zorluk = secilen
-	ai_spawn_suresi = zorluk_ayarlari[zorluk]["spawn"]
-	for z in zorluk_butonlari:
-		zorluk_butonlari[z].modulate = Color(1.5, 1.5, 1.5) if z == zorluk else Color(1, 1, 1)
-	ai_ordu_hazirlik_sifirla()
-	hazirlik_bilgi_guncelle()
 
 func komut_sec(komut: String) -> void:
 	var result = command_system.set_command_mode(komut)
@@ -979,72 +833,6 @@ func birim_detay_metni(tip: Dictionary) -> String:
 		guclu,
 		zayif
 	]
-
-func kart_secenekleri_hazirla() -> void:
-	var eski_satir = ui_node("KartSecimSatiri")
-	if eski_satir != null:
-		eski_satir.queue_free()
-	for btn in kart_butonlari:
-		if is_instance_valid(btn):
-			btn.queue_free()
-	kart_butonlari.clear()
-	kart_secenekleri = MetaSystem.draw_cards(kart_havuzu, 3)
-	var satir = HBoxContainer.new()
-	satir.name = "KartSecimSatiri"
-	hazirlik_eleman_ekle("taktik", satir)
-	for i in range(kart_secenekleri.size()):
-		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(220, 30)
-		btn.text = kart_secenekleri[i]["isim"]
-		var kart = kart_secenekleri[i]
-		btn.pressed.connect(func(): kart_sec(kart))
-		satir.add_child(btn)
-		ui_system.register_preparation_widget(btn, "taktik")
-		kart_butonlari.append(btn)
-	_ui_refs_sync()
-
-func kart_sec(kart: Dictionary) -> void:
-	secili_kart = kart
-	for btn in kart_butonlari:
-		if is_instance_valid(btn):
-			btn.disabled = true
-	var l = ui_node("Label_Kart")
-	if l != null:
-		l.text = "Kart: " + kart["isim"] + " (" + kart["aciklama"] + ")"
-
-func ekipman_secimleri_hazirla() -> void:
-	var eski_satir = ui_node("EkipmanSecimSatiri")
-	if eski_satir != null:
-		eski_satir.queue_free()
-	for btn in ekipman_butonlari:
-		if is_instance_valid(btn):
-			btn.queue_free()
-	ekipman_butonlari.clear()
-	var sirali = ["celik", "zirh", "durbun"]
-	var satir = HBoxContainer.new()
-	satir.name = "EkipmanSecimSatiri"
-	hazirlik_eleman_ekle("taktik", satir)
-	for i in range(sirali.size()):
-		var anahtar = sirali[i]
-		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(220, 28)
-		btn.text = ekipmanlar[anahtar]["isim"]
-		var e = anahtar
-		btn.pressed.connect(func(): ekipman_sec(e))
-		satir.add_child(btn)
-		ui_system.register_preparation_widget(btn, "taktik")
-		ekipman_butonlari.append(btn)
-	_ui_refs_sync()
-
-func ekipman_sec(anahtar: String) -> void:
-	secili_ekipman = anahtar
-	var l = ui_node("Label_Ekipman")
-	if l != null:
-		l.text = "Ekipman: " + ekipmanlar[anahtar]["isim"]
-	for i in range(ekipman_butonlari.size()):
-		var btn = ekipman_butonlari[i]
-		if is_instance_valid(btn):
-			btn.modulate = Color(1.4, 1.4, 0.8) if btn.text == ekipmanlar[anahtar]["isim"] else Color(1, 1, 1)
 
 func kart_uygula(taraf: String, kart: Dictionary) -> void:
 	if kart.is_empty():
