@@ -610,11 +610,11 @@ func _ensure_ust_bilgi_bari() -> void:
 	ust_bilgi_bari.offset_bottom = 38
 	ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bar_style = StyleBoxFlat.new()
-	bar_style.bg_color = Color(0.06, 0.08, 0.1, 0.9)
-	bar_style.border_color = Color(0.4, 0.34, 0.24, 0.58)
+	bar_style.bg_color = Color(0.065, 0.085, 0.11, 0.92)
+	bar_style.border_color = Color(0.45, 0.38, 0.26, 0.62)
 	bar_style.set_border_width_all(1)
 	bar_style.set_corner_radius_all(5)
-	bar_style.shadow_color = Color(0, 0, 0, 0.35)
+	bar_style.shadow_color = Color(0, 0, 0, 0.38)
 	bar_style.shadow_size = 3
 	ust_bilgi_bari.add_theme_stylebox_override("panel", bar_style)
 	for c in ust_bilgi_bari.get_children():
@@ -661,11 +661,11 @@ func _ensure_hedefler_paneli() -> void:
 	hedefler_paneli.offset_bottom = 176
 	hedefler_paneli.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var hedef_style = StyleBoxFlat.new()
-	hedef_style.bg_color = Color(0.06, 0.08, 0.1, 0.9)
-	hedef_style.border_color = Color(0.4, 0.34, 0.24, 0.58)
+	hedef_style.bg_color = Color(0.065, 0.085, 0.11, 0.92)
+	hedef_style.border_color = Color(0.45, 0.38, 0.26, 0.62)
 	hedef_style.set_border_width_all(1)
 	hedef_style.set_corner_radius_all(5)
-	hedef_style.shadow_color = Color(0, 0, 0, 0.3)
+	hedef_style.shadow_color = Color(0, 0, 0, 0.35)
 	hedef_style.shadow_size = 3
 	hedefler_paneli.add_theme_stylebox_override("panel", hedef_style)
 	for c in hedefler_paneli.get_children():
@@ -712,11 +712,11 @@ func _savas_panel_alt_konumla() -> void:
 
 func _uygula_panel_stili(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.07, 0.09, 0.11, 0.9)
-	stil.border_color = Color(0.4, 0.34, 0.24, 0.55)
+	stil.bg_color = Color(0.065, 0.085, 0.11, 0.92)
+	stil.border_color = Color(0.45, 0.38, 0.26, 0.6)
 	stil.set_border_width_all(1)
 	stil.set_corner_radius_all(5)
-	stil.shadow_color = Color(0, 0, 0, 0.35)
+	stil.shadow_color = Color(0, 0, 0, 0.38)
 	stil.shadow_size = 3
 	panel.add_theme_stylebox_override("panel", stil)
 

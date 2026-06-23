@@ -1139,7 +1139,7 @@ func minimap_olustur() -> void:
 		minimap_surface = ColorRect.new()
 		minimap_surface.name = "MinimapSurface"
 		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(10, 10)
-		minimap_surface.color = Color(0.16, 0.22, 0.14, 0.95)
+		minimap_surface.color = Color(0.18, 0.25, 0.16, 0.95)
 		minimap_margin.add_child(minimap_surface)
 
 	minimap_fow_rect = ui_node("MinimapFow") as TextureRect
@@ -1442,21 +1442,21 @@ func hiz_carpani_arttir() -> void:
 
 func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.06, 0.08, 0.1, 0.9)
-	stil.border_color = Color(0.4, 0.34, 0.24, 0.52)
+	stil.bg_color = Color(0.065, 0.085, 0.11, 0.91)
+	stil.border_color = Color(0.45, 0.38, 0.26, 0.6)
 	stil.set_border_width_all(1)
 	stil.set_corner_radius_all(5)
-	stil.shadow_color = Color(0, 0, 0, 0.3)
+	stil.shadow_color = Color(0, 0, 0, 0.34)
 	stil.shadow_size = 3
 	panel.add_theme_stylebox_override("panel", stil)
 
 func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
 	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.06, 0.08, 0.1, 0.92)
-	stil.border_color = Color(0.4, 0.34, 0.24, 0.55)
+	stil.bg_color = Color(0.065, 0.085, 0.11, 0.93)
+	stil.border_color = Color(0.45, 0.38, 0.26, 0.62)
 	stil.set_border_width_all(1)
 	stil.set_corner_radius_all(5)
-	stil.shadow_color = Color(0, 0, 0, 0.32)
+	stil.shadow_color = Color(0, 0, 0, 0.36)
 	stil.shadow_size = 4
 	panel.add_theme_stylebox_override("panel", stil)
 
