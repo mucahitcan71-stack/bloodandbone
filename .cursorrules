@@ -32,3 +32,29 @@ TOKEN TASARRUFU KURALLARI:
 
 Özetle: minimum token ile maksimum net iş. Konuşkanlık yok, gereksiz
 tekrar yok, sadece gerekli kod ve 1 cümlelik açıklama.
+
+MİMARİ / REFACTOR KURALLARI (KALICI):
+
+9. Kod yerleşim kuralı (zorunlu): Yeni kod veya değişiklik, sadece ilgili
+   sorumluluk alanındaki dosyaya yapılır. Alakasız dosyaya "geçici"
+   ekleme yapma.
+
+10. Main.gd sade tutulur: Main.gd yalnızca üst seviye orkestrasyon ve
+    state akışını tutar. UI kurulum detayı, minimap detayı, komut paneli
+    detayı, input routing detayı Main.gd içinde büyütülmez.
+
+11. Alan bazlı modülleme: HUD, minimap, input, kamera, game-flow ve
+    sistem logic'i ayrı katmanlarda tutulur. Refactor veya feature
+    eklemede önce doğru katman belirlenir, sonra değişiklik yapılır.
+
+12. Tekrarlı stil/ayar yasağı: Font, padding, border, opaklık ve benzeri
+    görsel ayarlar mümkün olduğunca merkezi stil/preset yapısında tutulur;
+    farklı dosyalara kopyalanarak çoğaltılmaz.
+
+13. Refactor güvenlik adımı: Davranış değiştiren büyük hamle yerine küçük
+    ve testlenebilir adım uygulanır. Her adımda regresyon riski kısa
+    checklist ile doğrulanır.
+
+14. Gelecek geliştirme prensibi: Bundan sonra eklenecek her özellik önce
+    "hangi alanın sorumluluğu?" diye sınıflandırılır; yanlış katmanda
+    geliştirme yapılmaz.

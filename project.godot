@@ -15,6 +15,12 @@ run/main_scene="uid://ch2tj83u4c2qi"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+
 [input]
 
 cmd_cancel_menu={
@@ -62,16 +68,6 @@ cmd_camera_right={
 ]
 }
 
-[display]
-
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/stretch/mode="canvas_items"
-
-[rendering]
-
-environment/defaults/default_clear_color=Color(0.05, 0.06, 0.08, 1)
-
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -79,3 +75,4 @@ environment/defaults/default_clear_color=Color(0.05, 0.06, 0.08, 1)
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+environment/defaults/default_clear_color=Color(0.05, 0.06, 0.08, 1)
