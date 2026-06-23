@@ -8,6 +8,7 @@ const WorldSystem = preload("res://scripts/systems/world_system.gd")
 const FogSystem = preload("res://scripts/systems/fog_system.gd")
 const UISystem = preload("res://scripts/systems/ui_system.gd")
 const CommandSystem = preload("res://scripts/systems/command_system.gd")
+const HudStyle = preload("res://scripts/ui/hud_style.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -1109,14 +1110,7 @@ func minimap_olustur() -> void:
 		minimap_panel = PanelContainer.new()
 		minimap_panel.name = "MinimapPanel"
 		minimap_panel.custom_minimum_size = minimap_boyut
-		var mini_stil = StyleBoxFlat.new()
-		mini_stil.bg_color = Color(0.06, 0.08, 0.1, 0.9)
-		mini_stil.border_color = Color(0.4, 0.34, 0.24, 0.58)
-		mini_stil.set_border_width_all(1)
-		mini_stil.set_corner_radius_all(5)
-		mini_stil.shadow_color = Color(0, 0, 0, 0.3)
-		mini_stil.shadow_size = 3
-		minimap_panel.add_theme_stylebox_override("panel", mini_stil)
+		minimap_panel.add_theme_stylebox_override("panel", HudStyle.minimap_panel_style())
 		ui_root.add_child(minimap_panel)
 	minimap_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	minimap_panel.offset_left = -minimap_boyut.x - 12
@@ -1139,7 +1133,7 @@ func minimap_olustur() -> void:
 		minimap_surface = ColorRect.new()
 		minimap_surface.name = "MinimapSurface"
 		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(10, 10)
-		minimap_surface.color = Color(0.18, 0.25, 0.16, 0.95)
+		minimap_surface.color = HudStyle.minimap_surface_color()
 		minimap_margin.add_child(minimap_surface)
 
 	minimap_fow_rect = ui_node("MinimapFow") as TextureRect
@@ -1441,24 +1435,10 @@ func hiz_carpani_arttir() -> void:
 	hiz_sec(sonraki)
 
 func _hud_modul_stili_uygula(panel: PanelContainer) -> void:
-	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.065, 0.085, 0.11, 0.91)
-	stil.border_color = Color(0.45, 0.38, 0.26, 0.6)
-	stil.set_border_width_all(1)
-	stil.set_corner_radius_all(5)
-	stil.shadow_color = Color(0, 0, 0, 0.34)
-	stil.shadow_size = 3
-	panel.add_theme_stylebox_override("panel", stil)
+	panel.add_theme_stylebox_override("panel", HudStyle.module_panel_style())
 
 func _sag_hud_panel_stili_uygula(panel: PanelContainer) -> void:
-	var stil = StyleBoxFlat.new()
-	stil.bg_color = Color(0.065, 0.085, 0.11, 0.93)
-	stil.border_color = Color(0.45, 0.38, 0.26, 0.62)
-	stil.set_border_width_all(1)
-	stil.set_corner_radius_all(5)
-	stil.shadow_color = Color(0, 0, 0, 0.36)
-	stil.shadow_size = 4
-	panel.add_theme_stylebox_override("panel", stil)
+	panel.add_theme_stylebox_override("panel", HudStyle.right_panel_style())
 
 func _komut_paneli_buton_tiklandi(komut_id: String) -> void:
 	if komut_id == "savun":
