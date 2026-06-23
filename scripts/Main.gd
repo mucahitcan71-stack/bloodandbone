@@ -1436,73 +1436,76 @@ func _savas_hud_wireframe_duzenle() -> void:
 
 	var hud_main = VBoxContainer.new()
 	hud_main.name = "SavasHudMain"
-	hud_main.add_theme_constant_override("separation", 8)
+	hud_main.add_theme_constant_override("separation", 6)
 	hud_main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_system.add_battle_panel_element(hud_main)
 	savas_icerik.move_child(hud_main, 0)
 
 	savas_bilgi.reparent(hud_main)
-	savas_bilgi.add_theme_font_size_override("font_size", 11)
+	savas_bilgi.add_theme_font_size_override("font_size", 10)
 	savas_bilgi.add_theme_color_override("font_color", Color(0.9, 0.9, 0.86))
 
 	var alt_satir = HBoxContainer.new()
 	alt_satir.name = "SavasHudAltSatir"
-	alt_satir.add_theme_constant_override("separation", 10)
+	alt_satir.add_theme_constant_override("separation", 8)
 	alt_satir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hud_main.add_child(alt_satir)
 	ui_system.register_battle_panel_widget(alt_satir)
 
 	var sol_modul = PanelContainer.new()
 	sol_modul.name = "HudSolModul"
-	sol_modul.custom_minimum_size = Vector2(230, 132)
+	sol_modul.custom_minimum_size = Vector2(200, 102)
 	_hud_modul_stili_uygula(sol_modul)
 	alt_satir.add_child(sol_modul)
 	ui_system.register_battle_panel_widget(sol_modul)
 	var sol_margin = MarginContainer.new()
-	sol_margin.add_theme_constant_override("margin_left", 8)
-	sol_margin.add_theme_constant_override("margin_right", 8)
-	sol_margin.add_theme_constant_override("margin_top", 8)
-	sol_margin.add_theme_constant_override("margin_bottom", 8)
+	sol_margin.add_theme_constant_override("margin_left", 6)
+	sol_margin.add_theme_constant_override("margin_right", 6)
+	sol_margin.add_theme_constant_override("margin_top", 6)
+	sol_margin.add_theme_constant_override("margin_bottom", 6)
 	sol_modul.add_child(sol_margin)
 	var sol_vbox = VBoxContainer.new()
-	sol_vbox.add_theme_constant_override("separation", 6)
+	sol_vbox.add_theme_constant_override("separation", 4)
 	sol_margin.add_child(sol_vbox)
 	env_baslik.reparent(sol_vbox)
+	env_baslik.add_theme_font_size_override("font_size", 10)
 
 	var orta_modul = PanelContainer.new()
 	orta_modul.name = "HudOrtaModul"
-	orta_modul.custom_minimum_size = Vector2(520, 132)
+	orta_modul.custom_minimum_size = Vector2(440, 102)
 	orta_modul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hud_modul_stili_uygula(orta_modul)
 	alt_satir.add_child(orta_modul)
 	ui_system.register_battle_panel_widget(orta_modul)
 	var orta_margin = MarginContainer.new()
-	orta_margin.add_theme_constant_override("margin_left", 8)
-	orta_margin.add_theme_constant_override("margin_right", 8)
-	orta_margin.add_theme_constant_override("margin_top", 8)
-	orta_margin.add_theme_constant_override("margin_bottom", 8)
+	orta_margin.add_theme_constant_override("margin_left", 6)
+	orta_margin.add_theme_constant_override("margin_right", 6)
+	orta_margin.add_theme_constant_override("margin_top", 6)
+	orta_margin.add_theme_constant_override("margin_bottom", 6)
 	orta_modul.add_child(orta_margin)
 	envanter_grid.reparent(orta_margin)
 
 	var sag_modul = PanelContainer.new()
 	sag_modul.name = "HudSagModul"
-	sag_modul.custom_minimum_size = Vector2(180, 132)
+	sag_modul.custom_minimum_size = Vector2(140, 102)
 	_hud_modul_stili_uygula(sag_modul)
 	alt_satir.add_child(sag_modul)
 	ui_system.register_battle_panel_widget(sag_modul)
 	var sag_margin = MarginContainer.new()
-	sag_margin.add_theme_constant_override("margin_left", 8)
-	sag_margin.add_theme_constant_override("margin_right", 8)
-	sag_margin.add_theme_constant_override("margin_top", 8)
-	sag_margin.add_theme_constant_override("margin_bottom", 8)
+	sag_margin.add_theme_constant_override("margin_left", 6)
+	sag_margin.add_theme_constant_override("margin_right", 6)
+	sag_margin.add_theme_constant_override("margin_top", 6)
+	sag_margin.add_theme_constant_override("margin_bottom", 6)
 	sag_modul.add_child(sag_margin)
 	var sag_vbox = VBoxContainer.new()
 	sag_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	sag_vbox.add_theme_constant_override("separation", 8)
+	sag_vbox.add_theme_constant_override("separation", 6)
 	sag_margin.add_child(sag_vbox)
 	if ult_btn != null:
+		ult_btn.custom_minimum_size = Vector2(96, 28)
 		ult_btn.reparent(sag_vbox)
 	if hiz_btn != null:
+		hiz_btn.custom_minimum_size = Vector2(96, 28)
 		hiz_btn.reparent(sag_vbox)
 
 func savas_paneli_olustur() -> void:
@@ -1772,7 +1775,7 @@ func envanter_olustur() -> void:
 
 		var btn = Button.new()
 		btn.text = ""
-		btn.custom_minimum_size = Vector2(100, 60)
+		btn.custom_minimum_size = Vector2(86, 48)
 		btn.gui_input.connect(_envanter_kart_gui_input.bind(idx, silik))
 		if silik:
 			btn.modulate = Color(1, 1, 1, 0.38)
@@ -1791,7 +1794,7 @@ func envanter_olustur() -> void:
 		isim_l.text = str(tip.get("isim", "Birim"))
 		isim_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		isim_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		isim_l.add_theme_font_size_override("font_size", 11)
+		isim_l.add_theme_font_size_override("font_size", 10)
 
 		var alt_satir = HBoxContainer.new()
 		alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1800,12 +1803,12 @@ func envanter_olustur() -> void:
 		var sembol_l = Label.new()
 		sembol_l.text = str(tip.get("sembol", "•"))
 		sembol_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sembol_l.add_theme_font_size_override("font_size", 13)
+		sembol_l.add_theme_font_size_override("font_size", 11)
 
 		var adet_l = Label.new()
 		adet_l.text = "x" + str(adet)
 		adet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		adet_l.add_theme_font_size_override("font_size", 12)
+		adet_l.add_theme_font_size_override("font_size", 10)
 
 		alt_satir.add_child(sembol_l)
 		alt_satir.add_child(adet_l)

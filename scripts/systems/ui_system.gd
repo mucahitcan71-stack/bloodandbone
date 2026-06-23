@@ -700,7 +700,7 @@ func _savas_panel_alt_konumla() -> void:
 		return
 	savas_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	savas_panel_root.offset_left = 12
-	savas_panel_root.offset_top = -310
+	savas_panel_root.offset_top = -170
 	savas_panel_root.offset_right = -12
 	savas_panel_root.offset_bottom = -8
 	if savas_panel_root.get_theme_stylebox("panel") == null:
