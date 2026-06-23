@@ -1535,10 +1535,10 @@ func _savas_sag_bolum_duzenle() -> void:
 		panel_sag_savas_bilgi.name = "PanelSagSavasBilgi"
 		ui_root.add_child(panel_sag_savas_bilgi)
 	panel_sag_savas_bilgi.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	panel_sag_savas_bilgi.offset_left = -356
-	panel_sag_savas_bilgi.offset_top = -280
+	panel_sag_savas_bilgi.offset_left = -340
+	panel_sag_savas_bilgi.offset_top = -266
 	panel_sag_savas_bilgi.offset_right = -12
-	panel_sag_savas_bilgi.offset_bottom = -128
+	panel_sag_savas_bilgi.offset_bottom = -140
 	_sag_hud_panel_stili_uygula(panel_sag_savas_bilgi)
 	for c in panel_sag_savas_bilgi.get_children():
 		c.queue_free()
@@ -1552,19 +1552,26 @@ func _savas_sag_bolum_duzenle() -> void:
 	savas_vbox.add_theme_constant_override("separation", 6)
 	savas_margin.add_child(savas_vbox)
 	var baslik = Label.new()
-	baslik.text = "SAVAS"
+	baslik.text = "SAVAS DURUMU"
 	baslik.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
-	baslik.add_theme_font_size_override("font_size", 12)
+	baslik.add_theme_font_size_override("font_size", 11)
 	savas_vbox.add_child(baslik)
 	label_sag_osmanli = Label.new()
-	label_sag_osmanli.text = "OSMANLI: 0"
+	label_sag_osmanli.text = "OSMANLI: 0/0 | M0"
 	label_sag_osmanli.add_theme_font_size_override("font_size", 10)
+	label_sag_osmanli.add_theme_color_override("font_color", Color(0.92, 0.78, 0.3))
 	savas_vbox.add_child(label_sag_osmanli)
 	label_sag_roma = Label.new()
-	label_sag_roma.text = "DOGU ROMA: 0"
+	label_sag_roma.text = "DOGU ROMA: 0/0 | M0"
 	label_sag_roma.add_theme_font_size_override("font_size", 10)
+	label_sag_roma.add_theme_color_override("font_color", Color(0.78, 0.68, 0.95))
 	savas_vbox.add_child(label_sag_roma)
+	var puan_hedef = Label.new()
+	puan_hedef.text = "Hedef Puan: " + str(kazanma_puani)
+	puan_hedef.add_theme_font_size_override("font_size", 9)
+	puan_hedef.add_theme_color_override("font_color", Color(0.82, 0.83, 0.8))
+	savas_vbox.add_child(puan_hedef)
 
 	panel_sag_log_hiz = ui_node("PanelSagLogHiz") as PanelContainer
 	if panel_sag_log_hiz == null:
@@ -1572,8 +1579,8 @@ func _savas_sag_bolum_duzenle() -> void:
 		panel_sag_log_hiz.name = "PanelSagLogHiz"
 		ui_root.add_child(panel_sag_log_hiz)
 	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	panel_sag_log_hiz.offset_left = -356
-	panel_sag_log_hiz.offset_top = -122
+	panel_sag_log_hiz.offset_left = -340
+	panel_sag_log_hiz.offset_top = -132
 	panel_sag_log_hiz.offset_right = -12
 	panel_sag_log_hiz.offset_bottom = -8
 	_sag_hud_panel_stili_uygula(panel_sag_log_hiz)
@@ -1588,10 +1595,16 @@ func _savas_sag_bolum_duzenle() -> void:
 	var log_vbox = VBoxContainer.new()
 	log_vbox.add_theme_constant_override("separation", 6)
 	log_margin.add_child(log_vbox)
+	var log_baslik = Label.new()
+	log_baslik.text = "BILDIRIM"
+	log_baslik.add_theme_font_size_override("font_size", 10)
+	log_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	log_vbox.add_child(log_baslik)
 	var savas_bilgi = ui_node("Label_SavasBilgi") as Label
 	if savas_bilgi != null:
 		savas_bilgi.reparent(log_vbox)
 		savas_bilgi.add_theme_font_size_override("font_size", 10)
+		savas_bilgi.add_theme_color_override("font_color", Color(0.87, 0.88, 0.84))
 	var hiz_satir = HBoxContainer.new()
 	hiz_satir.alignment = BoxContainer.ALIGNMENT_END
 	log_vbox.add_child(hiz_satir)
@@ -1812,6 +1825,15 @@ func _envanter_secili_tip() -> Dictionary:
 func _envanter_secim_ui_guncelle() -> void:
 	var secili_indeksler = _envanter_secili_grup_indeksleri()
 	var secili_toplam = secili_indeksler.size()
+	for btn in envanter_butonlari:
+		if not is_instance_valid(btn):
+			continue
+		var b_silik = bool(btn.get_meta("env_silik", false))
+		if b_silik:
+			btn.modulate = Color(1, 1, 1, 0.38)
+			continue
+		var b_anahtar = str(btn.get_meta("env_anahtar", ""))
+		btn.modulate = Color(1.2, 1.17, 1.02, 1.0) if b_anahtar != "" and b_anahtar == secili_envanter_tip_anahtari else Color(1, 1, 1, 1)
 	if envanter_adet_satiri != null:
 		envanter_adet_satiri.visible = false
 	if secili_toplam <= 0:
@@ -1871,6 +1893,8 @@ func envanter_olustur() -> void:
 		var btn = Button.new()
 		btn.text = ""
 		btn.custom_minimum_size = Vector2(86, 48)
+		btn.set_meta("env_anahtar", anahtar)
+		btn.set_meta("env_silik", silik)
 		btn.gui_input.connect(_envanter_kart_gui_input.bind(idx, silik))
 		if silik:
 			btn.modulate = Color(1, 1, 1, 0.38)
