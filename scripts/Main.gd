@@ -380,6 +380,9 @@ func _ai_system_hazirla() -> void:
 func _point_economy_hazirla() -> void:
 	point_economy.configure(self)
 
+func _input_router_hazirla() -> void:
+	input_router.configure(self)
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -567,6 +570,7 @@ func _ready() -> void:
 	_unit_deployment_hazirla()
 	_ai_system_hazirla()
 	_point_economy_hazirla()
+	_input_router_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -1736,130 +1740,5 @@ func nokta_renk_guncelle(nokta: String) -> void:
 func nokta_al(nokta: String, taraf: String) -> void:
 	point_economy.capture_point(nokta, taraf)
 
-func _minimap_tiklamasini_isle(event_position: Vector2) -> bool:
-	return minimap_controller.handle_click(event_position, kamera, harita_sinir, Callable(self, "kamera_sinirla"))
-
-func _komut_menusu_disina_tiklandi_mi(event_position: Vector2) -> bool:
-	if komut_menusu_panel != null and komut_menusu_panel.visible:
-		var menu_rect = Rect2(komut_menusu_panel.position, komut_menusu_panel.size)
-		if not menu_rect.has_point(event_position):
-			komut_menusu_kapat()
-			return true
-	return false
-
-func _takviye_sag_tik_menu_disina_tiklandi_mi(event_position: Vector2) -> bool:
-	if takviye_sag_tik_menu != null and takviye_sag_tik_menu.visible:
-		var menu_rect = Rect2(takviye_sag_tik_menu.position, takviye_sag_tik_menu.size)
-		if not menu_rect.has_point(event_position):
-			takviye_sag_tik_menu_kapat()
-			return true
-	return false
-
-func _bos_alan_nokta_secimini_dene(dunya_pos: Vector2) -> bool:
-	for nokta in nokta_konumlari:
-		if not kesfedilen_noktalar.get(nokta, false):
-			continue
-		if dunya_pos.distance_to(nokta_merkezi(nokta)) <= 70.0:
-			nokta_sec(nokta)
-			return true
-	return false
-
-func _tiklanan_birimi_bul(dunya_pos: Vector2) -> Dictionary:
-	var tiklanan_oyuncu = null
-	var tiklanan_dusman = null
-	for birim in aktif_birimler:
-		if birim["hp"] <= 0:
-			continue
-		var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
-		if not birim_rect.has_point(dunya_pos):
-			continue
-		if birim["taraf"] == "osmanli":
-			tiklanan_oyuncu = birim
-		else:
-			tiklanan_dusman = birim
-		if tiklanan_oyuncu != null:
-			break
-	return {"oyuncu": tiklanan_oyuncu, "dusman": tiklanan_dusman}
-
-func _birim_tiklama_kararini_uygula(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vector2, ekran_pos: Vector2) -> void:
-	if tiklanan_oyuncu != null:
-		if secili_birim == tiklanan_oyuncu:
-			komut_menusu_ac(ekran_pos, tiklanan_oyuncu)
-		else:
-			komut_menusu_kapat()
-			komut_sec("hareket")
-			birim_tikla(tiklanan_oyuncu)
-		return
-
-	if secili_birim != null and secili_komut == "saldir" and tiklanan_dusman != null:
-		birim_komut_saldir(secili_birim, tiklanan_dusman["konum"], int(tiklanan_dusman.get("id", -1)))
-		return
-
-	if secili_birim != null:
-		komut_menusu_kapat()
-		if secili_komut == "pusu":
-			birim_pusu_kur()
-		elif secili_komut == "saldir":
-			birim_komut_saldir(secili_birim, dunya_pos)
-		else:
-			birim_hareket_ettir(dunya_pos)
-	elif secili_envanter_tip_anahtari != "":
-		birim_haritadan_gonder(dunya_pos)
-	else:
-		_bos_alan_nokta_secimini_dene(dunya_pos)
-
 func _input(event) -> void:
-	if oyun_bitti:
-		return
-
-	if event.is_action_pressed("cmd_cancel_menu"):
-		if komut_menusu_panel != null and komut_menusu_panel.visible:
-			komut_menusu_kapat()
-			return
-		if takviye_sag_tik_menu != null and takviye_sag_tik_menu.visible:
-			takviye_sag_tik_menu_kapat()
-			return
-		komut_menusu_kapat()
-		return
-
-	if input_router.handle_camera_input(event, kamera, camera_controller):
-		return
-
-	if event.is_action_pressed("cmd_primary_click"):
-			if _minimap_tiklamasini_isle(event.position):
-				birim_detay_hover_bitir()
-				return
-
-			_komut_menusu_disina_tiklandi_mi(event.position)
-			_takviye_sag_tik_menu_disina_tiklandi_mi(event.position)
-
-			if takviye_sag_tik_menu != null and takviye_sag_tik_menu.visible:
-				var takviye_menu_rect = Rect2(takviye_sag_tik_menu.position, takviye_sag_tik_menu.size)
-				if takviye_menu_rect.has_point(event.position):
-					return
-
-			var savas_icerik = ui_node("SavasIcerik") as Control
-			if savas_icerik != null and savas_icerik.visible:
-				if savas_icerik.get_global_rect().has_point(event.position):
-					birim_detay_hover_bitir()
-					return
-
-			birim_detay_hover_bitir()
-			var dunya_pos = get_global_mouse_position()
-			if not hazirlik_fazi:
-				var tiklama_sonucu = _tiklanan_birimi_bul(dunya_pos)
-				var tiklanan_oyuncu = tiklama_sonucu["oyuncu"]
-				var tiklanan_dusman = tiklama_sonucu["dusman"]
-
-				_birim_tiklama_kararini_uygula(tiklanan_oyuncu, tiklanan_dusman, dunya_pos, event.position)
-				return
-
-			if hazirlik_fazi:
-				var birim_tiklandi = false
-				for birim in aktif_birimler:
-					if birim["taraf"] == "osmanli" and birim["hp"] > 0:
-						var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
-						if birim_rect.has_point(dunya_pos):
-							birim_tikla(birim)
-							birim_tiklandi = true
-							break
+	input_router.handle_input(event)
