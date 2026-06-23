@@ -174,6 +174,7 @@ var hazirlik_tabs_content: VBoxContainer = null
 var hazirlik_tab_container_map = {}
 var savas_panel_root: PanelContainer = null
 var savas_icerik_vbox: VBoxContainer = null
+var envanter_scroll: ScrollContainer = null
 var envanter_grid: GridContainer = null
 var mevcut_hiz_carpani = 1.0
 var hiz_tek_btn: Button = null
@@ -649,6 +650,19 @@ func _envanter_anahtari(tip: Dictionary) -> String:
 	if id != "":
 		return id
 	return str(tip.get("isim", "birim"))
+
+func _envanter_kart_genislik_hesapla() -> float:
+	var kart_sayisi = max(1, osmanli_birim_tipleri.size())
+	var alan = 420.0
+	if is_instance_valid(envanter_scroll) and envanter_scroll.size.x > 0.0:
+		alan = envanter_scroll.size.x - 12.0
+	elif is_instance_valid(envanter_grid):
+		var parent = envanter_grid.get_parent()
+		if parent is Control and (parent as Control).size.x > 0.0:
+			alan = (parent as Control).size.x - 12.0
+	var bosluk = 4.0
+	var toplam_bosluk = bosluk * float(kart_sayisi - 1)
+	return clampf((alan - toplam_bosluk) / float(kart_sayisi), 56.0, 86.0)
 
 func takviye_gorunurluk_guncelle(acik: bool) -> void:
 	if takviye_liste_satiri != null:
@@ -1501,7 +1515,10 @@ func _savas_hud_wireframe_duzenle() -> void:
 	orta_margin.add_theme_constant_override("margin_top", 6)
 	orta_margin.add_theme_constant_override("margin_bottom", 6)
 	orta_modul.add_child(orta_margin)
-	envanter_grid.reparent(orta_margin)
+	if envanter_scroll != null:
+		envanter_scroll.reparent(orta_margin)
+	else:
+		envanter_grid.reparent(orta_margin)
 
 	var sag_modul = PanelContainer.new()
 	sag_modul.name = "HudSagModul"
@@ -1700,9 +1717,18 @@ func savas_paneli_olustur() -> void:
 	env_baslik.text = "Envanter: (bos)"
 	ui_system.add_battle_panel_element(env_baslik)
 
+	envanter_scroll = ScrollContainer.new()
+	envanter_scroll.name = "EnvanterScroll"
+	envanter_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	envanter_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	envanter_scroll.custom_minimum_size = Vector2(0, 56)
+	ui_system.add_battle_panel_element(envanter_scroll)
+
 	envanter_grid = GridContainer.new()
-	envanter_grid.columns = 5
-	ui_system.add_battle_panel_element(envanter_grid)
+	envanter_grid.columns = max(1, osmanli_birim_tipleri.size())
+	envanter_grid.add_theme_constant_override("h_separation", 4)
+	envanter_grid.add_theme_constant_override("v_separation", 0)
+	envanter_scroll.add_child(envanter_grid)
 
 	envanter_adet_satiri = HBoxContainer.new()
 	envanter_adet_satiri.visible = false
@@ -1859,8 +1885,12 @@ func envanter_olustur() -> void:
 
 	if envanter_grid == null:
 		return
+	if is_instance_valid(envanter_scroll) and envanter_scroll.get_parent() == null:
+		return
+	envanter_grid.columns = max(1, osmanli_birim_tipleri.size())
 	for child in envanter_grid.get_children():
 		child.queue_free()
+	var kart_genislik = _envanter_kart_genislik_hesapla()
 
 	var sira: Array = []
 	for i in range(envanter.size()):
@@ -1892,7 +1922,7 @@ func envanter_olustur() -> void:
 
 		var btn = Button.new()
 		btn.text = ""
-		btn.custom_minimum_size = Vector2(86, 48)
+		btn.custom_minimum_size = Vector2(kart_genislik, 42)
 		btn.set_meta("env_anahtar", anahtar)
 		btn.set_meta("env_silik", silik)
 		btn.gui_input.connect(_envanter_kart_gui_input.bind(idx, silik))
@@ -1913,7 +1943,7 @@ func envanter_olustur() -> void:
 		isim_l.text = str(tip.get("isim", "Birim"))
 		isim_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		isim_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		isim_l.add_theme_font_size_override("font_size", 10)
+		isim_l.add_theme_font_size_override("font_size", 9)
 
 		var alt_satir = HBoxContainer.new()
 		alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1922,12 +1952,12 @@ func envanter_olustur() -> void:
 		var sembol_l = Label.new()
 		sembol_l.text = str(tip.get("sembol", "•"))
 		sembol_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sembol_l.add_theme_font_size_override("font_size", 11)
+		sembol_l.add_theme_font_size_override("font_size", 10)
 
 		var adet_l = Label.new()
 		adet_l.text = "x" + str(adet)
 		adet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		adet_l.add_theme_font_size_override("font_size", 10)
+		adet_l.add_theme_font_size_override("font_size", 9)
 
 		alt_satir.add_child(sembol_l)
 		alt_satir.add_child(adet_l)
