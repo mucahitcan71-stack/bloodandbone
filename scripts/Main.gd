@@ -11,6 +11,7 @@ const CommandSystem = preload("res://scripts/systems/command_system.gd")
 const HudStyle = preload("res://scripts/ui/hud_style.gd")
 const HudCommands = preload("res://scripts/ui/hud_commands.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
+const MinimapController = preload("res://scripts/ui/minimap_controller.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -156,14 +157,8 @@ var kamera: Camera2D = null
 var zoom_min = 0.3
 var zoom_max = 1.5
 var zoom_hizi = 0.1
+var minimap_controller: MinimapController = MinimapController.new()
 var minimap_panel: PanelContainer = null
-var minimap_kamera_rect: ColorRect = null
-var minimap_birim_osmanli: ColorRect = null
-var minimap_birim_dogu_roma: ColorRect = null
-var minimap_nokta_isaretleri = {}
-var minimap_fow_rect: TextureRect = null
-var minimap_fow_gorseli: Image = null
-var minimap_fow_doku: ImageTexture = null
 var minimap_boyut = Vector2(206, 124)
 var ui_root: Control = null
 var ust_bilgi_paneli: HBoxContainer = null
@@ -1103,154 +1098,26 @@ func komut_menusu_komut_sec(komut: String) -> void:
 	komut_menusu_kapat()
 
 func minimap_olustur() -> void:
-	minimap_panel = ui_node("MinimapPanel") as PanelContainer
-	if minimap_panel == null:
-		minimap_panel = PanelContainer.new()
-		minimap_panel.name = "MinimapPanel"
-		minimap_panel.custom_minimum_size = minimap_boyut
-		minimap_panel.add_theme_stylebox_override("panel", HudStyle.minimap_panel_style())
-		ui_root.add_child(minimap_panel)
-	minimap_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	minimap_panel.offset_left = -minimap_boyut.x - 12
-	minimap_panel.offset_top = 52
-	minimap_panel.offset_right = -12
-	minimap_panel.offset_bottom = 52 + minimap_boyut.y
-
-	var minimap_margin = ui_node("MinimapMargin") as MarginContainer
-	if minimap_margin == null:
-		minimap_margin = MarginContainer.new()
-		minimap_margin.name = "MinimapMargin"
-		minimap_margin.add_theme_constant_override("margin_left", 5)
-		minimap_margin.add_theme_constant_override("margin_right", 5)
-		minimap_margin.add_theme_constant_override("margin_top", 5)
-		minimap_margin.add_theme_constant_override("margin_bottom", 5)
-		minimap_panel.add_child(minimap_margin)
-
-	var minimap_surface = ui_node("MinimapSurface") as ColorRect
-	if minimap_surface == null:
-		minimap_surface = ColorRect.new()
-		minimap_surface.name = "MinimapSurface"
-		minimap_surface.custom_minimum_size = minimap_boyut - Vector2(10, 10)
-		minimap_surface.color = HudStyle.minimap_surface_color()
-		minimap_margin.add_child(minimap_surface)
-
-	minimap_fow_rect = ui_node("MinimapFow") as TextureRect
-	if minimap_fow_rect == null:
-		minimap_fow_rect = TextureRect.new()
-		minimap_fow_rect.name = "MinimapFow"
-		minimap_fow_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-		minimap_fow_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		minimap_fow_rect.stretch_mode = TextureRect.STRETCH_SCALE
-		minimap_surface.add_child(minimap_fow_rect)
-	minimap_fow_rect.show_behind_parent = false
-
-	minimap_kamera_rect = ui_node("MinimapKameraRect") as ColorRect
-	if minimap_kamera_rect == null:
-		minimap_kamera_rect = ColorRect.new()
-		minimap_kamera_rect.name = "MinimapKameraRect"
-		minimap_kamera_rect.size = Vector2(30, 18)
-		minimap_kamera_rect.color = Color(1, 1, 1, 0.45)
-		minimap_surface.add_child(minimap_kamera_rect)
-
-	minimap_birim_osmanli = ui_node("MinimapBirimOsmanli") as ColorRect
-	if minimap_birim_osmanli == null:
-		minimap_birim_osmanli = ColorRect.new()
-		minimap_birim_osmanli.name = "MinimapBirimOsmanli"
-		minimap_birim_osmanli.size = Vector2(5, 5)
-		minimap_birim_osmanli.color = Color.GOLD
-		minimap_surface.add_child(minimap_birim_osmanli)
-
-	minimap_birim_dogu_roma = ui_node("MinimapBirimDoguRoma") as ColorRect
-	if minimap_birim_dogu_roma == null:
-		minimap_birim_dogu_roma = ColorRect.new()
-		minimap_birim_dogu_roma.name = "MinimapBirimDoguRoma"
-		minimap_birim_dogu_roma.size = Vector2(5, 5)
-		minimap_birim_dogu_roma.color = Color.PURPLE
-		minimap_surface.add_child(minimap_birim_dogu_roma)
-
-	for nokta in nokta_konumlari:
-		var isaret = ColorRect.new()
-		isaret.size = Vector2(4, 4)
-		isaret.color = Color(0.7, 0.7, 0.7, 0.9)
-		minimap_surface.add_child(isaret)
-		minimap_nokta_isaretleri[nokta] = isaret
-
-func minimap_dunya_to_panel(pos: Vector2) -> Vector2:
-	var surface = ui_node("MinimapSurface")
-	var panel_size = surface.size if surface != null else minimap_boyut
-	var w = harita_sinir["max_x"] - harita_sinir["min_x"]
-	var h = harita_sinir["max_y"] - harita_sinir["min_y"]
-	if w <= 0 or h <= 0:
-		return Vector2.ZERO
-	return Vector2(
-		((pos.x - harita_sinir["min_x"]) / w) * panel_size.x,
-		((pos.y - harita_sinir["min_y"]) / h) * panel_size.y
+	minimap_controller.build(
+		ui_root,
+		minimap_boyut,
+		HudStyle.minimap_panel_style(),
+		HudStyle.minimap_surface_color(),
+		nokta_konumlari
 	)
-
-func minimap_panel_to_dunya(pos: Vector2) -> Vector2:
-	var surface = ui_node("MinimapSurface")
-	var panel_size = surface.size if surface != null else minimap_boyut
-	var w = harita_sinir["max_x"] - harita_sinir["min_x"]
-	var h = harita_sinir["max_y"] - harita_sinir["min_y"]
-	return Vector2(
-		harita_sinir["min_x"] + (pos.x / panel_size.x) * w,
-		harita_sinir["min_y"] + (pos.y / panel_size.y) * h
-	)
-
-func minimap_fow_guncelle() -> void:
-	if minimap_fow_rect == null:
-		return
-	fog_system.update_minimap_fow()
-	minimap_fow_gorseli = fog_system.get_minimap_fow_image()
-	minimap_fow_doku = fog_system.get_minimap_fow_texture()
-	if minimap_fow_doku != null:
-		minimap_fow_rect.texture = minimap_fow_doku
+	minimap_panel = minimap_controller.get_panel()
 
 func minimap_guncelle() -> void:
-	if minimap_panel == null:
-		return
-	minimap_fow_guncelle()
-	for nokta in minimap_nokta_isaretleri:
-		var isaret = minimap_nokta_isaretleri[nokta]
-		if not is_instance_valid(isaret):
-			continue
-		isaret.position = minimap_dunya_to_panel(nokta_merkezi(nokta)) - Vector2(2, 2)
-		isaret.visible = kesfedilen_noktalar.get(nokta, false)
-		if nokta_sahipleri.get(nokta, "tarafsiz") == "osmanli":
-			isaret.color = Color.GOLD
-		elif nokta_sahipleri.get(nokta, "tarafsiz") == "dogu_roma":
-			isaret.color = Color.PURPLE
-		else:
-			isaret.color = Color(0.7, 0.7, 0.7, 0.9)
-
-	var os_top = Vector2.ZERO
-	var os_adet = 0
-	var dr_top = Vector2.ZERO
-	var dr_adet = 0
-	for birim in aktif_birimler:
-		if birim["hp"] <= 0:
-			continue
-		if birim["taraf"] == "osmanli":
-			os_top += birim["konum"]
-			os_adet += 1
-		else:
-			dr_top += birim["konum"]
-			dr_adet += 1
-	minimap_birim_osmanli.visible = os_adet > 0
-	minimap_birim_dogu_roma.visible = dr_adet > 0
-	if os_adet > 0:
-		minimap_birim_osmanli.position = minimap_dunya_to_panel(os_top / float(os_adet)) - Vector2(2, 2)
-	if dr_adet > 0:
-		minimap_birim_dogu_roma.position = minimap_dunya_to_panel(dr_top / float(dr_adet)) - Vector2(2, 2)
-
-	if kamera != null and minimap_kamera_rect != null:
-		var ekran = get_viewport_rect().size / kamera.zoom.x
-		var top_left = kamera.position - ekran * 0.5
-		var bot_right = kamera.position + ekran * 0.5
-		var mini_tl = minimap_dunya_to_panel(top_left)
-		var mini_br = minimap_dunya_to_panel(bot_right)
-		minimap_kamera_rect.position = mini_tl
-		minimap_kamera_rect.size = (mini_br - mini_tl).abs()
+	minimap_controller.update(
+		fog_system,
+		nokta_konumlari,
+		kesfedilen_noktalar,
+		nokta_sahipleri,
+		aktif_birimler,
+		kamera,
+		get_viewport_rect().size,
+		harita_sinir
+	)
 
 func formasyon_sec(formasyon: String) -> void:
 	taraf_formasyon["osmanli"] = formasyon
@@ -3308,19 +3175,7 @@ func nokta_al(nokta: String, taraf: String) -> void:
 		moral_degistir("dogu_roma", 10.0)
 
 func _minimap_tiklamasini_isle(event_position: Vector2) -> bool:
-	if minimap_panel != null:
-		var surface = ui_node("MinimapSurface")
-		var hedef_rect = Rect2(
-			surface.get_global_position() if surface != null else minimap_panel.get_global_position(),
-			surface.size if surface != null else minimap_panel.size
-		)
-		if hedef_rect.has_point(event_position):
-			if kamera != null:
-				var yerel = event_position - hedef_rect.position
-				kamera.position = minimap_panel_to_dunya(yerel)
-				kamera_sinirla()
-			return true
-	return false
+	return minimap_controller.handle_click(event_position, kamera, harita_sinir, Callable(self, "kamera_sinirla"))
 
 func _komut_menusu_disina_tiklandi_mi(event_position: Vector2) -> bool:
 	if komut_menusu_panel != null and komut_menusu_panel.visible:
