@@ -16,12 +16,14 @@ const HudComposer = preload("res://scripts/ui/hud_composer.gd")
 const CameraController = preload("res://scripts/camera/camera_controller.gd")
 const InputRouter = preload("res://scripts/input/input_router.gd")
 const BattleFlowSystem = preload("res://scripts/systems/battle_flow_system.gd")
+const CombatLoopSystem = preload("res://scripts/systems/combat_loop_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
 var ui_system: UISystem
 var command_system: CommandSystem
 var battle_flow: BattleFlowSystem = BattleFlowSystem.new()
+var combat_loop: CombatLoopSystem = CombatLoopSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -364,6 +366,9 @@ func _command_system_hazirla() -> void:
 func _battle_flow_hazirla() -> void:
 	battle_flow.configure(self)
 
+func _combat_loop_hazirla() -> void:
+	combat_loop.configure(self)
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -547,6 +552,7 @@ func _ready() -> void:
 	_ui_system_hazirla()
 	_command_system_hazirla()
 	_battle_flow_hazirla()
+	_combat_loop_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -2036,130 +2042,7 @@ func _process(delta: float) -> void:
 	nokta_gorunurluklerini_guncelle()
 	birim_gorunurluklerini_guncelle()
 
-	# === SALDIRI SİSTEMİ ===
-	for birim in aktif_birimler:
-		if birim["hp"] <= 0:
-			continue
-		if birim.get("pusu_modunda", false) or birim.get("geri_cekiliyor", false):
-			continue
-
-		birim["saldirim_timer"] += delta
-		if birim["saldirim_timer"] < 1.0:
-			continue
-		birim["saldirim_timer"] = 0.0
-
-		var dusman_listesi = []
-
-		var saldiran_efekt = birim_etkin_degerleri(birim)
-		for b in aktif_birimler:
-			if b["taraf"] != birim["taraf"] and b["hp"] > 0:
-				if not birim_gorunur_mu_tarafa(b, birim["taraf"]):
-					continue
-				if birim["konum"].distance_to(b["konum"]) <= saldiran_efekt["menzil"]:
-					dusman_listesi.append(b)
-
-		if dusman_listesi.is_empty():
-			birim["savas_halinde"] = false
-			continue
-
-		birim["savas_halinde"] = true
-		var hasar_per = max(1.0, float(saldiran_efekt["guc"]) / float(dusman_listesi.size()))
-		for dusman in dusman_listesi:
-			var dusman_efekt = birim_etkin_degerleri(dusman)
-			var carpan = hasar_carpani_hesapla(birim["isim"], dusman["isim"])
-			if not birim.get("pusu_ilk_saldiri_kullanildi", true):
-				carpan *= float(birim.get("pusu_hasar_carpani", pusu_ilk_saldiri_carpani))
-				birim["pusu_ilk_saldiri_kullanildi"] = true
-			var gercek_hasar = max(1.0, (hasar_per - float(dusman_efekt["savunma"])) * carpan)
-			dusman["bekleyen_hasar"] += gercek_hasar
-			birim["hasar_verilen"] += int(gercek_hasar)
-			ult_sarj[birim["taraf"]] = min(100.0, ult_sarj[birim["taraf"]] + gercek_hasar * 0.08)
-			mac_istatistik[birim["taraf"]]["hasar"] += gercek_hasar
-
-	# Hasarları uygula
-	for birim in aktif_birimler:
-		if birim["bekleyen_hasar"] > 0:
-			birim["hp"] -= birim["bekleyen_hasar"]
-			birim["bekleyen_hasar"] = 0.0
-
-	# Hareket ve temizlik
-	var silinecekler = []
-	for birim in aktif_birimler:
-		if birim["hp"] <= 0:
-			if birim.get("is_general", false):
-				moral_degistir(birim["taraf"], -30.0)
-			if birim == secili_birim:
-				secili_birim = null
-			var birim_id = int(birim.get("id", -1))
-			if birim_id >= 0:
-				fog_system.remove_enemy_intel(birim_id)
-			birim["node"].queue_free()
-			silinecekler.append(birim)
-			var taraf = birim["taraf"]
-			var diger = "dogu_roma" if taraf == "osmanli" else "osmanli"
-			mac_istatistik[taraf]["kayip"] += 1
-			mac_istatistik[diger]["oldurme"] += 1
-			continue
-
-		var dusman_menzilde = false
-		var hareket_efekt = birim_etkin_degerleri(birim)
-		var takip_id = int(birim.get("takip_edilen_dusman", -1))
-		if takip_id >= 0:
-			var takip = birim_id_ile_bul(takip_id)
-			if takip.is_empty():
-				birim["takip_edilen_dusman"] = -1
-			else:
-				birim["hedef"] = takip["konum"]
-				birim["hedef_nokta"] = en_yakin_nokta_bul(takip["konum"])
-		for b in aktif_birimler:
-			if b["taraf"] != birim["taraf"] and b["hp"] > 0:
-				if not birim_gorunur_mu_tarafa(b, birim["taraf"]):
-					continue
-				if birim["konum"].distance_to(b["konum"]) <= hareket_efekt["menzil"]:
-					dusman_menzilde = true
-					break
-
-		var hedefe_varildi = birim["konum"].distance_to(birim["hedef"]) <= 8.0
-		if birim.get("pusu_modunda", false):
-			dusman_menzilde = false
-			hedefe_varildi = true
-		if birim.get("geri_cekiliyor", false):
-			dusman_menzilde = false
-		if not dusman_menzilde and not hedefe_varildi:
-			var mesafe = birim["hedef"] - birim["konum"]
-			var yon = mesafe.normalized()
-			birim["konum"] += yon * hareket_efekt["hiz"] * delta
-			var arazi_hareket = birimin_arazisini_bul(birim["konum"])
-			if bool(arazi_hareket.get("tek_sira", false)):
-				var rect: Rect2 = arazi_hareket.get("rect", Rect2())
-				var merkez = _dar_koridor_merkez(rect)
-				if rect.size.x <= rect.size.y:
-					birim["konum"].x = merkez.x
-				else:
-					birim["konum"].y = merkez.y
-			birim["node"].position = birim["konum"]
-			birim["pusu_arazi_gizli"] = false
-		elif not birim.get("pusu_modunda", false):
-			var orman_idx = _orman_bolge_index(birim["konum"])
-			birim["pusu_arazi_gizli"] = orman_idx >= 0 and not dusman_menzilde and hedefe_varildi
-		if birim.get("geri_cekiliyor", false) and hedefe_varildi:
-			birim["geri_cekiliyor"] = false
-
-		if is_instance_valid(birim["node"]):
-			var hp_bar = birim["node"].get_node_or_null("HPBar")
-			if hp_bar:
-				hp_bar.size.x = 30.0 * (birim["hp"] / birim["max_hp"])
-			var asker_l = birim["node"].get_node_or_null("AskerSayisi")
-			if asker_l:
-				var kalan = int(ceil(birim["hp"] / (birim["max_hp"] / birim["asker_sayisi"])))
-				asker_l.text = str(max(0, kalan))
-
-	for silinecek in silinecekler:
-		aktif_birimler.erase(silinecek)
-
-	savas_sisi_guncelle()
-	nokta_gorunurluklerini_guncelle()
-	birim_gorunurluklerini_guncelle()
+	combat_loop.tick(delta)
 
 	_kamera_kaydirmayi_uygula(delta)
 
