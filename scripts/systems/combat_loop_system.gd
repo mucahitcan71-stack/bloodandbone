@@ -100,9 +100,15 @@ func _process_movement_and_deaths(delta: float) -> void:
 		var to_hedef = hedef_pos - birim["konum"]
 		var dist = to_hedef.length()
 		var varis_esigi = Constants.BIRIM_HAREKET_VARIS_ESIGI
+		var durak_band = Constants.BIRIM_HAREKET_DURAK_BANDI
 		var chasing = takip_id >= 0
-		var hedefe_varildi = dist <= varis_esigi
-		if not chasing and dist <= varis_esigi * 3.0:
+		if chasing:
+			birim["hareket_durdu"] = false
+		elif dist > varis_esigi + durak_band:
+			birim["hareket_durdu"] = false
+		var settled = bool(birim.get("hareket_durdu", false))
+		var hedefe_varildi = settled or dist <= varis_esigi
+		if not chasing and not settled and dist <= Constants.BIRIM_NOKTA_YAKIN_ESIGI:
 			var hedef_nokta = str(birim.get("hedef_nokta", ""))
 			if hedef_nokta != "" and _host.birim_nokta_menzilinde(birim, hedef_nokta):
 				hedefe_varildi = true
@@ -121,7 +127,7 @@ func _process_movement_and_deaths(delta: float) -> void:
 			var arazi_hareket = _host.birimin_arazisini_bul(birim["konum"])
 			if bool(arazi_hareket.get("tek_sira", false)):
 				var snap_dist = birim["konum"].distance_to(hedef_pos)
-				if snap_dist > varis_esigi:
+				if snap_dist > varis_esigi * 2.0:
 					var rect: Rect2 = arazi_hareket.get("rect", Rect2())
 					var merkez = _host._dar_koridor_merkez(rect)
 					if rect.size.x <= rect.size.y:
@@ -136,10 +142,8 @@ func _process_movement_and_deaths(delta: float) -> void:
 			var orman_idx = _host._orman_bolge_index(birim["konum"])
 			birim["pusu_arazi_gizli"] = orman_idx >= 0 and not dusman_menzilde and hedefe_varildi
 		if hedefe_varildi and not chasing and not birim.get("pusu_modunda", false) and not birim.get("savunma_modunda", false):
-			birim["konum"] = hedef_pos
 			birim["hedef"] = birim["konum"]
-			if is_instance_valid(birim["node"]):
-				birim["node"].position = birim["konum"]
+			birim["hareket_durdu"] = true
 		if birim.get("geri_cekiliyor", false) and hedefe_varildi:
 			birim["geri_cekiliyor"] = false
 
