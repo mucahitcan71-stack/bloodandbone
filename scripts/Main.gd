@@ -24,6 +24,7 @@ const UnitDeploymentSystem = preload("res://scripts/systems/unit_deployment_syst
 const AiSystem = preload("res://scripts/systems/ai_system.gd")
 const PointEconomySystem = preload("res://scripts/systems/point_economy_system.gd")
 const ContextMenus = preload("res://scripts/ui/context_menus.gd")
+const UnitStatsSystem = preload("res://scripts/systems/unit_stats_system.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -36,6 +37,7 @@ var ai_system: AiSystem = AiSystem.new()
 var point_economy: PointEconomySystem = PointEconomySystem.new()
 var prep_controller: PreparationController = PreparationController.new()
 var context_menus: ContextMenus = ContextMenus.new()
+var unit_stats: UnitStatsSystem = UnitStatsSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -356,6 +358,9 @@ func _prep_controller_hazirla() -> void:
 func _context_menus_hazirla() -> void:
 	context_menus.configure(self)
 
+func _unit_stats_hazirla() -> void:
+	unit_stats.configure(self)
+
 func _context_menus_refs_sync() -> void:
 	komut_menusu_panel = context_menus.komut_menusu_panel
 	komut_menusu_hedef_birim = context_menus.komut_menusu_hedef_birim
@@ -471,6 +476,7 @@ func _ready() -> void:
 	_input_router_hazirla()
 	_prep_controller_hazirla()
 	_context_menus_hazirla()
+	_unit_stats_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -1022,25 +1028,7 @@ func general_getir(taraf: String) -> Dictionary:
 	return {}
 
 func general_olustur(taraf: String) -> void:
-	var tip = {
-		"isim": "General",
-		"hiz": 36.0,
-		"renk": Color(1, 0.9, 0.35) if taraf == "osmanli" else Color(0.75, 0.55, 1),
-		"sembol": "⭐",
-		"guc": 30,
-		"savunma": 20,
-		"hp": 120,
-		"asker_sayisi": 1,
-		"menzil": 100.0,
-		"is_general": true,
-		"aura_menzil": 190.0,
-		"aura_guc": 1.1,
-		"aura_savunma": 1.1
-	}
-	var merkez_x = (harita_sinir["min_x"] + harita_sinir["max_x"]) * 0.5
-	var baslangic = Vector2(merkez_x - 220.0, harita_sinir["max_y"] - 140.0) if taraf == "osmanli" else Vector2(merkez_x + 220.0, harita_sinir["min_y"] + 140.0)
-	var hedef = baslangic + Vector2(60, -40) if taraf == "osmanli" else baslangic + Vector2(-60, 40)
-	birim_olustur(baslangic, en_yakin_nokta_bul(hedef), taraf, tip, hedef)
+	unit_stats.general_olustur(taraf)
 
 func taraf_formasyon_carpani(taraf: String, stat: String) -> float:
 	return CombatSystem.formation_multiplier(formasyonlar, taraf_formasyon, taraf, stat)
@@ -1059,51 +1047,16 @@ func ult_kullan(taraf: String) -> void:
 	moral_degistir(taraf, 8.0)
 
 func _dar_koridor_merkez(rect: Rect2) -> Vector2:
-	return rect.position + rect.size * 0.5
-
-func _birim_suvari_mi(birim: Dictionary) -> bool:
-	return suvari_isimleri.has(str(birim.get("isim", "")))
+	return unit_stats.dar_koridor_merkez(rect)
 
 func birim_etkin_degerleri(birim: Dictionary) -> Dictionary:
-	var taraf = birim["taraf"]
-	var general = general_getir(taraf)
-	var weather = hava_durumu_efektleri.get(hava_durumu, hava_durumu_efektleri["Acik"])
-	var level = terfi_seviyesi_getir(taraf, birim["isim"])
-	var etkiler = CombatSystem.effective_stats(
-		birim,
-		taraf_formasyon,
-		formasyonlar,
-		taraf_moral,
-		taraf_carpanlari,
-		weather,
-		ult_aktif_sure,
-		general,
-		level
-	)
-	var arazi = birimin_arazisini_bul(birim["konum"])
-	var tip = str(arazi.get("tip", "duz_arazi"))
-	if tip in ["tepe", "kopru"]:
-		var sav = float(arazi.get("savunma_bonus", 1.0))
-		etkiler["savunma"] = max(1, int(round(float(etkiler["savunma"]) * sav)))
-	if tip in ["vadi", "yol"]:
-		var hiz_bonus = float(arazi.get("hiz_bonus", 1.0))
-		etkiler["hiz"] = max(8.0, float(etkiler["hiz"]) * hiz_bonus)
-	if tip == "dar_gecit" and _birim_suvari_mi(birim):
-		var yavas = float(arazi.get("suvari_yavaslama", 0.5))
-		etkiler["hiz"] = max(8.0, float(etkiler["hiz"]) * yavas)
-	return etkiler
+	return unit_stats.birim_etkin_degerleri(birim)
 
 func birim_olustur(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Dictionary, hedef_konum: Vector2 = Vector2(-1, -1)) -> void:
 	unit_deployment.create_unit(baslangic, hedef_nokta, taraf, tip, hedef_konum)
 
 func hasar_carpani_hesapla(saldiran: String, hedef: String) -> float:
-	if not ustunluk_tablosu.has(saldiran):
-		return 1.0
-	if hedef in ustunluk_tablosu[saldiran]["guclu"]:
-		return Constants.HASAR_CARPANI_GUCLU
-	if hedef in ustunluk_tablosu[saldiran]["zayif"]:
-		return Constants.HASAR_CARPANI_ZAYIF
-	return 1.0
+	return unit_stats.hasar_carpani_hesapla(saldiran, hedef)
 
 func birim_tikla(birim: Dictionary) -> void:
 	var result = command_system.select_unit(birim)
