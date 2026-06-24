@@ -162,6 +162,15 @@ static func active_unit_card_selected() -> StyleBoxFlat:
 	s.border_color = Color(0.9, 0.74, 0.26, 0.95)
 	return s
 
+static func active_unit_card_compact_style() -> StyleBoxFlat:
+	var s = active_unit_card_style()
+	s.bg_color = Color(0.055, 0.07, 0.1, 0.92)
+	s.content_margin_left = 2
+	s.content_margin_right = 2
+	s.content_margin_top = 1
+	s.content_margin_bottom = 1
+	return s
+
 static func active_unit_hp_bg_color() -> Color:
 	return Color(0.12, 0.14, 0.16, 0.95)
 
