@@ -23,6 +23,7 @@ const CombatLoopSystem = preload("res://scripts/systems/combat_loop_system.gd")
 const UnitDeploymentSystem = preload("res://scripts/systems/unit_deployment_system.gd")
 const AiSystem = preload("res://scripts/systems/ai_system.gd")
 const PointEconomySystem = preload("res://scripts/systems/point_economy_system.gd")
+const ContextMenus = preload("res://scripts/ui/context_menus.gd")
 
 var world_system: WorldSystem
 var fog_system: FogSystem
@@ -34,6 +35,7 @@ var unit_deployment: UnitDeploymentSystem = UnitDeploymentSystem.new()
 var ai_system: AiSystem = AiSystem.new()
 var point_economy: PointEconomySystem = PointEconomySystem.new()
 var prep_controller: PreparationController = PreparationController.new()
+var context_menus: ContextMenus = ContextMenus.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -351,6 +353,15 @@ func _input_router_hazirla() -> void:
 func _prep_controller_hazirla() -> void:
 	prep_controller.configure(self)
 
+func _context_menus_hazirla() -> void:
+	context_menus.configure(self)
+
+func _context_menus_refs_sync() -> void:
+	komut_menusu_panel = context_menus.komut_menusu_panel
+	komut_menusu_hedef_birim = context_menus.komut_menusu_hedef_birim
+	takviye_sag_tik_menu = context_menus.takviye_sag_tik_menu
+	takviye_sag_tik_secili_idx = context_menus.takviye_sag_tik_secili_idx
+
 func _command_refs_sync() -> void:
 	secili_komut = command_system.get_selected_command()
 	secili_birim = command_system.get_selected_unit()
@@ -459,6 +470,7 @@ func _ready() -> void:
 	_point_economy_hazirla()
 	_input_router_hazirla()
 	_prep_controller_hazirla()
+	_context_menus_hazirla()
 	kamera_hazirla()
 	veri_yukle()
 	kayit_yukle()
@@ -617,119 +629,36 @@ func komut_sec(komut: String) -> void:
 	_command_status_line_uygula(result)
 
 func komut_menusu_olustur() -> void:
-	komut_menusu_panel = ui_node("Panel_KomutMenu") as PanelContainer
-	if komut_menusu_panel == null:
-		komut_menusu_panel = PanelContainer.new()
-		komut_menusu_panel.name = "Panel_KomutMenu"
-		komut_menusu_panel.custom_minimum_size = Vector2(170, 156)
-		komut_menusu_panel.visible = false
-		$CanvasLayer.add_child(komut_menusu_panel)
-	for c in komut_menusu_panel.get_children():
-		c.queue_free()
-
-	var menu_margin = MarginContainer.new()
-	menu_margin.add_theme_constant_override("margin_left", 8)
-	menu_margin.add_theme_constant_override("margin_right", 8)
-	menu_margin.add_theme_constant_override("margin_top", 8)
-	menu_margin.add_theme_constant_override("margin_bottom", 8)
-	komut_menusu_panel.add_child(menu_margin)
-	var menu_vbox = VBoxContainer.new()
-	menu_margin.add_child(menu_vbox)
-
-	var satir = [
-		{"id": "saldir", "text": "⚔ Saldir"},
-		{"id": "geri_cekil", "text": "↩ Geri Cekil"},
-		{"id": "pusu", "text": "🌲 Pusu Kur"},
-		{"id": "savun", "text": "🛡 Nokta Savun"},
-	]
-	for i in range(satir.size()):
-		var btn = Button.new()
-		btn.text = satir[i]["text"]
-		btn.custom_minimum_size = Vector2(154, 30)
-		var cmd = satir[i]["id"]
-		btn.pressed.connect(func(): komut_menusu_komut_sec(cmd))
-		menu_vbox.add_child(btn)
+	context_menus.build_komut_menusu()
+	_context_menus_refs_sync()
 
 func komut_menusu_ac(ekran_pos: Vector2, birim: Dictionary) -> void:
-	if komut_menusu_panel == null:
-		return
-	komut_menusu_hedef_birim = birim
-	var view = get_viewport_rect().size
-	var pos = ekran_pos
-	if pos.x + komut_menusu_panel.size.x > view.x:
-		pos.x = view.x - komut_menusu_panel.size.x - 8
-	if pos.y + komut_menusu_panel.size.y > view.y:
-		pos.y = view.y - komut_menusu_panel.size.y - 8
-	komut_menusu_panel.position = pos
-	komut_menusu_panel.visible = true
+	context_menus.ac_komut_menusu(ekran_pos, birim)
+	_context_menus_refs_sync()
 
 func komut_menusu_kapat() -> void:
-	if komut_menusu_panel != null:
-		komut_menusu_panel.visible = false
-	komut_menusu_hedef_birim = null
+	context_menus.kapat_komut_menusu()
+	_context_menus_refs_sync()
 
 func takviye_sag_tik_menu_olustur() -> void:
-	takviye_sag_tik_menu = ui_node("Panel_TakviyeSagTik") as PanelContainer
-	if takviye_sag_tik_menu == null:
-		takviye_sag_tik_menu = PanelContainer.new()
-		takviye_sag_tik_menu.name = "Panel_TakviyeSagTik"
-		takviye_sag_tik_menu.custom_minimum_size = Vector2(190, 44)
-		takviye_sag_tik_menu.visible = false
-		$CanvasLayer.add_child(takviye_sag_tik_menu)
-	for c in takviye_sag_tik_menu.get_children():
-		c.queue_free()
-
-	var menu_margin = MarginContainer.new()
-	menu_margin.add_theme_constant_override("margin_left", 6)
-	menu_margin.add_theme_constant_override("margin_right", 6)
-	menu_margin.add_theme_constant_override("margin_top", 6)
-	menu_margin.add_theme_constant_override("margin_bottom", 6)
-	takviye_sag_tik_menu.add_child(menu_margin)
-
-	var btn = Button.new()
-	btn.name = "TakviyeSagTikBtn"
-	btn.custom_minimum_size = Vector2(178, 32)
-	btn.pressed.connect(_takviye_sag_tik_menu_secildi)
-	menu_margin.add_child(btn)
+	context_menus.build_takviye_menu()
+	_context_menus_refs_sync()
 
 func takviye_sag_tik_menu_ac(idx: int, ekran_pos: Vector2) -> void:
-	if takviye_sag_tik_menu == null or idx < 0 or idx >= osmanli_birim_tipleri.size():
-		return
-	komut_menusu_kapat()
-	takviye_sag_tik_secili_idx = idx
-	var tip = osmanli_birim_tipleri[idx]
-	var menu_btn = takviye_sag_tik_menu.find_child("TakviyeSagTikBtn", true, false) as Button
-	if menu_btn != null:
-		menu_btn.text = str(tip["sembol"]) + " Birim Ekle (" + str(tip["maliyet"]) + "🪙)"
-		menu_btn.disabled = osmanli_altini < int(tip["maliyet"])
-	var view = get_viewport_rect().size
-	var pos = ekran_pos
-	if pos.x + takviye_sag_tik_menu.size.x > view.x:
-		pos.x = view.x - takviye_sag_tik_menu.size.x - 8
-	if pos.y + takviye_sag_tik_menu.size.y > view.y:
-		pos.y = view.y - takviye_sag_tik_menu.size.y - 8
-	takviye_sag_tik_menu.position = pos
-	takviye_sag_tik_menu.visible = true
+	context_menus.ac_takviye_menu(idx, ekran_pos)
+	_context_menus_refs_sync()
 
 func takviye_sag_tik_menu_kapat() -> void:
-	if takviye_sag_tik_menu != null:
-		takviye_sag_tik_menu.visible = false
-	takviye_sag_tik_secili_idx = -1
+	context_menus.kapat_takviye_menu()
+	_context_menus_refs_sync()
 
 func _takviye_sag_tik_menu_secildi() -> void:
-	if takviye_sag_tik_secili_idx < 0:
-		takviye_sag_tik_menu_kapat()
-		return
-	var idx = takviye_sag_tik_secili_idx
-	takviye_sag_tik_menu_kapat()
-	birim_satin_al(idx)
+	context_menus._on_takviye_secildi()
+	_context_menus_refs_sync()
 
 func _envanter_kart_gui_input(event: InputEvent, idx: int, silik: bool) -> void:
-	if HudInventory.should_show_context_menu(event):
-		takviye_sag_tik_menu_ac(idx, event.global_position)
-		get_viewport().set_input_as_handled()
-	elif HudInventory.should_block_left_click(event, silik):
-		get_viewport().set_input_as_handled()
+	context_menus.envanter_kart_gui_input(event, idx, silik)
+	_context_menus_refs_sync()
 
 func komut_menusu_komut_sec(komut: String) -> void:
 	if komut_menusu_hedef_birim == null:
