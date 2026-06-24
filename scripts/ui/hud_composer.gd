@@ -5,6 +5,7 @@ const HudStyle = preload("res://scripts/ui/hud_style.gd")
 const HudCommands = preload("res://scripts/ui/hud_commands.gd")
 const HudSelectedUnitPanel = preload("res://scripts/ui/hud_selected_unit.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
+const HudActiveUnits = preload("res://scripts/ui/hud_active_units.gd")
 
 const BOTTOM_MODULE_H := 96
 const MODULE_GAP := 10
@@ -13,6 +14,8 @@ const ORTA_MODULE_W := 440
 const SAG_MODULE_W := 128
 const CMD_BTN_SIZE := Vector2(30, 28)
 const CMD_GRID_GAP := 6
+
+var _active_units: HudActiveUnits = HudActiveUnits.new()
 
 func _apply_module_style(panel: PanelContainer) -> void:
 	panel.add_theme_stylebox_override("panel", HudStyle.module_panel_style())
@@ -89,6 +92,7 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	orta_vbox.add_theme_constant_override("separation", 3)
 	orta_vbox.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	orta_margin.add_child(orta_vbox)
+	_active_units.ensure_shell(orta_vbox)
 	env_baslik.reparent(orta_vbox)
 	env_baslik.text = "BIRLIKLER"
 	env_baslik.add_theme_font_size_override("font_size", 9)
@@ -96,7 +100,7 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	if envanter_scroll != null:
 		envanter_scroll.reparent(orta_vbox)
 		envanter_scroll.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		envanter_scroll.custom_minimum_size = Vector2(ORTA_MODULE_W - 12, HudInventory.card_height())
+		envanter_scroll.custom_minimum_size = Vector2(ORTA_MODULE_W - 12, HudInventory.card_height() - 2)
 	else:
 		envanter_grid.reparent(orta_vbox)
 
@@ -159,6 +163,9 @@ func update_command_buttons(buttons: Dictionary, secili_var: bool, secili_komut:
 		btn.disabled = bool(state.get("disabled", false))
 		btn.modulate = state.get("modulate", Color(1, 1, 1, 1))
 		HudCommands.apply_button_visuals(btn, state)
+
+func update_active_units_strip(deps: Dictionary) -> void:
+	_active_units.update(deps)
 
 func compose_right_panel(ui_root: Control, ui_node: Callable, kazanma_puani: int) -> Dictionary:
 	if ui_root == null or not ui_node.is_valid():

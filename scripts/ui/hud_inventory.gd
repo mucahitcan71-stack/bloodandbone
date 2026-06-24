@@ -12,6 +12,11 @@ static func card_height() -> float:
 static func card_separation() -> float:
 	return 7.0
 
+static func calculate_active_card_width(kart_sayisi: int, alan: float, bosluk: float = 5.0) -> float:
+	var safe_kart_sayisi = max(1, kart_sayisi)
+	var toplam_bosluk = bosluk * float(safe_kart_sayisi - 1)
+	return clampf((alan - toplam_bosluk) / float(safe_kart_sayisi), 52.0, 96.0)
+
 static func dimmed_modulate() -> Color:
 	return Color(1, 1, 1, 0.36)
 

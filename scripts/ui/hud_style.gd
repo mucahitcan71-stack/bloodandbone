@@ -142,3 +142,12 @@ static func speed_button_style() -> StyleBoxFlat:
 	s.content_margin_left = 8
 	s.content_margin_right = 8
 	return s
+
+static func active_unit_card_style() -> StyleBoxFlat:
+	var s = inventory_card_normal()
+	s.bg_color = Color(0.06, 0.08, 0.11, 0.9)
+	s.content_margin_left = 3
+	s.content_margin_right = 3
+	s.content_margin_top = 1
+	s.content_margin_bottom = 1
+	return s

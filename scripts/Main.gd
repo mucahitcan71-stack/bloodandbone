@@ -818,6 +818,11 @@ func _komut_paneli_guncelle() -> void:
 		"secili_komut": secili_komut,
 		"stats_fn": Callable(self, "birim_etkin_degerleri"),
 	})
+	hud_composer.update_active_units_strip({
+		"ui_node": Callable(self, "ui_node"),
+		"aktif_birimler": aktif_birimler,
+		"hazirlik_fazi": hazirlik_fazi,
+	})
 
 func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()
