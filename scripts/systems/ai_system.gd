@@ -110,7 +110,7 @@ func upgrade_point() -> void:
 	var secim = ""
 	var secim_seviye = 999
 	for nokta in _host.nokta_oncelik_listesi():
-		if _host.nokta_sahipleri[nokta] != "dogu_roma":
+		if _host.nokta_sahibi_getir(nokta) != "dogu_roma":
 			continue
 		if _host.nokta_gelistirme[nokta] < secim_seviye and _host.nokta_gelistirme[nokta] < 3:
 			secim = nokta
@@ -118,28 +118,16 @@ func upgrade_point() -> void:
 	if secim == "":
 		return
 	var maliyet = 20 + secim_seviye * 15
-	if _host.dogu_roma_gelisim_altini < maliyet:
+	if not _host.gelisim_altini_harca("dogu_roma", maliyet):
 		return
-	_host.dogu_roma_gelisim_altini -= maliyet
 	_host.mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet
 	_host.nokta_gelistirme[secim] += 1
 	_host.nokta_puan[secim] = _host.nokta_taban_puan(secim) + _host.nokta_gelistirme[secim]
 	_host.nokta_altin[secim] = _host.nokta_taban_altin(secim) + _host.nokta_gelistirme[secim]
-	if _host.zorluk == "kolay" and randf() < 0.42 and _host.dogu_roma_gelisim_altini >= maliyet + 8 and _host.nokta_gelistirme[secim] < 3:
-		_host.dogu_roma_gelisim_altini -= maliyet + 8
-		_host.mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 8
-		_host.nokta_gelistirme[secim] += 1
-		_host.nokta_puan[secim] = _host.nokta_taban_puan(secim) + _host.nokta_gelistirme[secim]
-		_host.nokta_altin[secim] = _host.nokta_taban_altin(secim) + _host.nokta_gelistirme[secim]
-	if _host.zorluk == "orta" and randf() < 0.62 and _host.dogu_roma_gelisim_altini >= maliyet + 12 and _host.nokta_gelistirme[secim] < 3:
-		_host.dogu_roma_gelisim_altini -= maliyet + 12
-		_host.mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 12
-		_host.nokta_gelistirme[secim] += 1
-		_host.nokta_puan[secim] = _host.nokta_taban_puan(secim) + _host.nokta_gelistirme[secim]
-		_host.nokta_altin[secim] = _host.nokta_taban_altin(secim) + _host.nokta_gelistirme[secim]
-	if _host.zorluk == "zor" and randf() < 0.82 and _host.dogu_roma_gelisim_altini >= maliyet + 15 and _host.nokta_gelistirme[secim] < 3:
-		_host.dogu_roma_gelisim_altini -= maliyet + 15
-		_host.mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + 15
+	var sans_tablosu = {"kolay": 0.42, "orta": 0.62, "zor": 0.82}
+	var ek_maliyet = {"kolay": 8, "orta": 12, "zor": 15}.get(_host.zorluk, 0)
+	if randf() < sans_tablosu.get(_host.zorluk, 0.0) and _host.nokta_gelistirme[secim] < 3 and _host.gelisim_altini_harca("dogu_roma", maliyet + ek_maliyet):
+		_host.mac_istatistik["dogu_roma"]["altin_harcama"] += maliyet + ek_maliyet
 		_host.nokta_gelistirme[secim] += 1
 		_host.nokta_puan[secim] = _host.nokta_taban_puan(secim) + _host.nokta_gelistirme[secim]
 		_host.nokta_altin[secim] = _host.nokta_taban_altin(secim) + _host.nokta_gelistirme[secim]

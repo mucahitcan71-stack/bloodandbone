@@ -13,6 +13,7 @@ static func _read_json(path: String) -> Variant:
 		return null
 	var file = FileAccess.open(path, FileAccess.READ)
 	if file == null:
+		push_error("JSON dosyasi acilamadi: " + path + " (hata: " + str(FileAccess.get_open_error()) + ")")
 		return null
 	var json = JSON.new()
 	var err = json.parse(file.get_as_text())

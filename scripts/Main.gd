@@ -1,5 +1,6 @@
 extends Node2D
 
+const Constants = preload("res://scripts/constants.gd")
 const CombatSystem = preload("res://scripts/systems/combat_system.gd")
 const MetaSystem = preload("res://scripts/systems/meta_system.gd")
 const SaveSystem = preload("res://scripts/systems/save_system.gd")
@@ -40,7 +41,7 @@ var dogu_roma_birim_tipleri: Array = []
 var kampanya_harita_idleri: Array = []
 var kampanya_bolgeleri: Array = []
 var aktif_harita_id = "trakya"
-var harita_sinir = {"min_x": 20.0, "max_x": 980.0, "min_y": 80.0, "max_y": 440.0}
+var harita_sinir = Constants.VARSAYILAN_HARITA_SINIR.duplicate()
 
 # === OYUN DEĞİŞKENLERİ ===
 var oyun_bitti = false
@@ -214,7 +215,7 @@ var hava_durumu = "Acik"
 var hava_durumu_efektleri = {
 	"Acik": {"hiz": 1.0, "menzil": 1.0, "guc": 1.0},
 	"Yagmur": {"hiz": 0.9, "menzil": 0.9, "guc": 0.95},
-	"Sis": {"hiz": 0.95, "menzil": 0.78, "guc": 1.0},
+	"Sis": {"hiz": 0.95, "menzil": Constants.SIS_MENZIL_CARPAN, "guc": 1.0},
 	"Ruzgar": {"hiz": 1.05, "menzil": 1.08, "guc": 1.0},
 }
 
@@ -222,8 +223,8 @@ var hava_durumu_efektleri = {
 var kart_havuzu = [
 	{"id": "disiplin", "isim": "Demir Disiplin", "aciklama": "+10 moral", "moral": 10.0},
 	{"id": "ikmal", "isim": "Hizli Ikmal", "aciklama": "+12 altin", "altin": 12},
-	{"id": "talim", "isim": "Saha Talimi", "aciklama": "+8% guc", "guc": 1.08},
-	{"id": "savunma_hatti", "isim": "Savunma Hatti", "aciklama": "+8% savunma", "savunma": 1.08},
+	{"id": "talim", "isim": "Saha Talimi", "aciklama": "+8% guc", "guc": Constants.TALIM_GUC_CARPAN},
+	{"id": "savunma_hatti", "isim": "Savunma Hatti", "aciklama": "+8% savunma", "savunma": Constants.SAVUNMA_HATTI_CARPAN},
 	{"id": "hucum_plani", "isim": "Hucum Plani", "aciklama": "Formasyon: Hucum", "formasyon": "hucum"},
 ]
 var kart_secenekleri = []
@@ -250,6 +251,47 @@ var mac_istatistik = {
 
 # === KAMPANYA ===
 var kampanya_index = 0
+
+# === EKONOMI / NOKTA SAHIPLIGI ERISIM SARMALAYICILARI ===
+# Alt sistemler (ai_system, point_economy_system) bu state'i artik
+# dogrudan field erisimi yerine bu fonksiyonlar uzerinden degistiriyor.
+
+func nokta_sahibi_getir(nokta: String) -> String:
+	return nokta_sahipleri.get(nokta, "tarafsiz")
+
+func nokta_sahibi_belirle(nokta: String, taraf: String) -> void:
+	nokta_sahipleri[nokta] = taraf
+
+func nokta_capture_getir(nokta: String) -> float:
+	return nokta_capture.get(nokta, 50.0)
+
+func nokta_capture_belirle(nokta: String, deger: float) -> void:
+	nokta_capture[nokta] = deger
+
+func altin_ekle(taraf: String, miktar: int) -> void:
+	if taraf == "osmanli":
+		osmanli_altini += miktar
+	else:
+		dogu_roma_altini += miktar
+
+func gelisim_altini_ekle(taraf: String, miktar: int) -> void:
+	if taraf == "osmanli":
+		osmanli_gelisim_altini += miktar
+	else:
+		dogu_roma_gelisim_altini += miktar
+
+func gelisim_altini_harca(taraf: String, miktar: int) -> bool:
+	var mevcut = osmanli_gelisim_altini if taraf == "osmanli" else dogu_roma_gelisim_altini
+	if mevcut < miktar:
+		return false
+	gelisim_altini_ekle(taraf, -miktar)
+	return true
+
+func puan_ekle(taraf: String, miktar: int) -> void:
+	if taraf == "osmanli":
+		osmanli_puani += miktar
+	else:
+		dogu_roma_puani += miktar
 
 func veri_yukle() -> void:
 	osmanli_birim_tipleri = GameData.load_units("osmanli")
@@ -418,11 +460,11 @@ func birim_gorunur_mu_tarafa(hedef: Dictionary, goren_taraf: String) -> bool:
 
 func pusu_tetik_kontrolu() -> void:
 	for birim in aktif_birimler:
-		if birim["hp"] <= 0 or not birim.get("pusu_modunda", false):
+		if birim.get("hp", 0) <= 0 or not birim.get("pusu_modunda", false):
 			continue
 		var etkiler = birim_etkin_degerleri(birim)
 		for dusman in aktif_birimler:
-			if dusman["hp"] <= 0 or dusman["taraf"] == birim["taraf"]:
+			if dusman.get("hp", 0) <= 0 or dusman.get("taraf", "") == birim.get("taraf", ""):
 				continue
 			if birim["konum"].distance_to(dusman["konum"]) <= etkiler["menzil"]:
 				birim["pusu_modunda"] = false
@@ -838,7 +880,7 @@ func kart_uygula(taraf: String, kart: Dictionary) -> void:
 	if kart.is_empty():
 		return
 	if kart.has("moral"):
-		taraf_moral[taraf] = clamp(taraf_moral[taraf] + kart["moral"], 0.0, 130.0)
+		taraf_moral[taraf] = clamp(taraf_moral[taraf] + kart["moral"], 0.0, Constants.MORAL_MAX)
 	if kart.has("altin"):
 		if taraf == "osmanli":
 			osmanli_altini += int(kart["altin"])
@@ -877,7 +919,7 @@ func hiz_sec(carpan: float) -> void:
 func hiz_carpani_arttir() -> void:
 	if hazirlik_fazi or oyun_bitti:
 		return
-	var sirali = [1.0, 2.0, 4.0, 6.0, 8.0]
+	var sirali = Constants.HIZ_SECENEKLERI
 	var idx = 0
 	for i in range(sirali.size()):
 		if is_equal_approx(float(sirali[i]), mevcut_hiz_carpani):
@@ -922,7 +964,7 @@ func _komut_paneli_guncelle() -> void:
 	if hud_komut_butonlari.is_empty():
 		return
 	var secili_var = secili_birim != null
-	var ult_hazir = ult_sarj["osmanli"] >= 100.0
+	var ult_hazir = ult_sarj["osmanli"] >= Constants.ULT_TAM_SARJ
 	for komut_id in hud_komut_butonlari:
 		var btn = hud_komut_butonlari[komut_id] as Button
 		if btn == null:
@@ -994,7 +1036,7 @@ func savas_paneli_olustur() -> void:
 	gel_baslik.text = "Nokta +"
 	var gel_satir = HBoxContainer.new()
 	gel_satir.name = "NoktaPlusSatir"
-	var sirali_noktalar = ["A", "B", "C", "D", "E"]
+	var sirali_noktalar = Constants.NOKTA_ID_SIRALI
 	for nokta in sirali_noktalar:
 		if not nokta_konumlari.has(nokta):
 			continue
@@ -1129,13 +1171,13 @@ func taraf_moral_carpani(taraf: String) -> float:
 
 func general_hayatta_mi(taraf: String) -> bool:
 	for b in aktif_birimler:
-		if b["taraf"] == taraf and b["hp"] > 0 and b.get("is_general", false):
+		if b.get("taraf", "") == taraf and b.get("hp", 0) > 0 and b.get("is_general", false):
 			return true
 	return false
 
 func general_getir(taraf: String) -> Dictionary:
 	for b in aktif_birimler:
-		if b["taraf"] == taraf and b["hp"] > 0 and b.get("is_general", false):
+		if b.get("taraf", "") == taraf and b.get("hp", 0) > 0 and b.get("is_general", false):
 			return b
 	return {}
 
@@ -1170,7 +1212,7 @@ func terfi_kullanimi_artir(taraf: String, isim: String) -> void:
 	terfi_verisi[taraf] = MetaSystem.update_promotion_state(terfi_verisi[taraf], isim)
 
 func ult_kullan(taraf: String) -> void:
-	if ult_sarj[taraf] < 100.0 or ult_aktif_sure[taraf] > 0.0:
+	if ult_sarj[taraf] < Constants.ULT_TAM_SARJ or ult_aktif_sure[taraf] > 0.0:
 		return
 	ult_sarj[taraf] = 0.0
 	ult_aktif_sure[taraf] = 10.0
@@ -1218,9 +1260,9 @@ func hasar_carpani_hesapla(saldiran: String, hedef: String) -> float:
 	if not ustunluk_tablosu.has(saldiran):
 		return 1.0
 	if hedef in ustunluk_tablosu[saldiran]["guclu"]:
-		return 1.5
+		return Constants.HASAR_CARPANI_GUCLU
 	if hedef in ustunluk_tablosu[saldiran]["zayif"]:
-		return 0.6
+		return Constants.HASAR_CARPANI_ZAYIF
 	return 1.0
 
 func birim_tikla(birim: Dictionary) -> void:
@@ -1243,7 +1285,7 @@ func birim_hareket_ettir(hedef_pos: Vector2) -> void:
 
 func birim_id_ile_bul(id: int) -> Dictionary:
 	for birim in aktif_birimler:
-		if int(birim.get("id", -1)) == id and birim["hp"] > 0:
+		if int(birim.get("id", -1)) == id and birim.get("hp", 0) > 0:
 			return birim
 	return {}
 
@@ -1317,7 +1359,7 @@ func _process(delta: float) -> void:
 
 	ult_aktif_sure["osmanli"] = max(0.0, ult_aktif_sure["osmanli"] - delta)
 	ult_aktif_sure["dogu_roma"] = max(0.0, ult_aktif_sure["dogu_roma"] - delta)
-	if ult_sarj["dogu_roma"] >= 100.0:
+	if ult_sarj["dogu_roma"] >= Constants.ULT_TAM_SARJ:
 		ult_kullan("dogu_roma")
 
 	ai_system.tick_spawn_waves(delta)

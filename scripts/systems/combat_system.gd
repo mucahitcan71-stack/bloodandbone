@@ -1,8 +1,10 @@
 extends RefCounted
 class_name CombatSystem
 
+const Constants = preload("res://scripts/constants.gd")
+
 static func change_moral(current: float, amount: float) -> float:
-	return clamp(current + amount, 0.0, 130.0)
+	return clamp(current + amount, 0.0, Constants.MORAL_MAX)
 
 static func moral_multiplier(moral: float) -> float:
 	return clamp(0.75 + (moral / 100.0) * 0.5, 0.7, 1.35)
