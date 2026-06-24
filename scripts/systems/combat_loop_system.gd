@@ -1,6 +1,8 @@
 extends RefCounted
 class_name CombatLoopSystem
 
+const Constants = preload("res://scripts/constants.gd")
+
 var _host: Node2D = null
 
 func configure(host: Node2D) -> void:
