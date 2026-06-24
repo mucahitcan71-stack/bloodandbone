@@ -13,22 +13,41 @@
 	"nokta_duzen": {
 		"mod": "aday",
 		"min_mesafe": 320,
-		"us_uzaklik": 300
+		"us_uzaklik": 300,
+		"max_yol_mesafe": 380
 	},
 	"nokta_slotlari": {
 		"A": {"sabit": true, "x": 600, "y": 1500, "rol": "us", "puan": 1, "altin": 3},
 		"B": {"sabit": true, "x": 4400, "y": 1500, "rol": "us", "puan": 1, "altin": 3},
 		"C": {
 			"rol": "merkez", "puan": 3, "altin": 6,
-			"adaylar": [[2500, 1500], [2350, 1480], [2680, 1520], [2500, 1380], [2420, 1560]]
+			"adaylar": [
+				{"id": "C_hub", "x": 2500, "y": 1500, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_bati", "x": 2350, "y": 1480, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_dogu", "x": 2680, "y": 1520, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_kuzey", "x": 2500, "y": 1380, "rol": "merkez", "bolge": "ova"},
+				{"id": "C_guney", "x": 2420, "y": 1560, "rol": "merkez", "bolge": "yol"}
+			]
 		},
 		"D": {
 			"rol": "yan", "puan": 1, "altin": 3,
-			"adaylar": [[2500, 400], [1800, 520], [3200, 600], [2100, 720], [2900, 480]]
+			"adaylar": [
+				{"id": "D_tepe", "x": 2500, "y": 400, "rol": "tepe", "bolge": "tepe"},
+				{"id": "D_bati", "x": 1800, "y": 520, "rol": "yan", "bolge": "vadi"},
+				{"id": "D_dogu", "x": 3200, "y": 600, "rol": "yan", "bolge": "ova"},
+				{"id": "D_orman", "x": 2100, "y": 720, "rol": "orman", "bolge": "orman"},
+				{"id": "D_gecit", "x": 2900, "y": 480, "rol": "tepe", "bolge": "tepe"}
+			]
 		},
 		"E": {
 			"rol": "yan", "puan": 1, "altin": 3,
-			"adaylar": [[2500, 2600], [3400, 2400], [1600, 2300], [3800, 2100], [2200, 2480]]
+			"adaylar": [
+				{"id": "E_guney", "x": 2500, "y": 2600, "rol": "yan", "bolge": "yol"},
+				{"id": "E_dogu", "x": 3400, "y": 2400, "rol": "yan", "bolge": "ova"},
+				{"id": "E_bati", "x": 1600, "y": 2300, "rol": "flank", "bolge": "orman"},
+				{"id": "E_ova", "x": 3800, "y": 2100, "rol": "yan", "bolge": "ova"},
+				{"id": "E_orman", "x": 2200, "y": 2480, "rol": "orman", "bolge": "orman"}
+			]
 		}
 	},
 	"sinir": {"min_x": 0, "max_x": 5000, "min_y": 0, "max_y": 3000},

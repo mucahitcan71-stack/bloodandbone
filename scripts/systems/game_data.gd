@@ -289,6 +289,7 @@ static func _parse_nokta_duzen(raw: Variant) -> Dictionary:
 		"mod": str(raw.get("mod", "sabit")),
 		"min_mesafe": float(raw.get("min_mesafe", 320.0)),
 		"us_uzaklik": float(raw.get("us_uzaklik", 300.0)),
+		"max_yol_mesafe": float(raw.get("max_yol_mesafe", 380.0)),
 	}
 
 static func _parse_nokta_slotlari(raw: Variant) -> Dictionary:
@@ -310,6 +311,29 @@ static func _parse_nokta_slotlari(raw: Variant) -> Dictionary:
 		if entry.has("y"):
 			slot["y"] = float(entry["y"])
 		if entry.has("adaylar"):
-			slot["adaylar"] = (entry["adaylar"] as Array).duplicate()
+			slot["adaylar"] = _parse_slot_adaylari(entry["adaylar"], str(entry.get("rol", "")))
 		slotlar[str(slot_id)] = slot
 	return slotlar
+
+static func _parse_slot_adaylari(raw: Variant, slot_rol: String) -> Array:
+	var adaylar: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return adaylar
+	for aday in raw:
+		if typeof(aday) == TYPE_DICTIONARY:
+			adaylar.append({
+				"id": str(aday.get("id", "")),
+				"x": float(aday.get("x", 0.0)),
+				"y": float(aday.get("y", 0.0)),
+				"rol": str(aday.get("rol", slot_rol)),
+				"bolge": str(aday.get("bolge", "")),
+			})
+		elif typeof(aday) == TYPE_ARRAY and aday.size() >= 2:
+			adaylar.append({
+				"id": "",
+				"x": float(aday[0]),
+				"y": float(aday[1]),
+				"rol": slot_rol,
+				"bolge": "",
+			})
+	return adaylar
