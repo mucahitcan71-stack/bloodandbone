@@ -26,6 +26,9 @@ var arazi_bolgeleri: Array = []
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
 var gorsel_yollar: Array = []
+var gorsel_patikalar: Array = []
+var gorsel_lekeler: Array = []
+var dere_yataklari: Array = []
 var cevre_dekor: Array = []
 var nokta_duzen: Dictionary = {}
 var nokta_slotlari: Dictionary = {}
@@ -92,6 +95,9 @@ func harita_uygula(map_id: String) -> void:
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
 	bolge_etiketleri = map_data.get("bolge_etiketleri", []).duplicate(true)
 	gorsel_yollar = map_data.get("gorsel_yollar", []).duplicate(true)
+	gorsel_patikalar = map_data.get("gorsel_patikalar", []).duplicate(true)
+	gorsel_lekeler = map_data.get("gorsel_lekeler", []).duplicate(true)
+	dere_yataklari = map_data.get("dere_yataklari", []).duplicate(true)
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
@@ -308,6 +314,7 @@ func arazi_gorsellerini_guncelle() -> void:
 	var sinir = harita_sinir
 	_taban_katmani_ekle(sinir)
 	_arazi_leke_katmani_ekle(sinir)
+	_gorsel_lekeler_ekle()
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
 		var rect: Rect2 = bolge.get("rect", Rect2())
@@ -322,6 +329,8 @@ func decor_gorsellerini_guncelle() -> void:
 	for c in decor_katmani.get_children():
 		c.queue_free()
 	_gorsel_yollar_ekle()
+	_gorsel_patikalar_ekle()
+	_dere_yataklari_ekle()
 	_akarsu_ekle()
 	_cevre_dekor_ekle()
 	_bolge_etiketleri_ekle()
@@ -354,6 +363,42 @@ func _arazi_leke_katmani_ekle(sinir: Dictionary) -> void:
 		leke.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		leke.z_index = -2
 		arazi_katmani.add_child(leke)
+
+func _gorsel_lekeler_ekle() -> void:
+	for i in range(gorsel_lekeler.size()):
+		var leke = gorsel_lekeler[i]
+		var tip = str(leke.get("tip", ""))
+		var rect = Rect2(
+			Vector2(float(leke.get("x", 0.0)), float(leke.get("y", 0.0))),
+			Vector2(float(leke.get("w", 120.0)), float(leke.get("h", 100.0)))
+		)
+		var alan = ColorRect.new()
+		alan.position = rect.position
+		alan.size = rect.size
+		alan.color = _gorsel_leke_renk(tip)
+		alan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		alan.z_index = -2
+		arazi_katmani.add_child(alan)
+		if tip == "orman_kenar":
+			var kenar = ColorRect.new()
+			kenar.position = rect.position + Vector2(rect.size.x * 0.55, 6)
+			kenar.size = Vector2(rect.size.x * 0.4, rect.size.y - 12)
+			kenar.color = Color(0.06, 0.18, 0.09, 0.35)
+			kenar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			kenar.z_index = -2
+			arazi_katmani.add_child(kenar)
+
+func _gorsel_leke_renk(tip: String) -> Color:
+	match tip:
+		"vadi_leke":
+			return Color(0.26, 0.4, 0.22, 0.38)
+		"ova":
+			return Color(0.34, 0.4, 0.26, 0.42)
+		"orman_kenar":
+			return Color(0.12, 0.3, 0.14, 0.4)
+		"pusuluk":
+			return Color(0.07, 0.2, 0.1, 0.48)
+	return Color(0.22, 0.28, 0.18, 0.3)
 
 func _arazi_bolge_ciz(bolge: Dictionary, rect: Rect2, tip: String, bolge_idx: int) -> void:
 	var alan = ColorRect.new()
@@ -459,9 +504,61 @@ func _gorsel_yollar_ekle() -> void:
 		var bit = get_point_center(b_id)
 		_yol_cizgisi_ekle(bas, bit, tip, hash(a_id + b_id + aktif_harita_id + tip))
 
+func _gorsel_patikalar_ekle() -> void:
+	for i in range(gorsel_patikalar.size()):
+		var patika = gorsel_patikalar[i]
+		var tip = str(patika.get("tip", "normal"))
+		var pts = patika.get("points", []) as Array
+		if pts.size() < 2:
+			continue
+		var packed = PackedVector2Array()
+		for j in range(pts.size()):
+			packed.append(pts[j] as Vector2)
+		var genis = _patika_noktalari_genislet(packed, hash("patika" + aktif_harita_id + str(i)), float(_yol_stili(tip).get("wobble", 22.0)))
+		_yol_cizgisi_noktalari_ekle(genis, tip)
+
+func _dere_yataklari_ekle() -> void:
+	for i in range(dere_yataklari.size()):
+		var dere = dere_yataklari[i]
+		var pts = dere.get("points", []) as Array
+		if pts.size() < 2:
+			continue
+		var packed = PackedVector2Array()
+		for pt in pts:
+			packed.append(pt as Vector2)
+		var kenar = Line2D.new()
+		kenar.points = packed
+		kenar.width = 10.0
+		kenar.default_color = Color(0.22, 0.2, 0.16, 0.35)
+		kenar.antialiased = true
+		kenar.z_index = -2
+		decor_katmani.add_child(kenar)
+		var yatak = Line2D.new()
+		yatak.points = packed
+		yatak.width = 5.0
+		yatak.default_color = Color(0.34, 0.3, 0.24, 0.45)
+		yatak.antialiased = true
+		yatak.z_index = -1
+		decor_katmani.add_child(yatak)
+
+func _patika_noktalari_genislet(points: PackedVector2Array, seed_val: int, wobble: float) -> PackedVector2Array:
+	if points.size() < 2:
+		return points
+	var out = PackedVector2Array()
+	out.append(points[0])
+	for i in range(points.size() - 1):
+		var segment = _organik_yol_noktalari(points[i], points[i + 1], seed_val + i, wobble)
+		for j in range(1, segment.size()):
+			out.append(segment[j])
+	return out
+
 func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val: int) -> void:
 	var stil = _yol_stili(tip)
 	var noktalar = _organik_yol_noktalari(baslangic, bitis, seed_val, float(stil.get("wobble", 22.0)))
+	_yol_cizgisi_noktalari_ekle(noktalar, tip)
+
+func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> void:
+	var stil = _yol_stili(tip)
 	var kenar = Line2D.new()
 	kenar.points = noktalar
 	kenar.width = float(stil.get("kenar", 24.0))

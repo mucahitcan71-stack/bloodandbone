@@ -159,6 +159,9 @@ static func parse_map(data: Dictionary) -> Dictionary:
 			})
 
 	var gorsel_yollar: Array = _parse_gorsel_yollar(data.get("yollar", []))
+	var gorsel_patikalar: Array = _parse_gorsel_patikalar(data.get("patikalar", []))
+	var gorsel_lekeler: Array = _parse_gorsel_lekeler(data.get("gorsel_lekeler", []))
+	var dere_yataklari: Array = _parse_dere_yataklari(data.get("dere_yataklari", []))
 	var cevre_dekor: Array = _parse_cevre_dekor(data.get("cevre_dekor", []))
 	var nokta_duzen: Dictionary = _parse_nokta_duzen(data.get("nokta_duzen", {}))
 	var nokta_slotlari: Dictionary = _parse_nokta_slotlari(data.get("nokta_slotlari", {}))
@@ -173,6 +176,9 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"arazi_bolgeleri": arazi_bolgeleri,
 		"bolge_etiketleri": bolge_etiketleri,
 		"gorsel_yollar": gorsel_yollar,
+		"gorsel_patikalar": gorsel_patikalar,
+		"gorsel_lekeler": gorsel_lekeler,
+		"dere_yataklari": dere_yataklari,
 		"cevre_dekor": cevre_dekor,
 		"nokta_duzen": nokta_duzen,
 		"nokta_slotlari": nokta_slotlari,
@@ -205,6 +211,59 @@ static func _parse_gorsel_yollar(raw: Variant) -> Array:
 			"to": str(entry.get("to", "")),
 		})
 	return yollar
+
+static func _parse_gorsel_patikalar(raw: Variant) -> Array:
+	var patikalar: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return patikalar
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var tip = str(entry.get("tip", "normal"))
+		if tip not in ["ana", "normal", "gizli"]:
+			tip = "normal"
+		var noktalar: Array = []
+		var raw_pts = entry.get("points", [])
+		if typeof(raw_pts) == TYPE_ARRAY:
+			for pt in raw_pts:
+				if typeof(pt) == TYPE_ARRAY and pt.size() >= 2:
+					noktalar.append(Vector2(float(pt[0]), float(pt[1])))
+		if noktalar.size() >= 2:
+			patikalar.append({"tip": tip, "points": noktalar})
+	return patikalar
+
+static func _parse_gorsel_lekeler(raw: Variant) -> Array:
+	var lekeler: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return lekeler
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		lekeler.append({
+			"tip": str(entry.get("tip", "")),
+			"x": float(entry.get("x", 0.0)),
+			"y": float(entry.get("y", 0.0)),
+			"w": float(entry.get("w", 120.0)),
+			"h": float(entry.get("h", 100.0)),
+		})
+	return lekeler
+
+static func _parse_dere_yataklari(raw: Variant) -> Array:
+	var dereler: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return dereler
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var noktalar: Array = []
+		var raw_pts = entry.get("points", [])
+		if typeof(raw_pts) == TYPE_ARRAY:
+			for pt in raw_pts:
+				if typeof(pt) == TYPE_ARRAY and pt.size() >= 2:
+					noktalar.append(Vector2(float(pt[0]), float(pt[1])))
+		if noktalar.size() >= 2:
+			dereler.append({"points": noktalar})
+	return dereler
 
 static func _parse_cevre_dekor(raw: Variant) -> Array:
 	var dekorlar: Array = []
