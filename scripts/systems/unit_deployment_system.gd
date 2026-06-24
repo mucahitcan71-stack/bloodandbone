@@ -69,7 +69,10 @@ func update_selection_ui() -> void:
 		_host.secili_envanter_tip_anahtari = ""
 		_host.secili_envanter_gonder_adedi = 1
 		return
-	_host.secili_envanter_idx = int(secili_indeksler[0])
+	if _host.secili_envanter_idx >= 0 and _host.secili_envanter_idx in secili_indeksler:
+		pass
+	else:
+		_host.secili_envanter_idx = int(secili_indeksler[0])
 	_host.secili_envanter_gonder_adedi = clampi(_host.secili_envanter_gonder_adedi, 1, secili_toplam)
 	if _host.envanter_adet_label != null:
 		_host.envanter_adet_label.text = "x" + str(_host.secili_envanter_gonder_adedi)
@@ -83,94 +86,15 @@ func rebuild_inventory() -> void:
 		if is_instance_valid(btn):
 			btn.queue_free()
 	_host.envanter_butonlari.clear()
-	_host.envanter_gruplari.clear()
-
-	if _host.envanter_grid == null:
-		return
-	if is_instance_valid(_host.envanter_scroll) and _host.envanter_scroll.get_parent() == null:
-		return
-	_host.envanter_grid.columns = max(1, _host.osmanli_birim_tipleri.size())
-	for child in _host.envanter_grid.get_children():
-		child.queue_free()
-	var kart_genislik = _card_width()
-
-	var sira: Array = []
-	for i in range(_host.envanter.size()):
-		var tip = _host.envanter[i]
-		var anahtar = _inventory_key(tip)
-		if not _host.envanter_gruplari.has(anahtar):
-			_host.envanter_gruplari[anahtar] = {"tip": tip, "indeksler": []}
-			sira.append(anahtar)
-		(_host.envanter_gruplari[anahtar]["indeksler"] as Array).append(i)
+	_sync_inventory_groups()
+	_hide_legacy_inventory_ui()
 
 	if _host.hazirlik_fazi:
 		_host.secili_envanter_idx = -1
 		_host.secili_envanter_tip_anahtari = ""
 		_host.secili_envanter_gonder_adedi = 1
 		update_selection_ui()
-		var env_l = _host.ui_node("Label_Envanter")
-		if env_l != null:
-			env_l.text = "Envanter: (bos)"
 		return
-
-	for idx in range(_host.osmanli_birim_tipleri.size()):
-		var tip = _host.osmanli_birim_tipleri[idx]
-		var anahtar = _inventory_key(tip)
-		var adet = 0
-		if _host.envanter_gruplari.has(anahtar):
-			adet = (_host.envanter_gruplari[anahtar]["indeksler"] as Array).size()
-		var orduda = _host.savas_baslangic_kompozisyon.size() > idx and int(_host.savas_baslangic_kompozisyon[idx]) > 0
-		var silik = HudInventory.is_dimmed(orduda, adet)
-
-		var btn = Button.new()
-		btn.text = ""
-		btn.custom_minimum_size = Vector2(kart_genislik, HudInventory.card_height())
-		btn.set_meta("env_anahtar", anahtar)
-		btn.set_meta("env_silik", silik)
-		_apply_inventory_card_style(btn, silik, false)
-		btn.gui_input.connect(_host._envanter_kart_gui_input.bind(idx, silik))
-		var hover_tip = tip
-		btn.mouse_entered.connect(func(): _host.birim_detay_hover_basla(hover_tip))
-		btn.mouse_exited.connect(func(): _host.birim_detay_hover_bitir())
-		if not silik and adet > 0:
-			btn.pressed.connect(func(): select_inventory(anahtar))
-
-		var kart = VBoxContainer.new()
-		kart.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		kart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		kart.alignment = BoxContainer.ALIGNMENT_CENTER
-
-		var isim_l = Label.new()
-		isim_l.text = str(tip.get("isim", "Birim"))
-		isim_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		isim_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		isim_l.add_theme_font_size_override("font_size", 9)
-
-		var alt_satir = HBoxContainer.new()
-		alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
-		alt_satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-		var sembol_l = Label.new()
-		sembol_l.text = str(tip.get("sembol", "•"))
-		sembol_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		sembol_l.add_theme_font_size_override("font_size", 10)
-
-		var adet_l = Label.new()
-		adet_l.text = "x" + str(adet)
-		adet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		adet_l.add_theme_font_size_override("font_size", 9)
-
-		alt_satir.add_child(sembol_l)
-		alt_satir.add_child(adet_l)
-		kart.add_child(isim_l)
-		kart.add_child(alt_satir)
-		btn.add_child(kart)
-		_host.envanter_grid.add_child(btn)
-		_host.envanter_butonlari.append(btn)
-
-	var env_l2 = _host.ui_node("Label_Envanter")
-	if env_l2 != null:
-		env_l2.text = "Envanter: " + str(_host.envanter.size()) + " birim"
 
 	if _host.secili_envanter_tip_anahtari != "" and _host.envanter_gruplari.has(_host.secili_envanter_tip_anahtari):
 		if get_selected_group_indices().is_empty():
@@ -183,14 +107,47 @@ func rebuild_inventory() -> void:
 				break
 	_host.secili_envanter_gonder_adedi = 1
 	update_selection_ui()
-	_host.ui_fontlarini_optimize_et()
+
+func _sync_inventory_groups() -> void:
+	_host.envanter_gruplari.clear()
+	for i in range(_host.envanter.size()):
+		var tip = _host.envanter[i]
+		var anahtar = _inventory_key(tip)
+		if not _host.envanter_gruplari.has(anahtar):
+			_host.envanter_gruplari[anahtar] = {"tip": tip, "indeksler": []}
+		(_host.envanter_gruplari[anahtar]["indeksler"] as Array).append(i)
+
+func _hide_legacy_inventory_ui() -> void:
+	if _host.envanter_grid != null:
+		for child in _host.envanter_grid.get_children():
+			child.queue_free()
+	if is_instance_valid(_host.envanter_scroll):
+		_host.envanter_scroll.visible = false
+		_host.envanter_scroll.custom_minimum_size = Vector2.ZERO
 
 func select_inventory(anahtar: String) -> void:
 	if not _host.envanter_gruplari.has(anahtar):
 		return
 	_host.secili_envanter_tip_anahtari = anahtar
+	_host.secili_envanter_idx = -1
 	_host.secili_envanter_gonder_adedi = 1
 	update_selection_ui()
+	_apply_inventory_selection_feedback(anahtar)
+
+func select_inventory_by_index(reserve_index: int) -> void:
+	if reserve_index < 0 or reserve_index >= _host.envanter.size():
+		return
+	var tip = _host.envanter[reserve_index]
+	var anahtar = _inventory_key(tip)
+	if not _host.envanter_gruplari.has(anahtar):
+		return
+	_host.secili_envanter_tip_anahtari = anahtar
+	_host.secili_envanter_idx = reserve_index
+	_host.secili_envanter_gonder_adedi = 1
+	update_selection_ui()
+	_apply_inventory_selection_feedback(anahtar)
+
+func _apply_inventory_selection_feedback(anahtar: String) -> void:
 	_host.command_system.select_unit(null)
 	_host.secili_birim = _host.command_system.get_selected_unit()
 	var tip = _host.envanter_gruplari[anahtar]["tip"]
@@ -232,9 +189,11 @@ func send_from_point() -> void:
 
 	var adet = min(_host.secili_envanter_gonder_adedi, secili_indeksler.size())
 	var tip = _selected_type()
+	var deploy_slots: Array = []
 	secili_indeksler.sort()
 	for i in range(adet):
 		var sil_idx = int(secili_indeksler[secili_indeksler.size() - 1 - i])
+		deploy_slots.append(int(_host.envanter[sil_idx].get("strip_slot", -1)))
 		_host.envanter.remove_at(sil_idx)
 	_clear_selection_after_send(adet)
 
@@ -242,9 +201,12 @@ func send_from_point() -> void:
 	var oyuncu_spawn_y = _host.harita_sinir["max_y"] - 60.0
 	for i in range(adet):
 		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
+		var deploy_tip = tip.duplicate()
+		if i < deploy_slots.size() and int(deploy_slots[i]) >= 0:
+			deploy_tip["strip_slot"] = int(deploy_slots[i])
 		create_unit(
 			Vector2(_host.nokta_konumlari[_host.secili_nokta].x + dagilim.x, oyuncu_spawn_y),
-			_host.secili_nokta, "osmanli", tip, hedef_pos + dagilim
+			_host.secili_nokta, "osmanli", deploy_tip, hedef_pos + dagilim
 		)
 	rebuild_inventory()
 
@@ -256,9 +218,13 @@ func send_from_map(hedef_pos: Vector2) -> void:
 	hedef_pos = _host.harita_sinirla(hedef_pos)
 	var adet = min(1, secili_indeksler.size())
 	var tip = _selected_type()
+	var deploy_slot = -1
 	secili_indeksler.sort()
 	for i in range(adet):
 		var sil_idx = int(secili_indeksler[secili_indeksler.size() - 1 - i])
+		if _host.secili_envanter_idx >= 0 and _host.secili_envanter_idx in secili_indeksler:
+			sil_idx = _host.secili_envanter_idx
+		deploy_slot = int(_host.envanter[sil_idx].get("strip_slot", -1))
 		_host.envanter.remove_at(sil_idx)
 	_clear_selection_after_send(adet)
 
@@ -266,9 +232,12 @@ func send_from_map(hedef_pos: Vector2) -> void:
 	var oyuncu_spawn_y = _host.harita_sinir["max_y"] - 60.0
 	for i in range(adet):
 		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
+		var deploy_tip = tip.duplicate()
+		if deploy_slot >= 0:
+			deploy_tip["strip_slot"] = deploy_slot
 		create_unit(
 			Vector2(hedef_pos.x + dagilim.x, oyuncu_spawn_y),
-			nokta, "osmanli", tip, hedef_pos + dagilim
+			nokta, "osmanli", deploy_tip, hedef_pos + dagilim
 		)
 	rebuild_inventory()
 
@@ -279,7 +248,9 @@ func purchase_unit(idx: int) -> void:
 		return
 	_host.osmanli_altini -= tip["maliyet"]
 	_host.mac_istatistik["osmanli"]["altin_harcama"] += int(tip["maliyet"])
-	_host.envanter.append(tip.duplicate())
+	var copy = tip.duplicate()
+	assign_strip_slot(copy)
+	_host.envanter.append(copy)
 	rebuild_inventory()
 	_host.ui_guncelle()
 
@@ -339,6 +310,7 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 
 	var birim = {
 		"id": _host.birim_id_sayaci,
+		"strip_slot": _strip_slot_from_tip(tip),
 		"node": kare,
 		"konum": baslangic,
 		"hedef": gidilecek,
@@ -374,6 +346,19 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	_host.birim_id_sayaci += 1
 	_host.aktif_birimler.append(birim)
 	_host.terfi_kullanimi_artir(taraf, tip["isim"])
+
+func assign_strip_slot(entry: Dictionary) -> void:
+	if entry.has("strip_slot"):
+		return
+	entry["strip_slot"] = _host.strip_slot_sayaci
+	_host.strip_slot_sayaci += 1
+
+func _strip_slot_from_tip(tip: Dictionary) -> int:
+	var slot = int(tip.get("strip_slot", -1))
+	if slot >= 0:
+		return slot
+	assign_strip_slot(tip)
+	return int(tip["strip_slot"])
 
 func _inventory_key(tip: Dictionary) -> String:
 	var id = str(tip.get("id", ""))

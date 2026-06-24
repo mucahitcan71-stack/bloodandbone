@@ -88,21 +88,17 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	var orta_margin = _module_margin()
 	orta_modul.add_child(orta_margin)
 	var orta_vbox = VBoxContainer.new()
-	orta_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	orta_vbox.add_theme_constant_override("separation", 3)
-	orta_vbox.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	orta_vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
+	orta_vbox.add_theme_constant_override("separation", 2)
+	orta_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	orta_margin.add_child(orta_vbox)
-	_active_units.ensure_shell(orta_vbox)
 	env_baslik.reparent(orta_vbox)
 	env_baslik.text = "BIRLIKLER"
 	env_baslik.add_theme_font_size_override("font_size", 9)
 	env_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
-	if envanter_scroll != null:
-		envanter_scroll.reparent(orta_vbox)
-		envanter_scroll.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		envanter_scroll.custom_minimum_size = Vector2(ORTA_MODULE_W - 12, HudInventory.card_height() - 2)
-	else:
-		envanter_grid.reparent(orta_vbox)
+	_active_units.ensure_shell(orta_vbox)
+	orta_vbox.move_child(env_baslik, 0)
+	_hide_legacy_inventory(envanter_scroll, envanter_grid)
 
 	var sag_modul = PanelContainer.new()
 	sag_modul.name = "HudSagModul"
@@ -166,6 +162,13 @@ func update_command_buttons(buttons: Dictionary, secili_var: bool, secili_komut:
 
 func update_active_units_strip(deps: Dictionary) -> void:
 	_active_units.update(deps)
+
+func _hide_legacy_inventory(envanter_scroll: ScrollContainer, envanter_grid: GridContainer) -> void:
+	if envanter_scroll != null:
+		envanter_scroll.visible = false
+		envanter_scroll.custom_minimum_size = Vector2.ZERO
+	if envanter_grid != null:
+		envanter_grid.visible = false
 
 func compose_right_panel(ui_root: Control, ui_node: Callable, kazanma_puani: int) -> Dictionary:
 	if ui_root == null or not ui_node.is_valid():

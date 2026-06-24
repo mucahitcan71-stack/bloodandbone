@@ -6,6 +6,10 @@ const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 
 var _last_layout_signature: String = ""
 var _on_unit_select: Callable = Callable()
+var _on_reserve_select: Callable = Callable()
+var _on_reserve_context: Callable = Callable()
+var _on_add_unit: Callable = Callable()
+var _on_add_unit_context: Callable = Callable()
 
 const _ISIM_KISALTMA: Dictionary = {
 	"Akıncı": "Akn",
@@ -24,28 +28,24 @@ const _ISIM_KISALTMA: Dictionary = {
 func ensure_shell(parent: VBoxContainer) -> HBoxContainer:
 	var block = parent.get_node_or_null("SahadaStripBlock") as VBoxContainer
 	if block != null:
-		var row = block.get_node_or_null("SahadaScroll/SahadaKartSatir") as HBoxContainer
-		return row
+		var baslik = block.get_node_or_null("Label_SahadaBaslik")
+		if baslik != null:
+			baslik.visible = false
+		return block.get_node_or_null("SahadaScroll/SahadaKartSatir") as HBoxContainer
 	block = VBoxContainer.new()
 	block.name = "SahadaStripBlock"
-	block.add_theme_constant_override("separation", 2)
 	block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	block.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	parent.add_child(block)
 	parent.move_child(block, 0)
-
-	var baslik = Label.new()
-	baslik.name = "Label_SahadaBaslik"
-	baslik.text = "SAHADA"
-	baslik.add_theme_font_size_override("font_size", 8)
-	baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
-	block.add_child(baslik)
 
 	var scroll = ScrollContainer.new()
 	scroll.name = "SahadaScroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 36)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(0, 52)
 	block.add_child(scroll)
 
 	var row = HBoxContainer.new()
@@ -60,6 +60,10 @@ func update(deps: Dictionary) -> void:
 	if not ui_node.is_valid():
 		return
 	_on_unit_select = deps.get("on_unit_select", Callable()) as Callable
+	_on_reserve_select = deps.get("on_reserve_select", Callable()) as Callable
+	_on_reserve_context = deps.get("on_reserve_context", Callable()) as Callable
+	_on_add_unit = deps.get("on_add_unit", Callable()) as Callable
+	_on_add_unit_context = deps.get("on_add_unit_context", Callable()) as Callable
 	if bool(deps.get("hazirlik_fazi", true)):
 		_hide_strip(ui_node)
 		_last_layout_signature = ""
@@ -74,17 +78,24 @@ func update(deps: Dictionary) -> void:
 		block.visible = true
 
 	var units = _filter_units(deps.get("aktif_birimler", []))
+	var reserve_cards = _build_reserve_cards(
+		deps.get("envanter", []),
+		deps.get("osmanli_birim_tipleri", []),
+		str(deps.get("secili_envanter_tip_anahtari", ""))
+	)
+	var selected_type_idx = _selected_type_idx(deps.get("osmanli_birim_tipleri", []), str(deps.get("secili_envanter_tip_anahtari", "")))
+	var cards = _merge_cards(units, reserve_cards, selected_type_idx)
 	var secili_id = _selected_unit_id(deps.get("secili_birim"))
 	var strip_width = _strip_width(orta_vbox)
-	var layout = HudInventory.active_card_layout(units.size(), strip_width)
-	var signature = _layout_signature(units, layout)
+	var layout = HudInventory.active_card_layout(cards.size(), strip_width)
+	var signature = _layout_signature(cards, layout)
 	if signature != _last_layout_signature:
 		row.add_theme_constant_override("separation", int(layout.get("gap", 6)))
-		_rebuild_cards(row, units, layout)
+		_rebuild_cards(row, cards, layout)
 		_last_layout_signature = signature
 	else:
-		_refresh_card_content(row, units, layout)
-	_apply_selection_visuals(row, secili_id)
+		_refresh_card_content(row, cards, layout)
+	_apply_selection_visuals(row, secili_id, int(deps.get("secili_envanter_idx", -1)))
 
 func _hide_strip(ui_node: Callable) -> void:
 	var orta_vbox = _find_orta_vbox(ui_node)
@@ -118,24 +129,21 @@ func _filter_units(aktif_birimler: Array) -> Array:
 			continue
 		units.append(birim)
 	units.sort_custom(func(a, b) -> bool:
-		var na = str(a.get("isim", ""))
-		var nb = str(b.get("isim", ""))
-		if na != nb:
-			return na < nb
-		return int(a.get("id", 0)) < int(b.get("id", 0))
+		return _strip_sort_key(a, -1) < _strip_sort_key(b, -1)
 	)
 	return units
 
-func _id_signature(units: Array) -> String:
-	if units.is_empty():
+func _layout_signature(cards: Array, layout: Dictionary) -> String:
+	if cards.is_empty():
 		return ""
 	var parts: PackedStringArray = []
-	for birim in units:
-		parts.append(str(int(birim.get("id", -1))))
-	return ",".join(parts)
-
-func _layout_signature(units: Array, layout: Dictionary) -> String:
-	return "%s#%d#%d" % [_id_signature(units), units.size(), int(layout.get("width", 0))]
+	for card in cards:
+		var card_type = str(card.get("card_type", ""))
+		if card_type == "action":
+			parts.append("a")
+		else:
+			parts.append("s" + str(int(card.get("strip_slot", -1))) + card_type[0])
+	return "%s#%d#%d" % [",".join(parts), cards.size(), int(layout.get("width", 0))]
 
 func _selected_unit_id(secili_birim) -> int:
 	if secili_birim == null:
@@ -150,22 +158,31 @@ func _selected_unit_id(secili_birim) -> int:
 		return int(secili_birim.get("id", -1))
 	return -1
 
-func _apply_selection_visuals(row: HBoxContainer, secili_id: int) -> void:
+func _apply_selection_visuals(row: HBoxContainer, secili_id: int, secili_reserve_idx: int) -> void:
 	for child in row.get_children():
-		if not child.has_meta("unit_id"):
+		if child is not Button:
 			continue
 		var btn = child as Button
-		if btn == null:
-			continue
-		var unit_id = int(child.get_meta("unit_id", -1))
-		_apply_card_visual_state(btn, unit_id >= 0 and unit_id == secili_id)
+		var card_type = str(btn.get_meta("card_type", ""))
+		if card_type == "field":
+			var unit_id = int(btn.get_meta("unit_id", -1))
+			_apply_card_visual_state(btn, unit_id >= 0 and unit_id == secili_id, false)
+		elif card_type == "reserve":
+			var reserve_idx = int(btn.get_meta("reserve_index", -1))
+			_apply_card_visual_state(btn, reserve_idx >= 0 and reserve_idx == secili_reserve_idx, true)
+		elif card_type == "action":
+			_apply_card_visual_state(btn, false, false)
 
-func _apply_card_visual_state(btn: Button, selected: bool) -> void:
+func _apply_card_visual_state(btn: Button, selected: bool, reserve: bool) -> void:
 	var compact = bool(btn.get_meta("card_compact", false))
 	if selected:
 		btn.add_theme_stylebox_override("normal", HudStyle.active_unit_card_selected())
 		btn.add_theme_stylebox_override("hover", HudStyle.active_unit_card_selected())
 		btn.modulate = HudInventory.selected_modulate()
+	elif reserve:
+		btn.add_theme_stylebox_override("normal", HudStyle.inventory_card_disabled())
+		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_disabled())
+		btn.modulate = HudInventory.dimmed_modulate()
 	elif compact:
 		btn.add_theme_stylebox_override("normal", HudStyle.active_unit_card_compact_style())
 		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
@@ -190,10 +207,71 @@ func _format_card_label(isim: String, sira: int, compact: bool) -> String:
 	var ad = str(_ISIM_KISALTMA.get(isim, isim)) if compact else isim
 	return ad + " " + str(sira)
 
-func _rebuild_cards(row: HBoxContainer, units: Array, layout: Dictionary) -> void:
+func _build_reserve_cards(envanter: Array, tipler: Array, secili_type_key: String) -> Array:
+	var cards: Array = []
+	var tip_index: Dictionary = {}
+	for i in range(tipler.size()):
+		tip_index[_inventory_key(tipler[i])] = i
+	var reserve_counts: Dictionary = {}
+	for i in range(envanter.size()):
+		var tip = envanter[i]
+		var isim = str(tip.get("isim", "Yedek"))
+		var sira = int(reserve_counts.get(isim, 0)) + 1
+		reserve_counts[isim] = sira
+		var key = _inventory_key(tip)
+		cards.append({
+			"card_type": "reserve",
+			"display_name": _format_card_label(isim, sira, true),
+			"unit_name": isim,
+			"reserve_index": i,
+			"strip_slot": _strip_sort_key(tip, i),
+			"type_key": key,
+			"type_idx": int(tip_index.get(key, -1)),
+			"status_text": "Yedek",
+		})
+	return cards
+
+func _merge_cards(units: Array, reserve_cards: Array, selected_type_idx: int) -> Array:
+	var cards: Array = []
+	var labels = _type_labels(units, false)
+	for i in range(units.size()):
+		var birim = units[i]
+		cards.append({
+			"card_type": "field",
+			"display_name": str(labels[i]),
+			"unit_name": str(birim.get("isim", "Birim")),
+			"field_unit_id": int(birim.get("id", -1)),
+			"strip_slot": _strip_sort_key(birim, -1),
+			"unit": birim,
+		})
+	for reserve_card in reserve_cards:
+		cards.append(reserve_card)
+	cards.sort_custom(func(a, b) -> bool:
+		return int(a.get("strip_slot", 999999)) < int(b.get("strip_slot", 999999))
+	)
+	if selected_type_idx >= 0:
+		cards.append({
+			"card_type": "action",
+			"display_name": "+ Birim",
+			"status_text": "Ekle",
+			"type_idx": selected_type_idx,
+		})
+	return cards
+
+func _selected_type_idx(tipler: Array, secili_type_key: String) -> int:
+	if tipler.is_empty():
+		return -1
+	if secili_type_key == "":
+		return 0
+	for i in range(tipler.size()):
+		if _inventory_key(tipler[i]) == secili_type_key:
+			return i
+	return 0
+
+func _rebuild_cards(row: HBoxContainer, cards: Array, layout: Dictionary) -> void:
 	for child in row.get_children():
 		child.queue_free()
-	if units.is_empty():
+	if cards.is_empty():
 		var bos = Label.new()
 		bos.text = "—"
 		bos.add_theme_font_size_override("font_size", 8)
@@ -201,48 +279,74 @@ func _rebuild_cards(row: HBoxContainer, units: Array, layout: Dictionary) -> voi
 		row.add_child(bos)
 		return
 
-	var compact = bool(layout.get("compact", false))
-	var labels = _type_labels(units, compact)
 	var kart_genislik = float(layout.get("width", 52.0))
 	var kart_yukseklik = float(layout.get("height", 36.0))
-	for i in range(units.size()):
-		var birim = units[i]
-		var kart = _build_card(birim, str(labels[i]), kart_genislik, kart_yukseklik, layout)
-		row.add_child(kart)
+	for card in cards:
+		row.add_child(_build_card(card, kart_genislik, kart_yukseklik, layout))
 
-func _refresh_card_content(row: HBoxContainer, units: Array, layout: Dictionary) -> void:
-	var compact = bool(layout.get("compact", false))
-	var labels = _type_labels(units, compact)
-	var label_by_id: Dictionary = {}
-	for i in range(units.size()):
-		label_by_id[int(units[i].get("id", -1))] = str(labels[i])
-	var unit_by_id: Dictionary = {}
-	for birim in units:
-		unit_by_id[int(birim.get("id", -1))] = birim
+func _refresh_card_content(row: HBoxContainer, cards: Array, layout: Dictionary) -> void:
+	var field_by_id: Dictionary = {}
+	var reserve_by_idx: Dictionary = {}
+	var action_card: Dictionary = {}
+	for card in cards:
+		var card_type = str(card.get("card_type", ""))
+		if card_type == "field":
+			field_by_id[int(card.get("field_unit_id", -1))] = card
+		elif card_type == "reserve":
+			reserve_by_idx[int(card.get("reserve_index", -1))] = card
+		elif card_type == "action":
+			action_card = card
 	for child in row.get_children():
-		if not child.has_meta("unit_id"):
+		if child is not Button:
 			continue
-		var unit_id = int(child.get_meta("unit_id", -1))
-		if not unit_by_id.has(unit_id):
-			continue
-		_update_card_live(child as Button, unit_by_id[unit_id], str(label_by_id.get(unit_id, "Birim")), layout)
+		var btn = child as Button
+		var card_type = str(btn.get_meta("card_type", ""))
+		if card_type == "field":
+			var unit_id = int(btn.get_meta("unit_id", -1))
+			if field_by_id.has(unit_id):
+				_update_card_live(btn, field_by_id[unit_id], layout)
+		elif card_type == "reserve":
+			var reserve_index = int(btn.get_meta("reserve_index", -1))
+			if reserve_by_idx.has(reserve_index):
+				_update_card_live(btn, reserve_by_idx[reserve_index], layout)
+		elif card_type == "action" and not action_card.is_empty():
+			_update_card_live(btn, action_card, layout)
 
-func _build_card(birim: Dictionary, baslik_metin: String, genislik: float, yukseklik: float, layout: Dictionary) -> Button:
+func _build_card(card: Dictionary, genislik: float, yukseklik: float, layout: Dictionary) -> Button:
 	var btn = Button.new()
 	btn.text = ""
 	btn.custom_minimum_size = Vector2(genislik, yukseklik)
 	btn.focus_mode = Control.FOCUS_NONE
-	var unit_id = int(birim.get("id", -1))
-	btn.set_meta("unit_id", unit_id)
+	var card_type = str(card.get("card_type", ""))
+	btn.set_meta("card_type", card_type)
+	if card_type == "field":
+		btn.set_meta("unit_id", int(card.get("field_unit_id", -1)))
+	elif card_type == "reserve":
+		btn.set_meta("reserve_index", int(card.get("reserve_index", -1)))
+		btn.set_meta("type_key", str(card.get("type_key", "")))
+		btn.set_meta("type_idx", int(card.get("type_idx", -1)))
+	elif card_type == "action":
+		btn.set_meta("type_idx", int(card.get("type_idx", -1)))
 	btn.set_meta("card_compact", bool(layout.get("compact", false)))
 	btn.set_meta("card_ultra", bool(layout.get("ultra", false)))
-	var normal_style = HudStyle.active_unit_card_style() if not bool(layout.get("compact", false)) else HudStyle.active_unit_card_compact_style()
+	var normal_style = HudStyle.inventory_card_disabled() if card_type == "reserve" else (HudStyle.active_unit_card_style() if not bool(layout.get("compact", false)) else HudStyle.active_unit_card_compact_style())
 	btn.add_theme_stylebox_override("normal", normal_style)
-	btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
+	btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_disabled() if card_type == "reserve" else HudStyle.inventory_card_hover())
 	btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
-	btn.pressed.connect(func(): _handle_card_click(unit_id))
+	if card_type == "field":
+		var unit_id = int(card.get("field_unit_id", -1))
+		btn.pressed.connect(func(): _handle_field_click(unit_id))
+	elif card_type == "reserve":
+		var reserve_index = int(card.get("reserve_index", -1))
+		var type_idx = int(card.get("type_idx", -1))
+		btn.pressed.connect(func(): _handle_reserve_click(reserve_index))
+		btn.gui_input.connect(func(event: InputEvent): _handle_reserve_input(event, type_idx))
+	else:
+		var type_idx = int(card.get("type_idx", -1))
+		btn.pressed.connect(func(): _handle_add_unit_click(type_idx))
+		btn.gui_input.connect(func(event: InputEvent): _handle_add_unit_input(event, type_idx))
 	_ensure_card_structure(btn, layout)
-	_update_card_live(btn, birim, baslik_metin, layout)
+	_update_card_live(btn, card, layout)
 	return btn
 
 func _ensure_card_structure(btn: Button, layout: Dictionary = {}) -> void:
@@ -318,11 +422,12 @@ func _ensure_card_structure(btn: Button, layout: Dictionary = {}) -> void:
 	durum.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(durum)
 
-func _update_card_live(btn: Button, birim: Dictionary, baslik_metin: String, layout: Dictionary = {}) -> void:
+func _update_card_live(btn: Button, card: Dictionary, layout: Dictionary = {}) -> void:
 	if btn.get_node_or_null("SahadaKartMargin") == null:
 		_ensure_card_structure(btn, layout)
 	var compact = bool(layout.get("compact", btn.get_meta("card_compact", false)))
 	var ultra = bool(layout.get("ultra", btn.get_meta("card_ultra", false)))
+	var card_type = str(card.get("card_type", ""))
 	var ad = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaKartAd") as Label
 	var hp_fill = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaHpSatir/SahadaHpTrack/SahadaHpFill") as ColorRect
 	var hp_track = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaHpSatir/SahadaHpTrack") as Control
@@ -331,7 +436,27 @@ func _update_card_live(btn: Button, birim: Dictionary, baslik_metin: String, lay
 	if ad == null:
 		return
 
-	ad.text = baslik_metin
+	ad.text = str(card.get("display_name", "Birim"))
+	if card_type == "action":
+		if hp != null:
+			hp.text = ""
+		if hp_fill != null:
+			hp_fill.color = HudStyle.active_unit_hp_bg_color()
+			hp_fill.size = Vector2(0, 3.0 if compact else 4.0)
+		if durum != null:
+			durum.text = str(card.get("status_text", "Ekle"))
+		return
+	if card_type == "reserve":
+		if hp != null:
+			hp.text = ""
+		if hp_fill != null:
+			hp_fill.color = HudStyle.active_unit_hp_bg_color()
+			hp_fill.size = Vector2(0, 3.0 if compact else 4.0)
+		if durum != null:
+			durum.text = str(card.get("status_text", "Yedek"))
+		return
+
+	var birim = card.get("unit", {})
 	var max_hp = max(1.0, float(birim.get("max_hp", birim.get("hp", 1))))
 	var cur_hp = max(0.0, float(birim.get("hp", 0)))
 	var hp_oran = clampf(cur_hp / max_hp, 0.0, 1.0)
@@ -349,10 +474,46 @@ func _update_card_live(btn: Button, birim: Dictionary, baslik_metin: String, lay
 	if durum != null:
 		durum.text = _durum_kisa(birim, ultra)
 
-func _handle_card_click(unit_id: int) -> void:
+func _handle_field_click(unit_id: int) -> void:
 	if unit_id < 0 or not _on_unit_select.is_valid():
 		return
 	_on_unit_select.call(unit_id)
+
+func _handle_reserve_click(reserve_index: int) -> void:
+	if reserve_index < 0 or not _on_reserve_select.is_valid():
+		return
+	_on_reserve_select.call(reserve_index)
+
+func _handle_reserve_input(event: InputEvent, type_idx: int) -> void:
+	if type_idx < 0 or not _on_reserve_context.is_valid():
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		_on_reserve_context.call(type_idx, event.global_position)
+
+func _handle_add_unit_click(type_idx: int) -> void:
+	if type_idx < 0 or not _on_add_unit.is_valid():
+		return
+	_on_add_unit.call(type_idx)
+
+func _handle_add_unit_input(event: InputEvent, type_idx: int) -> void:
+	if type_idx < 0 or not _on_add_unit_context.is_valid():
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		_on_add_unit_context.call(type_idx, event.global_position)
+
+func _inventory_key(tip: Dictionary) -> String:
+	var id = str(tip.get("id", ""))
+	if id != "":
+		return id
+	return str(tip.get("isim", "birim"))
+
+static func _strip_sort_key(entity: Dictionary, reserve_index: int) -> int:
+	var slot = int(entity.get("strip_slot", -1))
+	if slot >= 0:
+		return slot
+	if reserve_index >= 0:
+		return 100000 + reserve_index
+	return 200000 + int(entity.get("id", 0))
 
 static func _durum_kisa(birim: Dictionary, ultra: bool = false) -> String:
 	var metin := ""

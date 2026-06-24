@@ -22,7 +22,8 @@ func general_olustur(taraf: String) -> void:
 		"is_general": true,
 		"aura_menzil": 190.0,
 		"aura_guc": 1.1,
-		"aura_savunma": 1.1
+		"aura_savunma": 1.1,
+		"strip_slot": 0,
 	}
 	var harita_sinir = _host.harita_sinir
 	var merkez_x = (harita_sinir["min_x"] + harita_sinir["max_x"]) * 0.5

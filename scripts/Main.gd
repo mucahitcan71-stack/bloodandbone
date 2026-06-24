@@ -171,6 +171,7 @@ var hud_komut_butonlari = {}
 var nokta_son_bilgi = {}
 var pusu_ilk_saldiri_carpani = 2.0
 var birim_id_sayaci = 1
+var strip_slot_sayaci = 1
 var orman_bolgeleri: Array = []
 var arazi_bolgeleri: Array = []
 var arazi_katmani: Node2D = null
@@ -605,6 +606,7 @@ func komut_menusu_kapat() -> void:
 
 func takviye_sag_tik_menu_olustur() -> void:
 	context_menus.build_takviye_menu()
+	context_menus.build_birim_ekle_menu()
 	_context_menus_refs_sync()
 
 func takviye_sag_tik_menu_ac(idx: int, ekran_pos: Vector2) -> void:
@@ -613,6 +615,15 @@ func takviye_sag_tik_menu_ac(idx: int, ekran_pos: Vector2) -> void:
 
 func takviye_sag_tik_menu_kapat() -> void:
 	context_menus.kapat_takviye_menu()
+	context_menus.kapat_birim_ekle_menu()
+	_context_menus_refs_sync()
+
+func birim_ekle_menu_ac(_idx: int) -> void:
+	context_menus.ac_birim_ekle_menu(get_viewport().get_mouse_position())
+	_context_menus_refs_sync()
+
+func birim_ekle_menu_konumlu_ac(_idx: int, ekran_pos: Vector2) -> void:
+	context_menus.ac_birim_ekle_menu(ekran_pos)
 	_context_menus_refs_sync()
 
 func _takviye_sag_tik_menu_secildi() -> void:
@@ -821,8 +832,16 @@ func _komut_paneli_guncelle() -> void:
 	hud_composer.update_active_units_strip({
 		"ui_node": Callable(self, "ui_node"),
 		"aktif_birimler": aktif_birimler,
+		"envanter": envanter,
+		"osmanli_birim_tipleri": osmanli_birim_tipleri,
 		"hazirlik_fazi": hazirlik_fazi,
 		"on_unit_select": Callable(self, "_sahada_kart_birim_sec"),
+		"on_reserve_select": Callable(self, "envanter_indeks_sec"),
+		"on_reserve_context": Callable(self, "takviye_sag_tik_menu_ac"),
+		"on_add_unit": Callable(self, "birim_ekle_menu_ac"),
+		"on_add_unit_context": Callable(self, "birim_ekle_menu_konumlu_ac"),
+		"secili_envanter_tip_anahtari": secili_envanter_tip_anahtari,
+		"secili_envanter_idx": secili_envanter_idx,
 		"secili_birim": secili_birim,
 	})
 
@@ -857,6 +876,8 @@ func savas_paneli_olustur() -> void:
 	envanter_grid.add_theme_constant_override("h_separation", 7)
 	envanter_grid.add_theme_constant_override("v_separation", 0)
 	envanter_scroll.add_child(envanter_grid)
+	envanter_scroll.visible = false
+	envanter_scroll.custom_minimum_size = Vector2.ZERO
 
 	envanter_adet_satiri = HBoxContainer.new()
 	envanter_adet_satiri.visible = false
@@ -958,6 +979,9 @@ func envanter_olustur() -> void:
 
 func envanter_sec(anahtar: String) -> void:
 	unit_deployment.select_inventory(anahtar)
+
+func envanter_indeks_sec(reserve_index: int) -> void:
+	unit_deployment.select_inventory_by_index(reserve_index)
 
 func birimi_gonder() -> void:
 	unit_deployment.send_from_point()

@@ -8,6 +8,7 @@ var komut_menusu_panel: PanelContainer = null
 var komut_menusu_hedef_birim = null
 var takviye_sag_tik_menu: PanelContainer = null
 var takviye_sag_tik_secili_idx = -1
+var birim_ekle_menu_panel: PanelContainer = null
 
 func configure(host: Node2D) -> void:
 	_host = host
@@ -87,6 +88,69 @@ func build_takviye_menu() -> void:
 	btn.custom_minimum_size = Vector2(178, 32)
 	btn.pressed.connect(func(): _host._takviye_sag_tik_menu_secildi())
 	menu_margin.add_child(btn)
+
+func build_birim_ekle_menu() -> void:
+	birim_ekle_menu_panel = _host.ui_node("Panel_BirimEkleMenu") as PanelContainer
+	if birim_ekle_menu_panel == null:
+		birim_ekle_menu_panel = PanelContainer.new()
+		birim_ekle_menu_panel.name = "Panel_BirimEkleMenu"
+		birim_ekle_menu_panel.visible = false
+		birim_ekle_menu_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		_host.get_node("CanvasLayer").add_child(birim_ekle_menu_panel)
+	for c in birim_ekle_menu_panel.get_children():
+		c.queue_free()
+
+	var tip_sayisi = _host.osmanli_birim_tipleri.size()
+	var icerik_yukseklik = tip_sayisi * 34 + max(0, tip_sayisi - 1) * 4
+	var panel_yukseklik = icerik_yukseklik + 12
+	birim_ekle_menu_panel.custom_minimum_size = Vector2(200, panel_yukseklik)
+
+	var menu_margin = MarginContainer.new()
+	menu_margin.add_theme_constant_override("margin_left", 6)
+	menu_margin.add_theme_constant_override("margin_right", 6)
+	menu_margin.add_theme_constant_override("margin_top", 6)
+	menu_margin.add_theme_constant_override("margin_bottom", 6)
+	menu_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	birim_ekle_menu_panel.add_child(menu_margin)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_margin.add_child(vbox)
+	for i in range(_host.osmanli_birim_tipleri.size()):
+		var tip = _host.osmanli_birim_tipleri[i]
+		var btn = Button.new()
+		btn.text = "%s %s (%d🪙)" % [str(tip.get("sembol", "•")), str(tip.get("isim", "Birim")), int(tip.get("maliyet", 0))]
+		btn.custom_minimum_size = Vector2(176, 30)
+		btn.disabled = _host.osmanli_altini < int(tip.get("maliyet", 0))
+		var idx = i
+		btn.pressed.connect(func():
+			kapat_birim_ekle_menu()
+			_host.birim_satin_al(idx)
+		)
+		vbox.add_child(btn)
+
+func ac_birim_ekle_menu(ekran_pos: Vector2) -> void:
+	if birim_ekle_menu_panel == null:
+		build_birim_ekle_menu()
+	else:
+		build_birim_ekle_menu()
+	kapat_komut_menusu()
+	kapat_takviye_menu()
+	var view = _host.get_viewport_rect().size
+	var pos = ekran_pos
+	if pos == Vector2.ZERO:
+		pos = _host.get_viewport().get_mouse_position()
+	if pos.x + birim_ekle_menu_panel.size.x > view.x:
+		pos.x = view.x - birim_ekle_menu_panel.size.x - 8
+	if pos.y + birim_ekle_menu_panel.size.y > view.y:
+		pos.y = view.y - birim_ekle_menu_panel.size.y - 8
+	birim_ekle_menu_panel.position = pos
+	birim_ekle_menu_panel.visible = true
+
+func kapat_birim_ekle_menu() -> void:
+	if birim_ekle_menu_panel != null:
+		birim_ekle_menu_panel.visible = false
 
 func ac_takviye_menu(idx: int, ekran_pos: Vector2) -> void:
 	if takviye_sag_tik_menu == null or idx < 0 or idx >= _host.osmanli_birim_tipleri.size():

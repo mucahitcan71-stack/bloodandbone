@@ -19,6 +19,7 @@ func start_preparation() -> void:
 	_host.secili_envanter_idx = -1
 	_host.secili_envanter_tip_anahtari = ""
 	_host.secili_envanter_gonder_adedi = 1
+	_host.strip_slot_sayaci = 1
 	_host.command_system.reset_for_preparation()
 	_host.secili_birim = _host.command_system.get_selected_unit()
 	_host.secili_komut = _host.command_system.get_selected_command()
@@ -140,7 +141,9 @@ func start_battle() -> void:
 
 	for i in range(_host.osmanli_birim_tipleri.size()):
 		for j in range(_host.kompozisyon[i]):
-			_host.envanter.append(_host.osmanli_birim_tipleri[i].duplicate())
+			var tip = _host.osmanli_birim_tipleri[i].duplicate()
+			_host.unit_deployment.assign_strip_slot(tip)
+			_host.envanter.append(tip)
 
 	_host.ai_savas_envanteri_hazirla()
 	if _host.secili_kart.is_empty():
