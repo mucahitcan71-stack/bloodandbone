@@ -26,19 +26,19 @@ func build(ui_root: Control, yeni_boyut: Vector2, panel_style: StyleBoxFlat, sur
 	minimap_panel.custom_minimum_size = minimap_boyut
 	minimap_panel.add_theme_stylebox_override("panel", panel_style)
 	minimap_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	minimap_panel.offset_left = -minimap_boyut.x - 12
-	minimap_panel.offset_top = 52
-	minimap_panel.offset_right = -12
-	minimap_panel.offset_bottom = 52 + minimap_boyut.y
+	minimap_panel.offset_left = -minimap_boyut.x - 26
+	minimap_panel.offset_top = 62
+	minimap_panel.offset_right = -26
+	minimap_panel.offset_bottom = 62 + minimap_boyut.y
 
 	var minimap_margin = minimap_panel.find_child("MinimapMargin", true, false) as MarginContainer
 	if minimap_margin == null:
 		minimap_margin = MarginContainer.new()
 		minimap_margin.name = "MinimapMargin"
-		minimap_margin.add_theme_constant_override("margin_left", 5)
-		minimap_margin.add_theme_constant_override("margin_right", 5)
-		minimap_margin.add_theme_constant_override("margin_top", 5)
-		minimap_margin.add_theme_constant_override("margin_bottom", 5)
+		minimap_margin.add_theme_constant_override("margin_left", 8)
+		minimap_margin.add_theme_constant_override("margin_right", 8)
+		minimap_margin.add_theme_constant_override("margin_top", 8)
+		minimap_margin.add_theme_constant_override("margin_bottom", 8)
 		minimap_panel.add_child(minimap_margin)
 
 	minimap_surface = minimap_panel.find_child("MinimapSurface", true, false) as ColorRect
@@ -46,7 +46,7 @@ func build(ui_root: Control, yeni_boyut: Vector2, panel_style: StyleBoxFlat, sur
 		minimap_surface = ColorRect.new()
 		minimap_surface.name = "MinimapSurface"
 		minimap_margin.add_child(minimap_surface)
-	minimap_surface.custom_minimum_size = minimap_boyut - Vector2(10, 10)
+	minimap_surface.custom_minimum_size = minimap_boyut - Vector2(16, 16)
 	minimap_surface.color = surface_color
 
 	minimap_fow_rect = minimap_surface.find_child("MinimapFow", true, false) as TextureRect

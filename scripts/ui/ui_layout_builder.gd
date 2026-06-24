@@ -182,32 +182,43 @@ func _ensure_ust_bilgi_bari() -> void:
 		ui_root.add_child(ust_bilgi_bari)
 		ui_root.move_child(ust_bilgi_bari, 0)
 	ust_bilgi_bari.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	ust_bilgi_bari.offset_left = 0
-	ust_bilgi_bari.offset_top = 0
-	ust_bilgi_bari.offset_right = 0
-	ust_bilgi_bari.offset_bottom = 38
+	ust_bilgi_bari.offset_left = 19
+	ust_bilgi_bari.offset_top = 14
+	ust_bilgi_bari.offset_right = -19
+	ust_bilgi_bari.offset_bottom = 50
 	ust_bilgi_bari.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ust_bilgi_bari.add_theme_stylebox_override("panel", HudStyle.top_bar_style())
 	for c in ust_bilgi_bari.get_children():
 		c.queue_free()
 	var bar_margin = MarginContainer.new()
 	bar_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar_margin.add_theme_constant_override("margin_left", 9)
-	bar_margin.add_theme_constant_override("margin_right", 9)
-	bar_margin.add_theme_constant_override("margin_top", 4)
-	bar_margin.add_theme_constant_override("margin_bottom", 4)
+	bar_margin.add_theme_constant_override("margin_left", 14)
+	bar_margin.add_theme_constant_override("margin_right", 14)
+	bar_margin.add_theme_constant_override("margin_top", 6)
+	bar_margin.add_theme_constant_override("margin_bottom", 6)
 	ust_bilgi_bari.add_child(bar_margin)
 	var bar_row = HBoxContainer.new()
 	bar_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar_margin.add_child(bar_row)
+	var logo_vbox = VBoxContainer.new()
+	logo_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	logo_vbox.add_theme_constant_override("separation", 0)
+	logo_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar_row.add_child(logo_vbox)
 	var logo_label = Label.new()
 	logo_label.name = "Label_UstLogo"
 	logo_label.text = "BLOOD & BONE"
 	logo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	logo_label.add_theme_font_size_override("font_size", 12)
-	logo_label.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
-	logo_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar_row.add_child(logo_label)
+	logo_label.add_theme_font_size_override("font_size", 13)
+	logo_label.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
+	logo_vbox.add_child(logo_label)
+	var logo_alt_label = Label.new()
+	logo_alt_label.name = "Label_UstLogoAlt"
+	logo_alt_label.text = "TACTICAL STRATEGY"
+	logo_alt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	logo_alt_label.add_theme_font_size_override("font_size", 7)
+	logo_alt_label.add_theme_color_override("font_color", Color(0.6, 0.58, 0.5))
+	logo_vbox.add_child(logo_alt_label)
 	ust_bilgi_kaynak_label = Label.new()
 	ust_bilgi_kaynak_label.name = "Label_UstKaynak"
 	ust_bilgi_kaynak_label.text = "30🪙 | G0 M100 | Acik | U0%"
@@ -226,19 +237,19 @@ func _ensure_hedefler_paneli() -> void:
 		hedefler_paneli.name = "HedeflerPaneli"
 		ui_root.add_child(hedefler_paneli)
 	hedefler_paneli.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	hedefler_paneli.offset_left = 12
-	hedefler_paneli.offset_top = 52
-	hedefler_paneli.offset_right = 254
-	hedefler_paneli.offset_bottom = 176
+	hedefler_paneli.offset_left = 16
+	hedefler_paneli.offset_top = 62
+	hedefler_paneli.offset_right = 258
+	hedefler_paneli.offset_bottom = 182
 	hedefler_paneli.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hedefler_paneli.add_theme_stylebox_override("panel", HudStyle.objectives_panel_style())
 	for c in hedefler_paneli.get_children():
 		c.queue_free()
 	var hedef_margin = MarginContainer.new()
-	hedef_margin.add_theme_constant_override("margin_left", 8)
-	hedef_margin.add_theme_constant_override("margin_right", 8)
-	hedef_margin.add_theme_constant_override("margin_top", 7)
-	hedef_margin.add_theme_constant_override("margin_bottom", 7)
+	hedef_margin.add_theme_constant_override("margin_left", 12)
+	hedef_margin.add_theme_constant_override("margin_right", 12)
+	hedef_margin.add_theme_constant_override("margin_top", 10)
+	hedef_margin.add_theme_constant_override("margin_bottom", 10)
 	hedefler_paneli.add_child(hedef_margin)
 	var hedef_vbox = VBoxContainer.new()
 	hedef_vbox.add_theme_constant_override("separation", 4)

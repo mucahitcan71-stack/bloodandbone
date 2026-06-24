@@ -134,27 +134,27 @@ func compose_right_panel(ui_root: Control, ui_node: Callable, kazanma_puani: int
 		ui_root.add_child(panel_sag_log_hiz)
 	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel_sag_log_hiz.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel_sag_log_hiz.offset_left = -340
-	panel_sag_log_hiz.offset_top = -224
+	panel_sag_log_hiz.offset_left = -360
+	panel_sag_log_hiz.offset_top = -380
 	panel_sag_log_hiz.offset_right = -12
-	panel_sag_log_hiz.offset_bottom = -8
+	panel_sag_log_hiz.offset_bottom = -164
 	_apply_right_panel_style(panel_sag_log_hiz)
 	for c in panel_sag_log_hiz.get_children():
 		c.queue_free()
 	var log_margin = MarginContainer.new()
-	log_margin.add_theme_constant_override("margin_left", 9)
-	log_margin.add_theme_constant_override("margin_right", 9)
-	log_margin.add_theme_constant_override("margin_top", 7)
-	log_margin.add_theme_constant_override("margin_bottom", 7)
+	log_margin.add_theme_constant_override("margin_left", 12)
+	log_margin.add_theme_constant_override("margin_right", 12)
+	log_margin.add_theme_constant_override("margin_top", 9)
+	log_margin.add_theme_constant_override("margin_bottom", 9)
 	panel_sag_log_hiz.add_child(log_margin)
 	var log_vbox = VBoxContainer.new()
-	log_vbox.add_theme_constant_override("separation", 4)
+	log_vbox.add_theme_constant_override("separation", 6)
 	log_margin.add_child(log_vbox)
 	var savas_baslik = Label.new()
 	savas_baslik.text = "SAVAS"
 	savas_baslik.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	savas_baslik.add_theme_font_size_override("font_size", 9)
-	savas_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
+	savas_baslik.add_theme_font_size_override("font_size", 11)
+	savas_baslik.add_theme_color_override("font_color", Color(0.95, 0.88, 0.72))
 	savas_baslik.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	log_vbox.add_child(savas_baslik)
 	log_vbox.add_child(HSeparator.new())
