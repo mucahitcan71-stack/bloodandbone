@@ -112,6 +112,52 @@ func arazi_katmani_olustur() -> void:
 	_root.move_child(arazi_katmani, 0)
 	arazi_gorsellerini_guncelle()
 
+func build_control_points(capture_barlar: Dictionary) -> void:
+	for nokta in nokta_konumlari:
+		var cerceve = ColorRect.new()
+		cerceve.color = Color(0.12, 0.12, 0.14, 0.55)
+		cerceve.size = Vector2(84, 84)
+		cerceve.position = nokta_konumlari[nokta] - Vector2(2, 2)
+		cerceve.name = "NoktaCerceve_" + nokta
+		cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_root.add_child(cerceve)
+
+		var kare = ColorRect.new()
+		kare.color = Color(0.38, 0.4, 0.44, 0.92)
+		kare.size = Vector2(80, 80)
+		kare.position = nokta_konumlari[nokta]
+		kare.name = "Nokta_" + nokta
+		_root.add_child(kare)
+
+		var isim_l = Label.new()
+		isim_l.name = "Label_Nokta_" + nokta
+		isim_l.text = nokta
+		isim_l.add_theme_font_size_override("font_size", 14)
+		isim_l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
+		isim_l.position = nokta_konumlari[nokta] + Vector2(30, 30)
+		_root.add_child(isim_l)
+
+		var bar_bg = ColorRect.new()
+		bar_bg.name = "CaptureBg_" + nokta
+		bar_bg.color = Color(0.15, 0.15, 0.18, 0.9)
+		bar_bg.size = Vector2(80, 8)
+		bar_bg.position = nokta_konumlari[nokta] + Vector2(0, 85)
+		_root.add_child(bar_bg)
+
+		var bar = ColorRect.new()
+		bar.color = Color(0.85, 0.72, 0.2, 1.0)
+		bar.size = Vector2(40, 8)
+		bar.position = nokta_konumlari[nokta] + Vector2(0, 85)
+		bar.name = "CaptureBar_" + nokta
+		_root.add_child(bar)
+		capture_barlar[nokta] = bar
+
+		var puan_l = Label.new()
+		puan_l.name = "Label_Puan_" + nokta
+		puan_l.text = "+" + str(nokta_puan[nokta])
+		puan_l.position = nokta_konumlari[nokta] + Vector2(30, -20)
+		_root.add_child(puan_l)
+
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	for nokta in nokta_konumlari:
 		if konum.distance_to(get_point_center(nokta)) <= 85.0:
