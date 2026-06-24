@@ -26,7 +26,11 @@
 				{"id": "C_bati", "x": 2350, "y": 1480, "rol": "merkez", "bolge": "yol"},
 				{"id": "C_dogu", "x": 2680, "y": 1520, "rol": "merkez", "bolge": "yol"},
 				{"id": "C_kuzey", "x": 2500, "y": 1380, "rol": "merkez", "bolge": "ova"},
-				{"id": "C_guney", "x": 2420, "y": 1560, "rol": "merkez", "bolge": "yol"}
+				{"id": "C_guney", "x": 2420, "y": 1560, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_orta_bati", "x": 2180, "y": 1495, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_orta_dogu", "x": 2820, "y": 1505, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_kopru", "x": 2440, "y": 1410, "rol": "merkez", "bolge": "yol"},
+				{"id": "C_hafif_kuzey", "x": 2580, "y": 1420, "rol": "merkez", "bolge": "ova"}
 			]
 		},
 		"D": {
@@ -36,7 +40,12 @@
 				{"id": "D_bati", "x": 1800, "y": 520, "rol": "yan", "bolge": "vadi"},
 				{"id": "D_dogu", "x": 3200, "y": 600, "rol": "yan", "bolge": "ova"},
 				{"id": "D_orman", "x": 2100, "y": 720, "rol": "orman", "bolge": "orman"},
-				{"id": "D_gecit", "x": 2900, "y": 480, "rol": "tepe", "bolge": "tepe"}
+				{"id": "D_gecit", "x": 2900, "y": 480, "rol": "tepe", "bolge": "tepe"},
+				{"id": "D_kuzey_bati", "x": 1420, "y": 640, "rol": "yan", "bolge": "vadi"},
+				{"id": "D_yan_gecit", "x": 1280, "y": 920, "rol": "flank", "bolge": "vadi"},
+				{"id": "D_kara_yol", "x": 1960, "y": 560, "rol": "yan", "bolge": "tepe"},
+				{"id": "D_vadi_iceri", "x": 3360, "y": 1020, "rol": "yan", "bolge": "vadi"},
+				{"id": "D_flank_dogu", "x": 3520, "y": 680, "rol": "flank", "bolge": "ova"}
 			]
 		},
 		"E": {
@@ -46,7 +55,12 @@
 				{"id": "E_dogu", "x": 3400, "y": 2400, "rol": "yan", "bolge": "ova"},
 				{"id": "E_bati", "x": 1600, "y": 2300, "rol": "flank", "bolge": "orman"},
 				{"id": "E_ova", "x": 3800, "y": 2100, "rol": "yan", "bolge": "ova"},
-				{"id": "E_orman", "x": 2200, "y": 2480, "rol": "orman", "bolge": "orman"}
+				{"id": "E_orman", "x": 2200, "y": 2480, "rol": "orman", "bolge": "orman"},
+				{"id": "E_kizil_ici", "x": 1720, "y": 2260, "rol": "orman", "bolge": "orman"},
+				{"id": "E_guney_uz", "x": 2680, "y": 2740, "rol": "yan", "bolge": "yol"},
+				{"id": "E_bati_patika", "x": 1420, "y": 2120, "rol": "flank", "bolge": "orman"},
+				{"id": "E_tepe_guney", "x": 2320, "y": 2780, "rol": "tepe", "bolge": "tepe"},
+				{"id": "E_dogu_flank", "x": 4050, "y": 2350, "rol": "flank", "bolge": "ova"}
 			]
 		}
 	},
@@ -75,6 +89,9 @@
 		{"tip": "normal", "points": [[1980, 520], [2200, 620], [2420, 480]]},
 		{"tip": "normal", "points": [[3100, 2420], [3500, 2380], [3900, 2440], [4300, 2400]]},
 		{"tip": "normal", "points": [[3300, 2580], [3700, 2540], [4100, 2600]]},
+		{"tip": "normal", "points": [[1420, 640], [1280, 920], [1180, 1180]]},
+		{"tip": "normal", "points": [[2820, 1505], [3000, 1100], [3360, 1020]]},
+		{"tip": "normal", "points": [[1720, 2260], [1900, 2420], [2200, 2520]]},
 		{"tip": "gizli", "points": [[1280, 2180], [1450, 2050], [1580, 1920]]},
 		{"tip": "gizli", "points": [[1700, 2320], [1580, 2100], [1450, 1920]]},
 		{"tip": "gizli", "points": [[2100, 680], [1900, 820], [1650, 950], [1400, 1080]]}
