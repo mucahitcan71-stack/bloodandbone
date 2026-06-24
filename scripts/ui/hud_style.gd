@@ -161,3 +161,12 @@ static func active_unit_card_selected() -> StyleBoxFlat:
 	s.border_width_right = 2
 	s.border_color = Color(0.9, 0.74, 0.26, 0.95)
 	return s
+
+static func active_unit_hp_bg_color() -> Color:
+	return Color(0.12, 0.14, 0.16, 0.95)
+
+static func active_unit_hp_fill_color(oran: float) -> Color:
+	var t = clampf(oran, 0.0, 1.0)
+	if t > 0.55:
+		return Color(0.28, 0.72, 0.34, 1.0).lerp(Color(0.82, 0.72, 0.2, 1.0), (t - 0.55) / 0.45)
+	return Color(0.72, 0.2, 0.16, 1.0).lerp(Color(0.28, 0.72, 0.34, 1.0), t / 0.55)

@@ -31,7 +31,7 @@ func ensure_shell(parent: VBoxContainer) -> HBoxContainer:
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(0, 34)
+	scroll.custom_minimum_size = Vector2(0, 38)
 	block.add_child(scroll)
 
 	var row = HBoxContainer.new()
@@ -180,19 +180,24 @@ func _rebuild_cards(row: HBoxContainer, units: Array, strip_width: float) -> voi
 
 func _refresh_card_content(row: HBoxContainer, units: Array) -> void:
 	var labels = _type_labels(units)
-	var idx = 0
+	var label_by_id: Dictionary = {}
+	for i in range(units.size()):
+		label_by_id[int(units[i].get("id", -1))] = str(labels[i])
+	var unit_by_id: Dictionary = {}
+	for birim in units:
+		unit_by_id[int(birim.get("id", -1))] = birim
 	for child in row.get_children():
 		if not child.has_meta("unit_id"):
 			continue
-		if idx >= units.size():
-			break
-		_apply_card_content(child as Control, units[idx], str(labels[idx]))
-		idx += 1
+		var unit_id = int(child.get_meta("unit_id", -1))
+		if not unit_by_id.has(unit_id):
+			continue
+		_update_card_live(child as Button, unit_by_id[unit_id], str(label_by_id.get(unit_id, "Birim")))
 
 func _build_card(birim: Dictionary, baslik_metin: String, genislik: float) -> Button:
 	var btn = Button.new()
 	btn.text = ""
-	btn.custom_minimum_size = Vector2(genislik, 30)
+	btn.custom_minimum_size = Vector2(genislik, 36)
 	btn.focus_mode = Control.FOCUS_NONE
 	var unit_id = int(birim.get("id", -1))
 	btn.set_meta("unit_id", unit_id)
@@ -200,74 +205,121 @@ func _build_card(birim: Dictionary, baslik_metin: String, genislik: float) -> Bu
 	btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
 	btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
 	btn.pressed.connect(func(): _handle_card_click(unit_id))
-	_apply_card_content(btn, birim, baslik_metin)
+	_ensure_card_structure(btn)
+	_update_card_live(btn, birim, baslik_metin)
 	return btn
+
+func _ensure_card_structure(btn: Button) -> void:
+	if btn.get_node_or_null("SahadaKartMargin") != null:
+		return
+	var margin = MarginContainer.new()
+	margin.name = "SahadaKartMargin"
+	margin.add_theme_constant_override("margin_left", 4)
+	margin.add_theme_constant_override("margin_right", 4)
+	margin.add_theme_constant_override("margin_top", 2)
+	margin.add_theme_constant_override("margin_bottom", 2)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(margin)
+
+	var vbox = VBoxContainer.new()
+	vbox.name = "SahadaKartVBox"
+	vbox.add_theme_constant_override("separation", 1)
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(vbox)
+
+	var ad = Label.new()
+	ad.name = "SahadaKartAd"
+	ad.clip_text = true
+	ad.add_theme_font_size_override("font_size", 8)
+	ad.add_theme_color_override("font_color", Color(0.92, 0.88, 0.76))
+	ad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(ad)
+
+	var hp_satir = HBoxContainer.new()
+	hp_satir.name = "SahadaHpSatir"
+	hp_satir.add_theme_constant_override("separation", 3)
+	hp_satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(hp_satir)
+
+	var hp_track = Control.new()
+	hp_track.name = "SahadaHpTrack"
+	hp_track.custom_minimum_size = Vector2(0, 4)
+	hp_track.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_satir.add_child(hp_track)
+
+	var hp_bg = ColorRect.new()
+	hp_bg.name = "SahadaHpBg"
+	hp_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hp_bg.color = HudStyle.active_unit_hp_bg_color()
+	hp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_track.add_child(hp_bg)
+
+	var hp_fill = ColorRect.new()
+	hp_fill.name = "SahadaHpFill"
+	hp_fill.color = HudStyle.active_unit_hp_fill_color(1.0)
+	hp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_track.add_child(hp_fill)
+
+	var hp = Label.new()
+	hp.name = "SahadaKartHp"
+	hp.custom_minimum_size = Vector2(44, 0)
+	hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hp.add_theme_font_size_override("font_size", 6)
+	hp.add_theme_color_override("font_color", Color(0.78, 0.76, 0.72))
+	hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_satir.add_child(hp)
+
+	var durum = Label.new()
+	durum.name = "SahadaKartDurum"
+	durum.add_theme_font_size_override("font_size", 7)
+	durum.add_theme_color_override("font_color", Color(0.7, 0.74, 0.68))
+	durum.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(durum)
+
+func _update_card_live(btn: Button, birim: Dictionary, baslik_metin: String) -> void:
+	if btn.get_node_or_null("SahadaKartMargin") == null:
+		_ensure_card_structure(btn)
+	var ad = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaKartAd") as Label
+	var hp_fill = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaHpSatir/SahadaHpTrack/SahadaHpFill") as ColorRect
+	var hp_track = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaHpSatir/SahadaHpTrack") as Control
+	var hp = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaHpSatir/SahadaKartHp") as Label
+	var durum = btn.get_node("SahadaKartMargin/SahadaKartVBox/SahadaKartDurum") as Label
+	if ad == null:
+		return
+
+	ad.text = baslik_metin
+	var max_hp = max(1.0, float(birim.get("max_hp", birim.get("hp", 1))))
+	var cur_hp = max(0.0, float(birim.get("hp", 0)))
+	var hp_oran = clampf(cur_hp / max_hp, 0.0, 1.0)
+	if hp != null:
+		hp.text = "%d/%d" % [int(cur_hp), int(max_hp)]
+	if hp_fill != null:
+		hp_fill.color = HudStyle.active_unit_hp_fill_color(hp_oran)
+	if hp_track != null and hp_fill != null:
+		var track_w = max(8.0, hp_track.size.x)
+		hp_fill.size = Vector2(max(1.0, track_w * hp_oran), 4.0)
+	if durum != null:
+		durum.text = _durum_kisa(birim)
 
 func _handle_card_click(unit_id: int) -> void:
 	if unit_id < 0 or not _on_unit_select.is_valid():
 		return
 	_on_unit_select.call(unit_id)
 
-func _apply_card_content(kart: Control, birim: Dictionary, baslik_metin: String) -> void:
-	for c in kart.get_children():
-		c.queue_free()
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 4)
-	margin.add_theme_constant_override("margin_right", 4)
-	margin.add_theme_constant_override("margin_top", 2)
-	margin.add_theme_constant_override("margin_bottom", 2)
-	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	kart.add_child(margin)
-	var vbox = VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 0)
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.add_child(vbox)
-
-	var ad = Label.new()
-	ad.name = "SahadaKartAd"
-	ad.text = baslik_metin
-	ad.add_theme_font_size_override("font_size", 8)
-	ad.add_theme_color_override("font_color", Color(0.92, 0.88, 0.76))
-	ad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(ad)
-
-	var alt = HBoxContainer.new()
-	alt.add_theme_constant_override("separation", 4)
-	alt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(alt)
-
-	var hp = Label.new()
-	hp.name = "SahadaKartHp"
-	hp.text = _hp_metni(birim)
-	hp.add_theme_font_size_override("font_size", 7)
-	hp.add_theme_color_override("font_color", Color(0.78, 0.76, 0.72))
-	hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	alt.add_child(hp)
-
-	var durum = Label.new()
-	durum.name = "SahadaKartDurum"
-	durum.text = _durum_kisa(birim)
-	durum.add_theme_font_size_override("font_size", 7)
-	durum.add_theme_color_override("font_color", Color(0.7, 0.74, 0.68))
-	durum.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	alt.add_child(durum)
-
-func _hp_metni(birim: Dictionary) -> String:
-	var max_hp = max(1, int(birim.get("max_hp", birim.get("hp", 1))))
-	var cur_hp = max(0, int(birim.get("hp", 0)))
-	return "HP %d/%d" % [cur_hp, max_hp]
-
 static func _durum_kisa(birim: Dictionary) -> String:
 	if birim.get("pusu_modunda", false):
 		return "Pusu"
-	if birim.get("geri_cekiliyor", false):
-		return "Geri"
 	if birim.get("savunma_modunda", false):
-		return "Savun"
+		return "Savunma"
 	if birim.get("savas_halinde", false):
 		return "Savas"
+	if int(birim.get("takip_edilen_dusman", -1)) >= 0:
+		return "Savas"
+	if birim.get("geri_cekiliyor", false):
+		return "Hareket"
 	var konum = birim.get("konum", Vector2.ZERO)
 	var hedef = birim.get("hedef", konum)
-	if konum.distance_to(hedef) > 8.0:
+	if konum is Vector2 and hedef is Vector2 and konum.distance_to(hedef) > 8.0:
 		return "Hareket"
 	return "Hazir"
