@@ -4,6 +4,8 @@ class_name MapLayoutSystem
 const SLOT_SIRASI: Array = ["C", "D", "E"]
 const YAN_ROLLER: Array = ["yan", "flank"]
 const MERKEZ_ROLLER: Array = ["merkez"]
+const YAN_PATIKA_YOL_TIPLERI: Array = ["yan_yol", "patika", "gizli_patika"]
+const C_YOL_TIPLERI: Array = ["ana_yol"]
 
 static func select_layout(map_data: Dictionary, seed_val: int) -> Dictionary:
 	var duzen = map_data.get("nokta_duzen", {}) as Dictionary
@@ -39,11 +41,14 @@ static func select_layout(map_data: Dictionary, seed_val: int) -> Dictionary:
 				altin[slot_id] = int(slot.get("altin", map_data.get("nokta_altin", {}).get(slot_id, 3)))
 				us_merkezleri.append(pos + Vector2(40, 40))
 
+	var c_filter = func(aday: Dictionary) -> bool:
+		return MERKEZ_ROLLER.has(str(aday.get("rol", ""))) and C_YOL_TIPLERI.has(str(aday.get("yol_tipi", "ana_yol")))
+
+	var c_pick: Dictionary = {}
 	if slotlar.has("C"):
-		var c_pick = _slot_aday_sec(
+		c_pick = _slot_aday_sec(
 			harita_id, "C", slotlar["C"] as Dictionary, map_data, positions, us_merkezleri,
-			rng, min_mesafe, us_uzaklik, max_yol_mesafe,
-			func(aday: Dictionary) -> bool: return MERKEZ_ROLLER.has(str(aday.get("rol", "")))
+			rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen, c_filter
 		)
 		_slot_sonuc_uygula("C", c_pick, slotlar["C"] as Dictionary, map_data, positions, puan, altin, secilen_roller)
 
@@ -51,24 +56,38 @@ static func select_layout(map_data: Dictionary, seed_val: int) -> Dictionary:
 	if slotlar.has("D"):
 		d_pick = _slot_aday_sec(
 			harita_id, "D", slotlar["D"] as Dictionary, map_data, positions, us_merkezleri,
-			rng, min_mesafe, us_uzaklik, max_yol_mesafe,
+			rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen,
 			Callable()
 		)
 		_slot_sonuc_uygula("D", d_pick, slotlar["D"] as Dictionary, map_data, positions, puan, altin, secilen_roller)
 
+	var e_pick: Dictionary = {}
 	if slotlar.has("E"):
 		var e_filter = Callable()
 		var d_rol = str(d_pick.get("rol", ""))
 		if not YAN_ROLLER.has(d_rol):
 			e_filter = func(aday: Dictionary) -> bool: return YAN_ROLLER.has(str(aday.get("rol", "")))
-		var e_pick = _slot_aday_sec(
+		e_pick = _slot_aday_sec(
 			harita_id, "E", slotlar["E"] as Dictionary, map_data, positions, us_merkezleri,
-			rng, min_mesafe, us_uzaklik, max_yol_mesafe,
+			rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen,
 			e_filter
 		)
 		if e_pick.is_empty() and e_filter.is_valid():
 			e_pick = _fallback_aday(harita_id, "E", _aday_listesi(slotlar["E"] as Dictionary), e_filter)
 		_slot_sonuc_uygula("E", e_pick, slotlar["E"] as Dictionary, map_data, positions, puan, altin, secilen_roller)
+
+	if slotlar.has("D") and slotlar.has("E") and not _yan_patika_secildi(d_pick, e_pick):
+		var iyilestirme = _yan_patika_rotasi_ekle(
+			harita_id, slotlar, map_data, positions, us_merkezleri,
+			rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen,
+			d_pick, e_pick
+		)
+		if iyilestirme.has("D"):
+			d_pick = iyilestirme["D"]
+			_slot_sonuc_uygula("D", d_pick, slotlar["D"] as Dictionary, map_data, positions, puan, altin, secilen_roller)
+		if iyilestirme.has("E"):
+			e_pick = iyilestirme["E"]
+			_slot_sonuc_uygula("E", e_pick, slotlar["E"] as Dictionary, map_data, positions, puan, altin, secilen_roller)
 
 	for slot_id in map_data.get("nokta_konumlari", {}).keys():
 		if positions.has(slot_id):
@@ -76,6 +95,72 @@ static func select_layout(map_data: Dictionary, seed_val: int) -> Dictionary:
 		_sabit_slot_doldur(map_data, slot_id, positions, puan, altin)
 
 	return {"positions": positions, "puan": puan, "altin": altin}
+
+static func _yan_patika_secildi(d_pick: Dictionary, e_pick: Dictionary) -> bool:
+	return _yan_patika_yol_tipi(d_pick) or _yan_patika_yol_tipi(e_pick)
+
+static func _yan_patika_yol_tipi(aday: Dictionary) -> bool:
+	return YAN_PATIKA_YOL_TIPLERI.has(str(aday.get("yol_tipi", "")))
+
+static func _yan_patika_rotasi_ekle(
+	harita_id: String,
+	slotlar: Dictionary,
+	map_data: Dictionary,
+	positions: Dictionary,
+	us_merkezleri: Array,
+	rng: RandomNumberGenerator,
+	min_mesafe: float,
+	us_uzaklik: float,
+	max_yol_mesafe: float,
+	duzen: Dictionary,
+	d_pick: Dictionary,
+	e_pick: Dictionary
+) -> Dictionary:
+	var sonuc: Dictionary = {}
+	var patika_filter = func(aday: Dictionary) -> bool:
+		return _yan_patika_yol_tipi(aday)
+
+	var e_yedek = _slot_aday_sec(
+		harita_id, "E", slotlar["E"] as Dictionary, map_data, positions, us_merkezleri,
+		rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen, patika_filter
+	)
+	if not e_yedek.is_empty() and _rol_kurali_uygun(d_pick, e_yedek):
+		sonuc["E"] = e_yedek
+		return sonuc
+
+	var d_yedek = _slot_aday_sec(
+		harita_id, "D", slotlar["D"] as Dictionary, map_data, positions, us_merkezleri,
+		rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen, patika_filter
+	)
+	if d_yedek.is_empty():
+		push_warning("MapLayout: %s yan/patika rotasi bulunamadi, mevcut secim korunuyor" % harita_id)
+		return sonuc
+
+	positions["D"] = Vector2(float(d_yedek.get("x", 0.0)), float(d_yedek.get("y", 0.0)))
+	var e_filter = Callable()
+	if not YAN_ROLLER.has(str(d_yedek.get("rol", ""))):
+		e_filter = func(aday: Dictionary) -> bool: return YAN_ROLLER.has(str(aday.get("rol", "")))
+	var e_yeniden = _slot_aday_sec(
+		harita_id, "E", slotlar["E"] as Dictionary, map_data, positions, us_merkezleri,
+		rng, min_mesafe, us_uzaklik, max_yol_mesafe, duzen, e_filter
+	)
+	if e_yeniden.is_empty() and e_filter.is_valid():
+		e_yeniden = _fallback_aday(harita_id, "E", _aday_listesi(slotlar["E"] as Dictionary), e_filter)
+	if e_yeniden.is_empty():
+		positions["D"] = Vector2(float(d_pick.get("x", 0.0)), float(d_pick.get("y", 0.0)))
+		return sonuc
+
+	sonuc["D"] = d_yedek
+	sonuc["E"] = e_yeniden
+	push_warning("MapLayout: %s yan/patika rotasi eklendi -> D:%s E:%s" % [
+		harita_id, str(d_yedek.get("id", "")), str(e_yeniden.get("id", ""))
+	])
+	return sonuc
+
+static func _rol_kurali_uygun(d_pick: Dictionary, e_pick: Dictionary) -> bool:
+	if YAN_ROLLER.has(str(d_pick.get("rol", ""))):
+		return true
+	return YAN_ROLLER.has(str(e_pick.get("rol", "")))
 
 static func _slot_aday_sec(
 	harita_id: String,
@@ -88,6 +173,7 @@ static func _slot_aday_sec(
 	min_mesafe: float,
 	us_uzaklik: float,
 	max_yol_mesafe: float,
+	duzen: Dictionary,
 	rol_filter: Callable
 ) -> Dictionary:
 	var adaylar = _aday_listesi(slot)
@@ -104,7 +190,7 @@ static func _slot_aday_sec(
 			continue
 		var gecici = positions.duplicate()
 		gecici[slot_id] = pos
-		if _nokta_yol_mesafesi(merkez, map_data, gecici, slot_id) > max_yol_mesafe:
+		if not _aday_yol_uygun(merkez, aday, map_data, gecici, slot_id, duzen):
 			continue
 		return aday
 
@@ -112,6 +198,122 @@ static func _slot_aday_sec(
 	if fallback.is_empty():
 		push_warning("MapLayout: %s/%s icin aday bulunamadi, sabit konum kullanilacak" % [harita_id, slot_id])
 	return fallback
+
+static func _aday_yol_uygun(
+	merkez: Vector2,
+	aday: Dictionary,
+	map_data: Dictionary,
+	positions: Dictionary,
+	slot_id: String,
+	duzen: Dictionary
+) -> bool:
+	var yol_tipi = str(aday.get("yol_tipi", "ana_yol"))
+	var min_tip = _nokta_yol_tip_mesafesi(merkez, yol_tipi, map_data, positions, slot_id)
+	if min_tip > _max_yol_tipi_mesafe(yol_tipi, duzen):
+		return false
+	if yol_tipi in ["patika", "gizli_patika"]:
+		var baglanti = _nokta_ag_baglanti_mesafesi(merkez, map_data, positions, slot_id)
+		if baglanti > float(duzen.get("max_patika_baglanti", 520.0)):
+			return false
+	return true
+
+static func _max_yol_tipi_mesafe(yol_tipi: String, duzen: Dictionary) -> float:
+	match yol_tipi:
+		"yan_yol":
+			return float(duzen.get("max_yan_yol_mesafe", 400.0))
+		"patika":
+			return float(duzen.get("max_patika_mesafe", 340.0))
+		"gizli_patika":
+			return float(duzen.get("max_gizli_patika_mesafe", 320.0))
+		_:
+			return float(duzen.get("max_yol_mesafe", 380.0))
+
+static func _nokta_yol_tip_mesafesi(
+	merkez: Vector2,
+	yol_tipi: String,
+	map_data: Dictionary,
+	positions: Dictionary,
+	slot_id: String
+) -> float:
+	var min_d = INF
+	match yol_tipi:
+		"ana_yol":
+			min_d = minf(min_d, _nokta_segment_mesafesi(merkez, _ana_hat_bas(), _ana_hat_bit()))
+			for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["ana"]):
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+		"yan_yol":
+			for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["normal"]):
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+		"patika":
+			for seg in _patika_segmentleri(map_data, ["normal"]):
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+		"gizli_patika":
+			for seg in _patika_segmentleri(map_data, ["gizli"]):
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+			for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["gizli"]):
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+		_:
+			min_d = _nokta_ag_baglanti_mesafesi(merkez, map_data, positions, slot_id)
+	return min_d
+
+static func _nokta_ag_baglanti_mesafesi(
+	merkez: Vector2,
+	map_data: Dictionary,
+	positions: Dictionary,
+	slot_id: String
+) -> float:
+	var min_d = _nokta_segment_mesafesi(merkez, _ana_hat_bas(), _ana_hat_bit())
+	for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["ana", "normal"]):
+		min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+	for seg in _patika_segmentleri(map_data, ["normal"]):
+		min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
+	return min_d
+
+static func _gorsel_yol_segmentleri(
+	map_data: Dictionary,
+	positions: Dictionary,
+	slot_id: String,
+	tipler: Array
+) -> Array:
+	var segments: Array = []
+	for yol in map_data.get("gorsel_yollar", []):
+		if typeof(yol) != TYPE_DICTIONARY:
+			continue
+		var tip = str(yol.get("tip", "normal"))
+		if not tipler.has(tip):
+			continue
+		var from_id = str(yol.get("from", ""))
+		var to_id = str(yol.get("to", ""))
+		if from_id == "" or to_id == "":
+			continue
+		if not positions.has(from_id) and from_id != slot_id:
+			continue
+		if not positions.has(to_id) and to_id != slot_id:
+			continue
+		segments.append({
+			"a": _slot_merkez(positions, from_id),
+			"b": _slot_merkez(positions, to_id),
+		})
+	return segments
+
+static func _patika_segmentleri(map_data: Dictionary, tipler: Array) -> Array:
+	var segments: Array = []
+	for patika in map_data.get("gorsel_patikalar", []):
+		if typeof(patika) != TYPE_DICTIONARY:
+			continue
+		var tip = str(patika.get("tip", "normal"))
+		if not tipler.has(tip):
+			continue
+		var points = patika.get("points", [])
+		if typeof(points) != TYPE_ARRAY or points.size() < 2:
+			continue
+		for i in range(points.size() - 1):
+			var a = points[i]
+			var b = points[i + 1]
+			if typeof(a) != TYPE_VECTOR2 or typeof(b) != TYPE_VECTOR2:
+				continue
+			segments.append({"a": a, "b": b})
+	return segments
 
 static func _fallback_aday(harita_id: String, slot_id: String, adaylar: Array, rol_filter: Callable) -> Dictionary:
 	if rol_filter.is_valid():
@@ -194,32 +396,6 @@ static func _aday_uygun(
 		if merkez.distance_to(c_merkez) < min_mesafe * 0.85:
 			return false
 	return true
-
-static func _nokta_yol_mesafesi(merkez: Vector2, map_data: Dictionary, positions: Dictionary, slot_id: String) -> float:
-	var min_d = INF
-	for seg in _yol_segmentleri(map_data, positions, slot_id):
-		min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
-	min_d = minf(min_d, _nokta_segment_mesafesi(merkez, _ana_hat_bas(), _ana_hat_bit()))
-	return min_d
-
-static func _yol_segmentleri(map_data: Dictionary, positions: Dictionary, slot_id: String) -> Array:
-	var segments: Array = []
-	for yol in map_data.get("gorsel_yollar", []):
-		if typeof(yol) != TYPE_DICTIONARY:
-			continue
-		var from_id = str(yol.get("from", ""))
-		var to_id = str(yol.get("to", ""))
-		if from_id == "" or to_id == "":
-			continue
-		if not positions.has(from_id) and from_id != slot_id:
-			continue
-		if not positions.has(to_id) and to_id != slot_id:
-			continue
-		segments.append({
-			"a": _slot_merkez(positions, from_id),
-			"b": _slot_merkez(positions, to_id),
-		})
-	return segments
 
 static func _slot_merkez(positions: Dictionary, slot_id: String) -> Vector2:
 	return positions[slot_id] + Vector2(40, 40)

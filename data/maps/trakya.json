@@ -14,7 +14,11 @@
 		"mod": "aday",
 		"min_mesafe": 320,
 		"us_uzaklik": 300,
-		"max_yol_mesafe": 380
+		"max_yol_mesafe": 380,
+		"max_yan_yol_mesafe": 400,
+		"max_patika_mesafe": 340,
+		"max_gizli_patika_mesafe": 320,
+		"max_patika_baglanti": 520
 	},
 	"nokta_slotlari": {
 		"A": {"sabit": true, "x": 600, "y": 1500, "rol": "us", "puan": 1, "altin": 3},
@@ -22,45 +26,51 @@
 		"C": {
 			"rol": "merkez", "puan": 3, "altin": 6,
 			"adaylar": [
-				{"id": "C_hub", "x": 2500, "y": 1500, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_bati", "x": 2350, "y": 1480, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_dogu", "x": 2680, "y": 1520, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_kuzey", "x": 2500, "y": 1380, "rol": "merkez", "bolge": "ova"},
-				{"id": "C_guney", "x": 2420, "y": 1560, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_orta_bati", "x": 2180, "y": 1495, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_orta_dogu", "x": 2820, "y": 1505, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_kopru", "x": 2440, "y": 1410, "rol": "merkez", "bolge": "yol"},
-				{"id": "C_hafif_kuzey", "x": 2580, "y": 1420, "rol": "merkez", "bolge": "ova"}
+				{"id": "C_hub", "x": 2500, "y": 1500, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_bati", "x": 2350, "y": 1480, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_dogu", "x": 2680, "y": 1520, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_kuzey", "x": 2500, "y": 1380, "rol": "merkez", "bolge": "ova", "yol_tipi": "ana_yol"},
+				{"id": "C_guney", "x": 2420, "y": 1560, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_orta_bati", "x": 2180, "y": 1495, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_orta_dogu", "x": 2820, "y": 1505, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_kopru", "x": 2440, "y": 1410, "rol": "merkez", "bolge": "yol", "yol_tipi": "ana_yol"},
+				{"id": "C_hafif_kuzey", "x": 2580, "y": 1420, "rol": "merkez", "bolge": "ova", "yol_tipi": "ana_yol"}
 			]
 		},
 		"D": {
 			"rol": "yan", "puan": 1, "altin": 3,
 			"adaylar": [
-				{"id": "D_tepe", "x": 2500, "y": 400, "rol": "tepe", "bolge": "tepe"},
-				{"id": "D_bati", "x": 1800, "y": 520, "rol": "yan", "bolge": "vadi"},
-				{"id": "D_dogu", "x": 3200, "y": 600, "rol": "yan", "bolge": "ova"},
-				{"id": "D_orman", "x": 2100, "y": 720, "rol": "orman", "bolge": "orman"},
-				{"id": "D_gecit", "x": 2900, "y": 480, "rol": "tepe", "bolge": "tepe"},
-				{"id": "D_kuzey_bati", "x": 1420, "y": 640, "rol": "yan", "bolge": "vadi"},
-				{"id": "D_yan_gecit", "x": 1280, "y": 920, "rol": "flank", "bolge": "vadi"},
-				{"id": "D_kara_yol", "x": 1960, "y": 560, "rol": "yan", "bolge": "tepe"},
-				{"id": "D_vadi_iceri", "x": 3360, "y": 1020, "rol": "yan", "bolge": "vadi"},
-				{"id": "D_flank_dogu", "x": 3520, "y": 680, "rol": "flank", "bolge": "ova"}
+				{"id": "D_tepe", "x": 2500, "y": 400, "rol": "tepe", "bolge": "tepe", "yol_tipi": "ana_yol"},
+				{"id": "D_bati", "x": 1800, "y": 520, "rol": "yan", "bolge": "vadi", "yol_tipi": "yan_yol"},
+				{"id": "D_dogu", "x": 3200, "y": 600, "rol": "yan", "bolge": "ova", "yol_tipi": "yan_yol"},
+				{"id": "D_orman", "x": 2100, "y": 720, "rol": "orman", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "D_gecit", "x": 2900, "y": 480, "rol": "tepe", "bolge": "tepe", "yol_tipi": "ana_yol"},
+				{"id": "D_kuzey_bati", "x": 1420, "y": 640, "rol": "yan", "bolge": "vadi", "yol_tipi": "patika"},
+				{"id": "D_yan_gecit", "x": 1280, "y": 920, "rol": "flank", "bolge": "vadi", "yol_tipi": "patika"},
+				{"id": "D_kara_yol", "x": 1960, "y": 560, "rol": "yan", "bolge": "tepe", "yol_tipi": "patika"},
+				{"id": "D_vadi_iceri", "x": 3360, "y": 1020, "rol": "yan", "bolge": "vadi", "yol_tipi": "patika"},
+				{"id": "D_flank_dogu", "x": 3520, "y": 680, "rol": "flank", "bolge": "ova", "yol_tipi": "yan_yol"},
+				{"id": "D_patika_gecit", "x": 1140, "y": 1140, "rol": "flank", "bolge": "vadi", "yol_tipi": "patika"},
+				{"id": "D_gizli_sirt", "x": 1380, "y": 1020, "rol": "orman", "bolge": "orman", "yol_tipi": "gizli_patika"},
+				{"id": "D_demir_patika", "x": 4140, "y": 880, "rol": "yan", "bolge": "tepe", "yol_tipi": "patika"}
 			]
 		},
 		"E": {
 			"rol": "yan", "puan": 1, "altin": 3,
 			"adaylar": [
-				{"id": "E_guney", "x": 2500, "y": 2600, "rol": "yan", "bolge": "yol"},
-				{"id": "E_dogu", "x": 3400, "y": 2400, "rol": "yan", "bolge": "ova"},
-				{"id": "E_bati", "x": 1600, "y": 2300, "rol": "flank", "bolge": "orman"},
-				{"id": "E_ova", "x": 3800, "y": 2100, "rol": "yan", "bolge": "ova"},
-				{"id": "E_orman", "x": 2200, "y": 2480, "rol": "orman", "bolge": "orman"},
-				{"id": "E_kizil_ici", "x": 1720, "y": 2260, "rol": "orman", "bolge": "orman"},
-				{"id": "E_guney_uz", "x": 2680, "y": 2740, "rol": "yan", "bolge": "yol"},
-				{"id": "E_bati_patika", "x": 1420, "y": 2120, "rol": "flank", "bolge": "orman"},
-				{"id": "E_tepe_guney", "x": 2320, "y": 2780, "rol": "tepe", "bolge": "tepe"},
-				{"id": "E_dogu_flank", "x": 4050, "y": 2350, "rol": "flank", "bolge": "ova"}
+				{"id": "E_guney", "x": 2500, "y": 2600, "rol": "yan", "bolge": "yol", "yol_tipi": "yan_yol"},
+				{"id": "E_dogu", "x": 3400, "y": 2400, "rol": "yan", "bolge": "ova", "yol_tipi": "yan_yol"},
+				{"id": "E_bati", "x": 1600, "y": 2300, "rol": "flank", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "E_ova", "x": 3800, "y": 2100, "rol": "yan", "bolge": "ova", "yol_tipi": "yan_yol"},
+				{"id": "E_orman", "x": 2200, "y": 2480, "rol": "orman", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "E_kizil_ici", "x": 1720, "y": 2260, "rol": "orman", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "E_guney_uz", "x": 2680, "y": 2740, "rol": "yan", "bolge": "yol", "yol_tipi": "yan_yol"},
+				{"id": "E_bati_patika", "x": 1420, "y": 2120, "rol": "flank", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "E_tepe_guney", "x": 2320, "y": 2780, "rol": "tepe", "bolge": "tepe", "yol_tipi": "yan_yol"},
+				{"id": "E_dogu_flank", "x": 4050, "y": 2350, "rol": "flank", "bolge": "ova", "yol_tipi": "yan_yol"},
+				{"id": "E_gizli_kavsak", "x": 1520, "y": 1980, "rol": "flank", "bolge": "orman", "yol_tipi": "gizli_patika"},
+				{"id": "E_patika_guney", "x": 1880, "y": 2380, "rol": "yan", "bolge": "orman", "yol_tipi": "patika"},
+				{"id": "E_yan_bati", "x": 1080, "y": 1380, "rol": "flank", "bolge": "yol", "yol_tipi": "patika"}
 			]
 		}
 	},

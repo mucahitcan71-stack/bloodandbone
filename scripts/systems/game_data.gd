@@ -290,6 +290,10 @@ static func _parse_nokta_duzen(raw: Variant) -> Dictionary:
 		"min_mesafe": float(raw.get("min_mesafe", 320.0)),
 		"us_uzaklik": float(raw.get("us_uzaklik", 300.0)),
 		"max_yol_mesafe": float(raw.get("max_yol_mesafe", 380.0)),
+		"max_yan_yol_mesafe": float(raw.get("max_yan_yol_mesafe", 400.0)),
+		"max_patika_mesafe": float(raw.get("max_patika_mesafe", 340.0)),
+		"max_gizli_patika_mesafe": float(raw.get("max_gizli_patika_mesafe", 320.0)),
+		"max_patika_baglanti": float(raw.get("max_patika_baglanti", 520.0)),
 	}
 
 static func _parse_nokta_slotlari(raw: Variant) -> Dictionary:
@@ -327,6 +331,7 @@ static func _parse_slot_adaylari(raw: Variant, slot_rol: String) -> Array:
 				"y": float(aday.get("y", 0.0)),
 				"rol": str(aday.get("rol", slot_rol)),
 				"bolge": str(aday.get("bolge", "")),
+				"yol_tipi": str(aday.get("yol_tipi", "ana_yol")),
 			})
 		elif typeof(aday) == TYPE_ARRAY and aday.size() >= 2:
 			adaylar.append({
@@ -335,5 +340,6 @@ static func _parse_slot_adaylari(raw: Variant, slot_rol: String) -> Array:
 				"y": float(aday[1]),
 				"rol": slot_rol,
 				"bolge": "",
+				"yol_tipi": "ana_yol",
 			})
 	return adaylar
