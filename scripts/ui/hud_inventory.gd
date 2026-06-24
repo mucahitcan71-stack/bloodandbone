@@ -4,10 +4,10 @@ class_name HudInventory
 static func calculate_card_width(kart_sayisi: int, alan: float, bosluk: float = 7.0) -> float:
 	var safe_kart_sayisi = max(1, kart_sayisi)
 	var toplam_bosluk = bosluk * float(safe_kart_sayisi - 1)
-	return clampf((alan - toplam_bosluk) / float(safe_kart_sayisi), 58.0, 88.0)
+	return clampf((alan - toplam_bosluk) / float(safe_kart_sayisi), 56.0, 82.0)
 
 static func card_height() -> float:
-	return 48.0
+	return 46.0
 
 static func card_separation() -> float:
 	return 7.0

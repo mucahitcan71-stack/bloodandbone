@@ -6,8 +6,13 @@ const HudCommands = preload("res://scripts/ui/hud_commands.gd")
 const HudSelectedUnitPanel = preload("res://scripts/ui/hud_selected_unit.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 
-const BOTTOM_MODULE_H := 108
+const BOTTOM_MODULE_H := 96
 const MODULE_GAP := 10
+const SOL_MODULE_W := 272
+const ORTA_MODULE_W := 440
+const SAG_MODULE_W := 128
+const CMD_BTN_SIZE := Vector2(30, 28)
+const CMD_GRID_GAP := 6
 
 func _apply_module_style(panel: PanelContainer) -> void:
 	panel.add_theme_stylebox_override("panel", HudStyle.module_panel_style())
@@ -17,10 +22,10 @@ func _apply_right_panel_style(panel: PanelContainer) -> void:
 
 func _module_margin() -> MarginContainer:
 	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	return margin
 
 func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
@@ -50,6 +55,7 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 
 	var alt_satir = HBoxContainer.new()
 	alt_satir.name = "SavasHudAltSatir"
+	alt_satir.alignment = BoxContainer.ALIGNMENT_CENTER
 	alt_satir.add_theme_constant_override("separation", MODULE_GAP)
 	alt_satir.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	alt_satir.custom_minimum_size = Vector2(0, BOTTOM_MODULE_H)
@@ -58,29 +64,30 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 
 	var sol_modul = PanelContainer.new()
 	sol_modul.name = "HudSolModul"
-	sol_modul.custom_minimum_size = Vector2(288, BOTTOM_MODULE_H)
+	sol_modul.custom_minimum_size = Vector2(SOL_MODULE_W, BOTTOM_MODULE_H)
 	_apply_module_style(sol_modul)
 	alt_satir.add_child(sol_modul)
 	ui_system.register_battle_panel_widget(sol_modul)
 	var sol_margin = _module_margin()
 	sol_modul.add_child(sol_margin)
 	var sol_vbox = VBoxContainer.new()
+	sol_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	sol_vbox.add_theme_constant_override("separation", 3)
 	sol_margin.add_child(sol_vbox)
 	HudSelectedUnitPanel.build(sol_vbox)
 
 	var orta_modul = PanelContainer.new()
 	orta_modul.name = "HudOrtaModul"
-	orta_modul.custom_minimum_size = Vector2(520, BOTTOM_MODULE_H)
-	orta_modul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	orta_modul.custom_minimum_size = Vector2(ORTA_MODULE_W, BOTTOM_MODULE_H)
 	_apply_module_style(orta_modul)
 	alt_satir.add_child(orta_modul)
 	ui_system.register_battle_panel_widget(orta_modul)
 	var orta_margin = _module_margin()
 	orta_modul.add_child(orta_margin)
 	var orta_vbox = VBoxContainer.new()
-	orta_vbox.add_theme_constant_override("separation", 4)
-	orta_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	orta_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	orta_vbox.add_theme_constant_override("separation", 3)
+	orta_vbox.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	orta_margin.add_child(orta_vbox)
 	env_baslik.reparent(orta_vbox)
 	env_baslik.text = "BIRLIKLER"
@@ -88,14 +95,14 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	env_baslik.add_theme_color_override("font_color", Color(0.93, 0.86, 0.7))
 	if envanter_scroll != null:
 		envanter_scroll.reparent(orta_vbox)
-		envanter_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		envanter_scroll.custom_minimum_size = Vector2(0, HudInventory.card_height() + 4)
+		envanter_scroll.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		envanter_scroll.custom_minimum_size = Vector2(ORTA_MODULE_W - 12, HudInventory.card_height())
 	else:
 		envanter_grid.reparent(orta_vbox)
 
 	var sag_modul = PanelContainer.new()
 	sag_modul.name = "HudSagModul"
-	sag_modul.custom_minimum_size = Vector2(148, BOTTOM_MODULE_H)
+	sag_modul.custom_minimum_size = Vector2(SAG_MODULE_W, BOTTOM_MODULE_H)
 	_apply_module_style(sag_modul)
 	alt_satir.add_child(sag_modul)
 	ui_system.register_battle_panel_widget(sag_modul)
@@ -103,7 +110,7 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	sag_modul.add_child(sag_margin)
 	var sag_vbox = VBoxContainer.new()
 	sag_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	sag_vbox.add_theme_constant_override("separation", 6)
+	sag_vbox.add_theme_constant_override("separation", 4)
 	sag_margin.add_child(sag_vbox)
 	var komut_baslik = Label.new()
 	komut_baslik.text = "KOMUT"
@@ -113,15 +120,15 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 	sag_vbox.add_child(komut_baslik)
 	var komut_grid = GridContainer.new()
 	komut_grid.columns = 3
-	komut_grid.add_theme_constant_override("h_separation", 7)
-	komut_grid.add_theme_constant_override("v_separation", 7)
+	komut_grid.add_theme_constant_override("h_separation", CMD_GRID_GAP)
+	komut_grid.add_theme_constant_override("v_separation", CMD_GRID_GAP)
 	sag_vbox.add_child(komut_grid)
 	var komut_butonlari = {}
 	for komut in HudCommands.button_definitions():
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(34, 32)
+		btn.custom_minimum_size = CMD_BTN_SIZE
 		btn.text = str(komut["text"])
-		btn.add_theme_font_size_override("font_size", 11)
+		btn.add_theme_font_size_override("font_size", 10)
 		var komut_id = str(komut["id"])
 		HudCommands.apply_button_visuals(btn, {"disabled": false, "selected": false})
 		if on_command_pressed.is_valid():
@@ -167,21 +174,21 @@ func compose_right_panel(ui_root: Control, ui_node: Callable, kazanma_puani: int
 		ui_root.add_child(panel_sag_log_hiz)
 	panel_sag_log_hiz.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	panel_sag_log_hiz.mouse_filter = Control.MOUSE_FILTER_STOP
-	panel_sag_log_hiz.offset_left = -348
-	panel_sag_log_hiz.offset_top = -372
+	panel_sag_log_hiz.offset_left = -336
+	panel_sag_log_hiz.offset_top = -358
 	panel_sag_log_hiz.offset_right = -14
-	panel_sag_log_hiz.offset_bottom = -236
+	panel_sag_log_hiz.offset_bottom = -252
 	_apply_right_panel_style(panel_sag_log_hiz)
 	for c in panel_sag_log_hiz.get_children():
 		c.queue_free()
 	var log_margin = MarginContainer.new()
-	log_margin.add_theme_constant_override("margin_left", 10)
-	log_margin.add_theme_constant_override("margin_right", 10)
-	log_margin.add_theme_constant_override("margin_top", 8)
-	log_margin.add_theme_constant_override("margin_bottom", 8)
+	log_margin.add_theme_constant_override("margin_left", 9)
+	log_margin.add_theme_constant_override("margin_right", 9)
+	log_margin.add_theme_constant_override("margin_top", 7)
+	log_margin.add_theme_constant_override("margin_bottom", 7)
 	panel_sag_log_hiz.add_child(log_margin)
 	var log_vbox = VBoxContainer.new()
-	log_vbox.add_theme_constant_override("separation", 5)
+	log_vbox.add_theme_constant_override("separation", 4)
 	log_margin.add_child(log_vbox)
 	var savas_baslik = Label.new()
 	savas_baslik.text = "SAVAS"
