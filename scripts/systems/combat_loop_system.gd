@@ -94,29 +94,50 @@ func _process_movement_and_deaths(delta: float) -> void:
 					dusman_menzilde = true
 					break
 
-		var hedefe_varildi = birim["konum"].distance_to(birim["hedef"]) <= 8.0
+		var hedef_pos: Vector2 = birim["hedef"]
+		var to_hedef = hedef_pos - birim["konum"]
+		var dist = to_hedef.length()
+		var varis_esigi = Constants.BIRIM_HAREKET_VARIS_ESIGI
+		var chasing = takip_id >= 0
+		var hedefe_varildi = dist <= varis_esigi
+		if not chasing and dist <= varis_esigi * 3.0:
+			var hedef_nokta = str(birim.get("hedef_nokta", ""))
+			if hedef_nokta != "" and _host.birim_nokta_menzilinde(birim, hedef_nokta):
+				hedefe_varildi = true
 		if birim.get("pusu_modunda", false):
 			dusman_menzilde = false
 			hedefe_varildi = true
 		if birim.get("geri_cekiliyor", false):
 			dusman_menzilde = false
 		if not dusman_menzilde and not hedefe_varildi:
-			var mesafe = birim["hedef"] - birim["konum"]
-			var yon = mesafe.normalized()
-			birim["konum"] += yon * hareket_efekt["hiz"] * delta
+			var step = hareket_efekt["hiz"] * delta
+			if dist > 0.001:
+				if step >= dist:
+					birim["konum"] = hedef_pos
+				else:
+					birim["konum"] += (to_hedef / dist) * step
 			var arazi_hareket = _host.birimin_arazisini_bul(birim["konum"])
 			if bool(arazi_hareket.get("tek_sira", false)):
-				var rect: Rect2 = arazi_hareket.get("rect", Rect2())
-				var merkez = _host._dar_koridor_merkez(rect)
-				if rect.size.x <= rect.size.y:
-					birim["konum"].x = merkez.x
-				else:
-					birim["konum"].y = merkez.y
+				var snap_dist = birim["konum"].distance_to(hedef_pos)
+				if snap_dist > varis_esigi:
+					var rect: Rect2 = arazi_hareket.get("rect", Rect2())
+					var merkez = _host._dar_koridor_merkez(rect)
+					if rect.size.x <= rect.size.y:
+						birim["konum"].x = merkez.x
+					else:
+						birim["konum"].y = merkez.y
 			birim["node"].position = birim["konum"]
 			birim["pusu_arazi_gizli"] = false
+			dist = birim["konum"].distance_to(hedef_pos)
+			hedefe_varildi = dist <= varis_esigi
 		elif not birim.get("pusu_modunda", false):
 			var orman_idx = _host._orman_bolge_index(birim["konum"])
 			birim["pusu_arazi_gizli"] = orman_idx >= 0 and not dusman_menzilde and hedefe_varildi
+		if hedefe_varildi and not chasing and not birim.get("pusu_modunda", false) and not birim.get("savunma_modunda", false):
+			birim["konum"] = hedef_pos
+			birim["hedef"] = birim["konum"]
+			if is_instance_valid(birim["node"]):
+				birim["node"].position = birim["konum"]
 		if birim.get("geri_cekiliyor", false) and hedefe_varildi:
 			birim["geri_cekiliyor"] = false
 
