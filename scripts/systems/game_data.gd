@@ -146,6 +146,18 @@ static func parse_map(data: Dictionary) -> Dictionary:
 					"gizlenme": true,
 				})
 
+	var bolge_etiketleri: Array = []
+	var raw_etiketler = data.get("bolge_etiketleri", [])
+	if typeof(raw_etiketler) == TYPE_ARRAY:
+		for raw in raw_etiketler:
+			if typeof(raw) != TYPE_DICTIONARY:
+				continue
+			bolge_etiketleri.append({
+				"metin": str(raw.get("metin", "")),
+				"x": float(raw.get("x", 0.0)),
+				"y": float(raw.get("y", 0.0)),
+			})
+
 	return {
 		"id": str(data.get("id", "")),
 		"isim": str(data.get("isim", data.get("id", "Harita"))),
@@ -154,6 +166,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"nokta_altin": data.get("nokta_altin", {"A": 3, "B": 3, "C": 6, "D": 3, "E": 3}).duplicate(),
 		"sinir": bounds,
 		"arazi_bolgeleri": arazi_bolgeleri,
+		"bolge_etiketleri": bolge_etiketleri,
 		"arkaplan": str(data.get("arkaplan", "")),
 	}
 

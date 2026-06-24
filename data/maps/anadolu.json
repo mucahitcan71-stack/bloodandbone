@@ -19,5 +19,14 @@
 		{"tip": "yol", "x": 680, "y": 1490, "w": 3740, "h": 120, "hiz_bonus": 1.15},
 		{"tip": "kopru", "x": 2440, "y": 1380, "w": 150, "h": 260, "tek_sira": true, "savunma_bonus": 1.3}
 	],
+	"bolge_etiketleri": [
+		{"metin": "Kızılorman", "x": 3360, "y": 2040},
+		{"metin": "Dumanlı Vadi", "x": 1280, "y": 2140},
+		{"metin": "Gizli Geçit", "x": 940, "y": 1360},
+		{"metin": "Aksu Nehri", "x": 1420, "y": 2220},
+		{"metin": "Kara Tepe", "x": 1860, "y": 920},
+		{"metin": "Eski Yol", "x": 2280, "y": 1360},
+		{"metin": "Taş Geçit", "x": 2450, "y": 1590}
+	],
 	"arkaplan": ""
 }
