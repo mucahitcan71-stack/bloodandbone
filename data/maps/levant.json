@@ -19,6 +19,20 @@
 		{"tip": "yol", "x": 560, "y": 1460, "w": 3920, "h": 130, "hiz_bonus": 1.15},
 		{"tip": "kopru", "x": 2430, "y": 1370, "w": 140, "h": 260, "tek_sira": true, "savunma_bonus": 1.3}
 	],
+	"nokta_duzen": {"mod": "sabit"},
+	"yollar": [
+		{"tip": "ana", "from": "A", "to": "C"},
+		{"tip": "ana", "from": "C", "to": "B"},
+		{"tip": "ana", "from": "C", "to": "D"},
+		{"tip": "normal", "from": "C", "to": "E"},
+		{"tip": "gizli", "from": "D", "to": "E"}
+	],
+	"cevre_dekor": [
+		{"tip": "agac_kume", "x": 1150, "y": 1940, "w": 130, "h": 95, "adet": 9},
+		{"tip": "calik", "x": 4000, "y": 1200, "w": 75, "h": 60},
+		{"tip": "tarla", "x": 2100, "y": 2120, "w": 210, "h": 125},
+		{"tip": "sirt", "x": 3120, "y": 860, "w": 170, "h": 85}
+	],
 	"bolge_etiketleri": [
 		{"metin": "Kızılorman", "x": 1280, "y": 2060},
 		{"metin": "Dumanlı Vadi", "x": 2180, "y": 2140},

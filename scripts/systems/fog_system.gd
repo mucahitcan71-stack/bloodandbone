@@ -19,6 +19,8 @@ var dusman_son_gorulen_konum = {}
 var dusman_hayalet_ikonlari = {}
 var _minimap_fow_gorseli: Image = null
 var _minimap_fow_doku: ImageTexture = null
+# Gecici: tum haritayi gostermek icin true (sonra false yap)
+var harita_sis_kapali := true
 
 const FOG_GORUNUR = Color(0, 0, 0, 0.0)
 const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
@@ -45,6 +47,8 @@ func get_discovered_points() -> Dictionary:
 	return kesfedilen_noktalar
 
 func is_point_discovered(point_id: String) -> bool:
+	if harita_sis_kapali:
+		return true
 	return kesfedilen_noktalar.get(point_id, false)
 
 func get_last_known_enemy_positions() -> Dictionary:
@@ -90,7 +94,7 @@ func reset_match_discovery(point_ids: Array) -> void:
 
 func set_layer_visible(visible: bool) -> void:
 	if is_instance_valid(gorus_hucre_katmani):
-		gorus_hucre_katmani.visible = visible
+		gorus_hucre_katmani.visible = visible and not harita_sis_kapali
 
 func reset_fog_on_map_change() -> void:
 	if is_instance_valid(gorus_hucre_katmani):
@@ -102,6 +106,9 @@ func unit_vision_radius(unit_type: Dictionary) -> float:
 	return float(unit_type.get("menzil", 80.0)) + normal_birim_gorus_bonus
 
 func update_point_visibility() -> void:
+	if harita_sis_kapali:
+		_tum_noktalari_goster()
+		return
 	for nokta in _root.nokta_konumlari:
 		var kesfedildi = is_point_discovered(nokta)
 		var kare = _root.get_node_or_null("Nokta_" + nokta)
@@ -136,6 +143,12 @@ func update_point_visibility() -> void:
 			bar.color = Color(1, 0.8, 0)
 
 func update_unit_visibility() -> void:
+	if harita_sis_kapali:
+		for birim in _root.aktif_birimler:
+			if is_instance_valid(birim.get("node")):
+				birim["node"].visible = true
+		update_enemy_intel(_root.aktif_birimler)
+		return
 	for birim in _root.aktif_birimler:
 		if not is_instance_valid(birim["node"]):
 			continue
@@ -175,11 +188,12 @@ func update_minimap_fow() -> void:
 	for x in range(w):
 		for y in range(h):
 			var anahtar = Vector2i(min_h.x + x, min_h.y + y)
-			var col = FOG_KAPALI
-			if su_anki_gorus_alani.get(anahtar, false):
-				col = FOG_GORUNUR
-			elif kesfedilen_alanlar.get(anahtar, false):
-				col = FOG_GORUNUR
+			var col = FOG_GORUNUR if harita_sis_kapali else FOG_KAPALI
+			if not harita_sis_kapali:
+				if su_anki_gorus_alani.get(anahtar, false):
+					col = FOG_GORUNUR
+				elif kesfedilen_alanlar.get(anahtar, false):
+					col = FOG_GORUNUR
 			_minimap_fow_gorseli.set_pixel(x, y, col)
 	if _minimap_fow_doku == null:
 		_minimap_fow_doku = ImageTexture.create_from_image(_minimap_fow_gorseli)
@@ -204,6 +218,8 @@ func is_forest_stealth_broken(target: Dictionary, observer_faction: String, unit
 	return false
 
 func is_unit_visible_to_faction(target: Dictionary, observer_faction: String, units: Array) -> bool:
+	if harita_sis_kapali and observer_faction == "osmanli":
+		return target["hp"] > 0
 	if target["taraf"] == observer_faction:
 		return true
 	if target["hp"] <= 0:
@@ -311,6 +327,13 @@ func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> vo
 				gorus_alani[anahtar] = true
 
 func _apply_main_map_overlay() -> void:
+	if harita_sis_kapali:
+		for anahtar in gorus_hucreleri:
+			var hucre = gorus_hucreleri[anahtar]
+			if is_instance_valid(hucre):
+				hucre.color = FOG_GORUNUR
+		set_layer_visible(false)
+		return
 	for anahtar in gorus_hucreleri:
 		var hucre = gorus_hucreleri[anahtar]
 		if not is_instance_valid(hucre):
@@ -347,3 +370,26 @@ func _update_ghost_icons() -> void:
 			dusman_hayalet_ikonlari[id] = l
 		else:
 			ikon.position = Vector2(kayit["konum"]) + Vector2(8, -10)
+
+func _tum_noktalari_goster() -> void:
+	for nokta in _root.nokta_konumlari:
+		var kare = _root.get_node_or_null("Nokta_" + nokta)
+		var isim_l = _root.get_node_or_null("Label_Nokta_" + nokta)
+		var puan_l = _root.get_node_or_null("Label_Puan_" + nokta)
+		var bg = _root.get_node_or_null("CaptureBg_" + nokta)
+		var bar = _root.capture_barlar.get(nokta, null)
+		if kare:
+			kare.visible = true
+			kare.color = _point_owner_color(_root.nokta_sahipleri[nokta])
+			kare.modulate = Color(1, 1, 1, 1)
+		if isim_l:
+			isim_l.visible = true
+		if puan_l:
+			puan_l.visible = true
+			puan_l.modulate = Color(1, 1, 1, 1)
+		if bg:
+			bg.visible = true
+		if bar:
+			bar.visible = true
+			bar.size.x = 80.0 * (_root.nokta_capture[nokta] / 100.0)
+			bar.color = Color(1, 0.8, 0)

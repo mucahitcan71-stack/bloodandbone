@@ -2,9 +2,15 @@ extends RefCounted
 class_name WorldSystem
 
 const GameData = preload("res://scripts/systems/game_data.gd")
+const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
 
-const _YOL_BAGLANTILARI: Array = [
-	["A", "C"], ["C", "B"], ["C", "D"], ["C", "E"],
+const _VARSAYILAN_YOLLAR: Array = [
+	{"tip": "ana", "from": "A", "to": "C"},
+	{"tip": "ana", "from": "C", "to": "B"},
+	{"tip": "ana", "from": "C", "to": "D"},
+	{"tip": "normal", "from": "C", "to": "E"},
+	{"tip": "normal", "from": "A", "to": "D"},
+	{"tip": "gizli", "from": "D", "to": "E"},
 ]
 
 var _root: Node2D = null
@@ -19,6 +25,14 @@ var nokta_altin = {}
 var arazi_bolgeleri: Array = []
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
+var gorsel_yollar: Array = []
+var cevre_dekor: Array = []
+var nokta_duzen: Dictionary = {}
+var nokta_slotlari: Dictionary = {}
+var _map_layout_kaynak: Dictionary = {}
+var _sabit_nokta_konumlari: Dictionary = {}
+var _sabit_nokta_puan: Dictionary = {}
+var _sabit_nokta_altin: Dictionary = {}
 var arazi_katmani: Node2D = null
 var decor_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -68,12 +82,20 @@ func harita_uygula(map_id: String) -> void:
 		push_warning("Harita yuklenemedi: " + map_id)
 		return
 	aktif_harita_id = map_id
-	nokta_konumlari = map_data["nokta_konumlari"].duplicate()
-	nokta_puan = map_data["nokta_puan"].duplicate()
-	nokta_altin = map_data["nokta_altin"].duplicate()
+	_sabit_nokta_konumlari = map_data["nokta_konumlari"].duplicate()
+	_sabit_nokta_puan = map_data["nokta_puan"].duplicate()
+	_sabit_nokta_altin = map_data["nokta_altin"].duplicate()
+	nokta_konumlari = _sabit_nokta_konumlari.duplicate()
+	nokta_puan = _sabit_nokta_puan.duplicate()
+	nokta_altin = _sabit_nokta_altin.duplicate()
 	harita_sinir = map_data["sinir"].duplicate()
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
 	bolge_etiketleri = map_data.get("bolge_etiketleri", []).duplicate(true)
+	gorsel_yollar = map_data.get("gorsel_yollar", []).duplicate(true)
+	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
+	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
+	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
+	_map_layout_kaynak = map_data.duplicate(true)
 	orman_bolgeleri = []
 	for bolge in arazi_bolgeleri:
 		if str(bolge.get("tip", "")) == "orman":
@@ -82,6 +104,23 @@ func harita_uygula(map_id: String) -> void:
 	kamera_limitlerini_guncelle()
 	if _on_map_applied.is_valid():
 		_on_map_applied.call()
+
+func noktalari_sabite_don() -> void:
+	nokta_konumlari = _sabit_nokta_konumlari.duplicate()
+	nokta_puan = _sabit_nokta_puan.duplicate()
+	nokta_altin = _sabit_nokta_altin.duplicate()
+	harita_gorsellerini_guncelle()
+
+func mac_nokta_duzenini_uygula(seed_val: int = -1) -> void:
+	if str(nokta_duzen.get("mod", "sabit")) != "aday":
+		return
+	if seed_val < 0:
+		seed_val = randi()
+	var sonuc = MapLayoutSystem.select_layout(_map_layout_kaynak, seed_val)
+	nokta_konumlari = sonuc["positions"]
+	nokta_puan = sonuc["puan"]
+	nokta_altin = sonuc["altin"]
+	harita_gorsellerini_guncelle()
 
 func kamera_hazirla() -> void:
 	if _root == null:
@@ -284,6 +323,7 @@ func decor_gorsellerini_guncelle() -> void:
 		c.queue_free()
 	_gorsel_yollar_ekle()
 	_akarsu_ekle()
+	_cevre_dekor_ekle()
 	_bolge_etiketleri_ekle()
 
 func _taban_katmani_ekle(sinir: Dictionary) -> void:
@@ -404,42 +444,69 @@ func _gecit_gorsel_ekle(rect: Rect2, tip: String) -> void:
 	arazi_katmani.add_child(cizgi)
 
 func _gorsel_yollar_ekle() -> void:
-	for baglanti in _YOL_BAGLANTILARI:
-		if baglanti.size() < 2:
+	var yollar = gorsel_yollar if not gorsel_yollar.is_empty() else _VARSAYILAN_YOLLAR
+	for baglanti in yollar:
+		if typeof(baglanti) != TYPE_DICTIONARY:
 			continue
-		var a_id = str(baglanti[0])
-		var b_id = str(baglanti[1])
+		var a_id = str(baglanti.get("from", ""))
+		var b_id = str(baglanti.get("to", ""))
+		if a_id == "" or b_id == "":
+			continue
 		if not nokta_konumlari.has(a_id) or not nokta_konumlari.has(b_id):
 			continue
+		var tip = str(baglanti.get("tip", "normal"))
 		var bas = get_point_center(a_id)
 		var bit = get_point_center(b_id)
-		_yol_cizgisi_ekle(bas, bit, hash(a_id + b_id + aktif_harita_id))
+		_yol_cizgisi_ekle(bas, bit, tip, hash(a_id + b_id + aktif_harita_id + tip))
 
-func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, seed_val: int) -> void:
-	var noktalar = _organik_yol_noktalari(baslangic, bitis, seed_val)
+func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val: int) -> void:
+	var stil = _yol_stili(tip)
+	var noktalar = _organik_yol_noktalari(baslangic, bitis, seed_val, float(stil.get("wobble", 22.0)))
 	var kenar = Line2D.new()
 	kenar.points = noktalar
-	kenar.width = 28.0
-	kenar.default_color = Color(0.28, 0.22, 0.14, 0.55)
+	kenar.width = float(stil.get("kenar", 24.0))
+	kenar.default_color = stil.get("kenar_c", Color(0.28, 0.22, 0.14, 0.55))
 	kenar.antialiased = true
 	kenar.z_index = -2
 	decor_katmani.add_child(kenar)
 	var yol = Line2D.new()
 	yol.points = noktalar
-	yol.width = 20.0
-	yol.default_color = Color(0.5, 0.42, 0.28, 0.82)
+	yol.width = float(stil.get("yol", 16.0))
+	yol.default_color = stil.get("yol_c", Color(0.5, 0.42, 0.28, 0.82))
 	yol.antialiased = true
 	yol.z_index = -1
 	decor_katmani.add_child(yol)
 	var orta = Line2D.new()
 	orta.points = noktalar
-	orta.width = 6.0
-	orta.default_color = Color(0.62, 0.54, 0.36, 0.45)
+	orta.width = float(stil.get("orta", 5.0))
+	orta.default_color = stil.get("orta_c", Color(0.62, 0.54, 0.36, 0.45))
 	orta.antialiased = true
 	orta.z_index = 0
 	decor_katmani.add_child(orta)
 
-func _organik_yol_noktalari(baslangic: Vector2, bitis: Vector2, seed_val: int) -> PackedVector2Array:
+func _yol_stili(tip: String) -> Dictionary:
+	if tip == "ana":
+		return {
+			"kenar": 36.0, "yol": 26.0, "orta": 8.0, "wobble": 18.0,
+			"kenar_c": Color(0.24, 0.19, 0.12, 0.58),
+			"yol_c": Color(0.54, 0.46, 0.3, 0.88),
+			"orta_c": Color(0.66, 0.58, 0.38, 0.5),
+		}
+	if tip == "gizli":
+		return {
+			"kenar": 14.0, "yol": 8.0, "orta": 2.0, "wobble": 34.0,
+			"kenar_c": Color(0.12, 0.16, 0.1, 0.5),
+			"yol_c": Color(0.28, 0.32, 0.22, 0.62),
+			"orta_c": Color(0.36, 0.4, 0.28, 0.35),
+		}
+	return {
+		"kenar": 24.0, "yol": 16.0, "orta": 5.0, "wobble": 24.0,
+		"kenar_c": Color(0.26, 0.21, 0.14, 0.52),
+		"yol_c": Color(0.46, 0.4, 0.28, 0.78),
+		"orta_c": Color(0.56, 0.48, 0.34, 0.42),
+	}
+
+func _organik_yol_noktalari(baslangic: Vector2, bitis: Vector2, seed_val: int, wobble: float = 22.0) -> PackedVector2Array:
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	var adim = clampi(int(baslangic.distance_to(bitis) / 140.0), 6, 16)
@@ -450,8 +517,8 @@ func _organik_yol_noktalari(baslangic: Vector2, bitis: Vector2, seed_val: int) -
 	for i in range(1, adim):
 		var t = float(i) / float(adim)
 		var p = baslangic.lerp(bitis, t)
-		var dalga = sin(t * PI * 2.4 + float(seed_val % 7)) * 22.0
-		dalga += rng.randf_range(-14.0, 14.0)
+		var dalga = sin(t * PI * 2.4 + float(seed_val % 7)) * wobble
+		dalga += rng.randf_range(-wobble * 0.65, wobble * 0.65)
 		p += perp * dalga
 		pts.append(p)
 	pts.append(bitis)
@@ -486,6 +553,153 @@ func _akarsu_ekle() -> void:
 		su.antialiased = true
 		decor_katmani.add_child(su)
 		return
+
+func _cevre_dekor_ekle() -> void:
+	for i in range(cevre_dekor.size()):
+		var dekor = cevre_dekor[i]
+		var tip = str(dekor.get("tip", ""))
+		var rect = Rect2(
+			Vector2(float(dekor.get("x", 0.0)), float(dekor.get("y", 0.0))),
+			Vector2(float(dekor.get("w", 48.0)), float(dekor.get("h", 40.0)))
+		)
+		match tip:
+			"kaya":
+				_dekor_kaya(rect, i)
+			"calik":
+				_dekor_calik(rect, i)
+			"harabe":
+				_dekor_harabe(rect)
+			"kamp":
+				_dekor_kamp(rect)
+			"tarla":
+				_dekor_tarla(rect)
+			"sirt":
+				_dekor_sirt(rect)
+			"agac_kume":
+				_dekor_agac_kume(rect, int(dekor.get("adet", 5)), i)
+			"kopru_dekor":
+				_dekor_kopru(rect)
+
+func _dekor_kaya(rect: Rect2, seed_i: int) -> void:
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(aktif_harita_id + "kaya" + str(seed_i))
+	for j in range(4):
+		var tas = ColorRect.new()
+		var s = Vector2(rng.randf_range(16.0, 34.0), rng.randf_range(12.0, 24.0))
+		tas.size = s
+		tas.position = rect.position + Vector2(rng.randf_range(0.0, max(4.0, rect.size.x - s.x)), rng.randf_range(0.0, max(4.0, rect.size.y - s.y)))
+		tas.color = Color(0.38, 0.35, 0.32, 0.72)
+		tas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(tas)
+
+func _dekor_calik(rect: Rect2, seed_i: int) -> void:
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(aktif_harita_id + "calik" + str(seed_i))
+	for j in range(5):
+		var cali = ColorRect.new()
+		cali.size = Vector2(10, 8)
+		cali.position = rect.position + Vector2(rng.randf_range(0.0, rect.size.x - 10.0), rng.randf_range(0.0, rect.size.y - 8.0))
+		cali.color = Color(0.14, 0.26, 0.12, 0.7)
+		cali.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(cali)
+
+func _dekor_harabe(rect: Rect2) -> void:
+	var duvar = ColorRect.new()
+	duvar.position = rect.position
+	duvar.size = Vector2(rect.size.x * 0.7, rect.size.y * 0.55)
+	duvar.color = Color(0.42, 0.4, 0.38, 0.65)
+	duvar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(duvar)
+	var kiris = ColorRect.new()
+	kiris.position = rect.position + Vector2(rect.size.x * 0.45, rect.size.y * 0.2)
+	kiris.size = Vector2(rect.size.x * 0.35, 8)
+	kiris.color = Color(0.36, 0.34, 0.32, 0.6)
+	kiris.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(kiris)
+
+func _dekor_kamp(rect: Rect2) -> void:
+	for i in range(2):
+		var cadir = ColorRect.new()
+		cadir.size = Vector2(22, 16)
+		cadir.position = rect.position + Vector2(float(i) * 28.0 + 8.0, rect.size.y * 0.35)
+		cadir.color = Color(0.52, 0.44, 0.3, 0.7)
+		cadir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(cadir)
+	var ates = ColorRect.new()
+	ates.size = Vector2(8, 8)
+	ates.position = rect.position + Vector2(rect.size.x * 0.55, rect.size.y * 0.55)
+	ates.color = Color(0.7, 0.42, 0.18, 0.55)
+	ates.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(ates)
+
+func _dekor_tarla(rect: Rect2) -> void:
+	var taban = ColorRect.new()
+	taban.position = rect.position
+	taban.size = rect.size
+	taban.color = Color(0.48, 0.42, 0.28, 0.45)
+	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(taban)
+	var satir_say = clampi(int(rect.size.y / 14.0), 3, 8)
+	for i in range(satir_say):
+		var satir = ColorRect.new()
+		satir.position = rect.position + Vector2(4, float(i) * 14.0 + 4)
+		satir.size = Vector2(rect.size.x - 8, 4)
+		satir.color = Color(0.4, 0.36, 0.24, 0.35)
+		satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(satir)
+
+func _dekor_sirt(rect: Rect2) -> void:
+	var isik = ColorRect.new()
+	isik.position = rect.position + Vector2(6, 4)
+	isik.size = Vector2(rect.size.x * 0.55, rect.size.y * 0.45)
+	isik.color = Color(0.34, 0.38, 0.26, 0.35)
+	isik.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(isik)
+	var golge = ColorRect.new()
+	golge.position = rect.position + Vector2(rect.size.x * 0.2, rect.size.y * 0.48)
+	golge.size = Vector2(rect.size.x * 0.72, rect.size.y * 0.42)
+	golge.color = Color(0.12, 0.14, 0.1, 0.32)
+	golge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(golge)
+
+func _dekor_agac_kume(rect: Rect2, adet: int, seed_i: int) -> void:
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(aktif_harita_id + "ak" + str(seed_i))
+	for j in range(clampi(adet, 3, 10)):
+		var px = rect.position.x + rng.randf_range(0.0, max(8.0, rect.size.x - 10.0))
+		var py = rect.position.y + rng.randf_range(0.0, max(8.0, rect.size.y - 10.0))
+		var canopy = ColorRect.new()
+		canopy.size = Vector2(11, 8)
+		canopy.position = Vector2(px, py - 5)
+		canopy.color = Color(0.07, 0.24, 0.11, 0.8)
+		canopy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(canopy)
+		var trunk = ColorRect.new()
+		trunk.size = Vector2(3, 6)
+		trunk.position = Vector2(px + 4, py)
+		trunk.color = Color(0.2, 0.14, 0.09, 0.9)
+		trunk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		decor_katmani.add_child(trunk)
+
+func _dekor_kopru(rect: Rect2) -> void:
+	var ayak1 = ColorRect.new()
+	ayak1.position = rect.position
+	ayak1.size = Vector2(10, rect.size.y)
+	ayak1.color = Color(0.36, 0.34, 0.32, 0.75)
+	ayak1.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(ayak1)
+	var ayak2 = ColorRect.new()
+	ayak2.position = rect.position + Vector2(rect.size.x - 10.0, 0)
+	ayak2.size = Vector2(10, rect.size.y)
+	ayak2.color = Color(0.36, 0.34, 0.32, 0.75)
+	ayak2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(ayak2)
+	var tabla = ColorRect.new()
+	tabla.position = rect.position + Vector2(0, rect.size.y * 0.35)
+	tabla.size = Vector2(rect.size.x, max(8.0, rect.size.y * 0.22))
+	tabla.color = Color(0.44, 0.38, 0.3, 0.8)
+	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	decor_katmani.add_child(tabla)
 
 func _bolge_etiketleri_ekle() -> void:
 	for etiket in bolge_etiketleri:

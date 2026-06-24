@@ -158,6 +158,11 @@ static func parse_map(data: Dictionary) -> Dictionary:
 				"y": float(raw.get("y", 0.0)),
 			})
 
+	var gorsel_yollar: Array = _parse_gorsel_yollar(data.get("yollar", []))
+	var cevre_dekor: Array = _parse_cevre_dekor(data.get("cevre_dekor", []))
+	var nokta_duzen: Dictionary = _parse_nokta_duzen(data.get("nokta_duzen", {}))
+	var nokta_slotlari: Dictionary = _parse_nokta_slotlari(data.get("nokta_slotlari", {}))
+
 	return {
 		"id": str(data.get("id", "")),
 		"isim": str(data.get("isim", data.get("id", "Harita"))),
@@ -167,6 +172,10 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"sinir": bounds,
 		"arazi_bolgeleri": arazi_bolgeleri,
 		"bolge_etiketleri": bolge_etiketleri,
+		"gorsel_yollar": gorsel_yollar,
+		"cevre_dekor": cevre_dekor,
+		"nokta_duzen": nokta_duzen,
+		"nokta_slotlari": nokta_slotlari,
 		"arkaplan": str(data.get("arkaplan", "")),
 	}
 
@@ -179,3 +188,69 @@ static func campaign_region_names(map_ids: Array) -> Array:
 		else:
 			names.append(str(map_data.get("isim", map_id)))
 	return names
+
+static func _parse_gorsel_yollar(raw: Variant) -> Array:
+	var yollar: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return yollar
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var tip = str(entry.get("tip", "normal"))
+		if tip not in ["ana", "normal", "gizli"]:
+			tip = "normal"
+		yollar.append({
+			"tip": tip,
+			"from": str(entry.get("from", "")),
+			"to": str(entry.get("to", "")),
+		})
+	return yollar
+
+static func _parse_cevre_dekor(raw: Variant) -> Array:
+	var dekorlar: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return dekorlar
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		dekorlar.append({
+			"tip": str(entry.get("tip", "")),
+			"x": float(entry.get("x", 0.0)),
+			"y": float(entry.get("y", 0.0)),
+			"w": float(entry.get("w", 48.0)),
+			"h": float(entry.get("h", 40.0)),
+			"adet": int(entry.get("adet", 4)),
+		})
+	return dekorlar
+
+static func _parse_nokta_duzen(raw: Variant) -> Dictionary:
+	if typeof(raw) != TYPE_DICTIONARY:
+		return {"mod": "sabit"}
+	return {
+		"mod": str(raw.get("mod", "sabit")),
+		"min_mesafe": float(raw.get("min_mesafe", 320.0)),
+		"us_uzaklik": float(raw.get("us_uzaklik", 300.0)),
+	}
+
+static func _parse_nokta_slotlari(raw: Variant) -> Dictionary:
+	var slotlar: Dictionary = {}
+	if typeof(raw) != TYPE_DICTIONARY:
+		return slotlar
+	for slot_id in raw:
+		var entry = raw[slot_id]
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var slot: Dictionary = {
+			"rol": str(entry.get("rol", "")),
+			"sabit": bool(entry.get("sabit", false)),
+			"puan": int(entry.get("puan", 1)),
+			"altin": int(entry.get("altin", 3)),
+		}
+		if entry.has("x"):
+			slot["x"] = float(entry["x"])
+		if entry.has("y"):
+			slot["y"] = float(entry["y"])
+		if entry.has("adaylar"):
+			slot["adaylar"] = (entry["adaylar"] as Array).duplicate()
+		slotlar[str(slot_id)] = slot
+	return slotlar

@@ -136,6 +136,8 @@ func start_battle() -> void:
 		return
 	_host.hazirlik_fazi = false
 	_host.kalan_sure = _host.max_sure
+	_host.world_system.mac_nokta_duzenini_uygula(randi())
+	_host._world_refs_sync()
 	_host.ai_spawn_suresi = _host.zorluk_ayarlari[_host.zorluk]["spawn"]
 	_host.savas_baslangic_kompozisyon = _host.kompozisyon.duplicate()
 
