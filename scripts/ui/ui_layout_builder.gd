@@ -278,12 +278,20 @@ func _savas_panel_alt_konumla() -> void:
 	if savas_panel_root == null:
 		return
 	savas_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	savas_panel_root.offset_left = 12
-	savas_panel_root.offset_top = -156
-	savas_panel_root.offset_right = -12
-	savas_panel_root.offset_bottom = -8
-	if savas_panel_root.get_theme_stylebox("panel") == null:
-		_uygula_panel_stili(savas_panel_root)
+	savas_panel_root.offset_left = 22
+	savas_panel_root.offset_top = -214
+	savas_panel_root.offset_right = -374
+	savas_panel_root.offset_bottom = -14
+	savas_panel_root.add_theme_stylebox_override("panel", HudStyle.battle_bottom_shell_style())
+	var savas_margin = savas_panel_root.get_node_or_null("SavasMargin") as MarginContainer
+	if savas_margin != null:
+		savas_margin.add_theme_constant_override("margin_left", 8)
+		savas_margin.add_theme_constant_override("margin_right", 8)
+		savas_margin.add_theme_constant_override("margin_top", 8)
+		savas_margin.add_theme_constant_override("margin_bottom", 8)
+	var savas_scroll = savas_margin.get_node_or_null("SavasScroll") as ScrollContainer if savas_margin != null else null
+	if savas_scroll != null:
+		savas_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
 func _uygula_panel_stili(panel: PanelContainer) -> void:
 	panel.add_theme_stylebox_override("panel", HudStyle.battle_root_panel_style())

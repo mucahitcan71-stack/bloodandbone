@@ -811,13 +811,13 @@ func _komut_paneli_guncelle() -> void:
 		return
 	var secili_var = secili_birim != null
 	var ult_hazir = ult_sarj["osmanli"] >= Constants.ULT_TAM_SARJ
-	for komut_id in hud_komut_butonlari:
-		var btn = hud_komut_butonlari[komut_id] as Button
-		if btn == null:
-			continue
-		var state = HudCommands.button_state(str(komut_id), secili_var, secili_komut, ult_hazir)
-		btn.disabled = bool(state.get("disabled", false))
-		btn.modulate = state.get("modulate", Color(1, 1, 1, 1))
+	hud_composer.update_command_buttons(hud_komut_butonlari, secili_var, secili_komut, ult_hazir)
+	hud_composer.update_selected_unit_card({
+		"ui_node": Callable(self, "ui_node"),
+		"secili_birim": secili_birim,
+		"secili_komut": secili_komut,
+		"stats_fn": Callable(self, "birim_etkin_degerleri"),
+	})
 
 func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()
@@ -833,13 +833,13 @@ func savas_paneli_olustur() -> void:
 	envanter_scroll.name = "EnvanterScroll"
 	envanter_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	envanter_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	envanter_scroll.custom_minimum_size = Vector2(0, 56)
+	envanter_scroll.custom_minimum_size = Vector2(0, 52)
 	ui_system.add_battle_panel_element(envanter_scroll)
 	envanter_scroll.mouse_exited.connect(birim_detay_hover_bitir)
 
 	envanter_grid = GridContainer.new()
 	envanter_grid.columns = max(1, osmanli_birim_tipleri.size())
-	envanter_grid.add_theme_constant_override("h_separation", 4)
+	envanter_grid.add_theme_constant_override("h_separation", 7)
 	envanter_grid.add_theme_constant_override("v_separation", 0)
 	envanter_scroll.add_child(envanter_grid)
 

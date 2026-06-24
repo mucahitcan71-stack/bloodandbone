@@ -1,6 +1,9 @@
 extends RefCounted
 class_name UnitDeploymentSystem
 
+const HudStyle = preload("res://scripts/ui/hud_style.gd")
+const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
+
 var _host: Node2D = null
 
 func configure(host: Node2D) -> void:
@@ -56,11 +59,9 @@ func update_selection_ui() -> void:
 		if not is_instance_valid(btn):
 			continue
 		var b_silik = bool(btn.get_meta("env_silik", false))
-		if b_silik:
-			btn.modulate = Color(1, 1, 1, 0.38)
-			continue
 		var b_anahtar = str(btn.get_meta("env_anahtar", ""))
-		btn.modulate = Color(1.2, 1.17, 1.02, 1.0) if b_anahtar != "" and b_anahtar == _host.secili_envanter_tip_anahtari else Color(1, 1, 1, 1)
+		var secili_kart = b_anahtar != "" and b_anahtar == _host.secili_envanter_tip_anahtari
+		_apply_inventory_card_style(btn, b_silik, secili_kart)
 	if _host.envanter_adet_satiri != null:
 		_host.envanter_adet_satiri.visible = false
 	if secili_toplam <= 0:
@@ -123,16 +124,15 @@ func rebuild_inventory() -> void:
 
 		var btn = Button.new()
 		btn.text = ""
-		btn.custom_minimum_size = Vector2(kart_genislik, 42)
+		btn.custom_minimum_size = Vector2(kart_genislik, HudInventory.card_height())
 		btn.set_meta("env_anahtar", anahtar)
 		btn.set_meta("env_silik", silik)
+		_apply_inventory_card_style(btn, silik, false)
 		btn.gui_input.connect(_host._envanter_kart_gui_input.bind(idx, silik))
 		var hover_tip = tip
 		btn.mouse_entered.connect(func(): _host.birim_detay_hover_basla(hover_tip))
 		btn.mouse_exited.connect(func(): _host.birim_detay_hover_bitir())
-		if silik:
-			btn.modulate = Color(1, 1, 1, 0.38)
-		elif adet > 0:
+		if not silik and adet > 0:
 			btn.pressed.connect(func(): select_inventory(anahtar))
 
 		var kart = VBoxContainer.new()
@@ -396,6 +396,24 @@ func _group_count(anahtar: String) -> int:
 	if not _host.envanter_gruplari.has(anahtar):
 		return 0
 	return (_host.envanter_gruplari[anahtar]["indeksler"] as Array).size()
+
+func _apply_inventory_card_style(btn: Button, silik: bool, secili: bool) -> void:
+	if silik:
+		btn.modulate = HudInventory.dimmed_modulate()
+		btn.add_theme_stylebox_override("normal", HudStyle.inventory_card_disabled())
+		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_disabled())
+		btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_disabled())
+	elif secili:
+		btn.modulate = HudInventory.selected_modulate()
+		btn.add_theme_stylebox_override("normal", HudStyle.inventory_card_selected())
+		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_selected())
+		btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
+	else:
+		btn.modulate = Color(1, 1, 1, 1)
+		btn.add_theme_stylebox_override("normal", HudStyle.inventory_card_normal())
+		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
+		btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
+	btn.add_theme_stylebox_override("disabled", HudStyle.inventory_card_disabled())
 
 func _clear_selection_after_send(adet: int) -> void:
 	_host.secili_envanter_idx = -1
