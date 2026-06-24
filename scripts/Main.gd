@@ -823,6 +823,7 @@ func _komut_paneli_guncelle() -> void:
 		"aktif_birimler": aktif_birimler,
 		"hazirlik_fazi": hazirlik_fazi,
 		"on_unit_select": Callable(self, "_sahada_kart_birim_sec"),
+		"secili_birim": secili_birim,
 	})
 
 func _sahada_kart_birim_sec(unit_id: int) -> void:

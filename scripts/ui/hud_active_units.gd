@@ -59,12 +59,14 @@ func update(deps: Dictionary) -> void:
 		block.visible = true
 
 	var units = _filter_units(deps.get("aktif_birimler", []))
+	var secili_id = _selected_unit_id(deps.get("secili_birim"))
 	var signature = _id_signature(units)
 	if signature != _last_id_signature:
 		_rebuild_cards(row, units, _strip_width(orta_vbox))
 		_last_id_signature = signature
 	else:
 		_refresh_card_content(row, units)
+	_apply_selection_visuals(row, secili_id)
 
 func _hide_strip(ui_node: Callable) -> void:
 	var orta_vbox = _find_orta_vbox(ui_node)
@@ -113,6 +115,40 @@ func _id_signature(units: Array) -> String:
 	for birim in units:
 		parts.append(str(int(birim.get("id", -1))))
 	return ",".join(parts)
+
+func _selected_unit_id(secili_birim) -> int:
+	if secili_birim == null:
+		return -1
+	if secili_birim is Dictionary:
+		if secili_birim.is_empty():
+			return -1
+		if str(secili_birim.get("taraf", "")) != "osmanli":
+			return -1
+		if int(secili_birim.get("hp", 0)) <= 0:
+			return -1
+		return int(secili_birim.get("id", -1))
+	return -1
+
+func _apply_selection_visuals(row: HBoxContainer, secili_id: int) -> void:
+	for child in row.get_children():
+		if not child.has_meta("unit_id"):
+			continue
+		var btn = child as Button
+		if btn == null:
+			continue
+		var unit_id = int(child.get_meta("unit_id", -1))
+		_apply_card_visual_state(btn, unit_id >= 0 and unit_id == secili_id)
+
+func _apply_card_visual_state(btn: Button, selected: bool) -> void:
+	if selected:
+		btn.add_theme_stylebox_override("normal", HudStyle.active_unit_card_selected())
+		btn.add_theme_stylebox_override("hover", HudStyle.active_unit_card_selected())
+		btn.modulate = HudInventory.selected_modulate()
+	else:
+		btn.add_theme_stylebox_override("normal", HudStyle.active_unit_card_style())
+		btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
+		btn.modulate = Color(1, 1, 1, 1)
+	btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
 
 func _type_labels(units: Array) -> Array:
 	var counts: Dictionary = {}

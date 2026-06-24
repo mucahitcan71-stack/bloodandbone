@@ -151,3 +151,13 @@ static func active_unit_card_style() -> StyleBoxFlat:
 	s.content_margin_top = 1
 	s.content_margin_bottom = 1
 	return s
+
+static func active_unit_card_selected() -> StyleBoxFlat:
+	var s = active_unit_card_style()
+	s.bg_color = Color(0.11, 0.09, 0.06, 0.96)
+	s.border_width_top = 2
+	s.border_width_bottom = 2
+	s.border_width_left = 2
+	s.border_width_right = 2
+	s.border_color = Color(0.9, 0.74, 0.26, 0.95)
+	return s
