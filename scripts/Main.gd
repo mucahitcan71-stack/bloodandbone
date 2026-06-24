@@ -822,7 +822,16 @@ func _komut_paneli_guncelle() -> void:
 		"ui_node": Callable(self, "ui_node"),
 		"aktif_birimler": aktif_birimler,
 		"hazirlik_fazi": hazirlik_fazi,
+		"on_unit_select": Callable(self, "_sahada_kart_birim_sec"),
 	})
+
+func _sahada_kart_birim_sec(unit_id: int) -> void:
+	var birim = birim_id_ile_bul(unit_id)
+	if birim.is_empty():
+		return
+	komut_menusu_kapat()
+	komut_sec("hareket")
+	birim_tikla(birim)
 
 func savas_paneli_olustur() -> void:
 	ui_system.clear_battle_panel()

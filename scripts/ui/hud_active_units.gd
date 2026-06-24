@@ -5,6 +5,7 @@ const HudStyle = preload("res://scripts/ui/hud_style.gd")
 const HudInventory = preload("res://scripts/ui/hud_inventory.gd")
 
 var _last_id_signature: String = ""
+var _on_unit_select: Callable = Callable()
 
 func ensure_shell(parent: VBoxContainer) -> HBoxContainer:
 	var block = parent.get_node_or_null("SahadaStripBlock") as VBoxContainer
@@ -43,6 +44,7 @@ func update(deps: Dictionary) -> void:
 	var ui_node = deps.get("ui_node") as Callable
 	if not ui_node.is_valid():
 		return
+	_on_unit_select = deps.get("on_unit_select", Callable()) as Callable
 	if bool(deps.get("hazirlik_fazi", true)):
 		_hide_strip(ui_node)
 		_last_id_signature = ""
@@ -148,19 +150,29 @@ func _refresh_card_content(row: HBoxContainer, units: Array) -> void:
 			continue
 		if idx >= units.size():
 			break
-		_apply_card_content(child as PanelContainer, units[idx], str(labels[idx]))
+		_apply_card_content(child as Control, units[idx], str(labels[idx]))
 		idx += 1
 
-func _build_card(birim: Dictionary, baslik_metin: String, genislik: float) -> PanelContainer:
-	var kart = PanelContainer.new()
-	kart.custom_minimum_size = Vector2(genislik, 30)
-	kart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	kart.set_meta("unit_id", int(birim.get("id", -1)))
-	kart.add_theme_stylebox_override("panel", HudStyle.active_unit_card_style())
-	_apply_card_content(kart, birim, baslik_metin)
-	return kart
+func _build_card(birim: Dictionary, baslik_metin: String, genislik: float) -> Button:
+	var btn = Button.new()
+	btn.text = ""
+	btn.custom_minimum_size = Vector2(genislik, 30)
+	btn.focus_mode = Control.FOCUS_NONE
+	var unit_id = int(birim.get("id", -1))
+	btn.set_meta("unit_id", unit_id)
+	btn.add_theme_stylebox_override("normal", HudStyle.active_unit_card_style())
+	btn.add_theme_stylebox_override("hover", HudStyle.inventory_card_hover())
+	btn.add_theme_stylebox_override("pressed", HudStyle.inventory_card_pressed())
+	btn.pressed.connect(func(): _handle_card_click(unit_id))
+	_apply_card_content(btn, birim, baslik_metin)
+	return btn
 
-func _apply_card_content(kart: PanelContainer, birim: Dictionary, baslik_metin: String) -> void:
+func _handle_card_click(unit_id: int) -> void:
+	if unit_id < 0 or not _on_unit_select.is_valid():
+		return
+	_on_unit_select.call(unit_id)
+
+func _apply_card_content(kart: Control, birim: Dictionary, baslik_metin: String) -> void:
 	for c in kart.get_children():
 		c.queue_free()
 	var margin = MarginContainer.new()
