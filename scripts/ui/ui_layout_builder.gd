@@ -71,6 +71,7 @@ func build_container_infrastructure() -> void:
 			savas_scroll.add_child(savas_icerik_vbox)
 	if ui_root != null and ust_bilgi_paneli != null and hazirlik_panel_root != null and hazirlik_tabs_row != null and hazirlik_tabs_content != null and savas_panel_root != null and savas_icerik_vbox != null:
 		_savas_panel_alt_konumla()
+		_hazirlik_panel_konumla()
 		_uygula_panel_stili(hazirlik_panel_root)
 		_ensure_ust_bilgi_bari()
 		_ensure_hedefler_paneli()
@@ -121,20 +122,16 @@ func build_container_infrastructure() -> void:
 
 	hazirlik_panel_root = PanelContainer.new()
 	hazirlik_panel_root.name = "HazirlikPaneli"
-	hazirlik_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	hazirlik_panel_root.offset_left = 20
-	hazirlik_panel_root.offset_top = -250
-	hazirlik_panel_root.offset_right = -20
-	hazirlik_panel_root.offset_bottom = -20
+	_hazirlik_panel_konumla()
 	_uygula_panel_stili(hazirlik_panel_root)
 	ui_root.add_child(hazirlik_panel_root)
 
 	var hazirlik_margin = MarginContainer.new()
 	hazirlik_margin.name = "HazirlikMargin"
-	hazirlik_margin.add_theme_constant_override("margin_left", 14)
-	hazirlik_margin.add_theme_constant_override("margin_right", 14)
-	hazirlik_margin.add_theme_constant_override("margin_top", 10)
-	hazirlik_margin.add_theme_constant_override("margin_bottom", 10)
+	hazirlik_margin.add_theme_constant_override("margin_left", 10)
+	hazirlik_margin.add_theme_constant_override("margin_right", 10)
+	hazirlik_margin.add_theme_constant_override("margin_top", 6)
+	hazirlik_margin.add_theme_constant_override("margin_bottom", 6)
 	hazirlik_panel_root.add_child(hazirlik_margin)
 
 	var hazirlik_main = VBoxContainer.new()
@@ -267,6 +264,15 @@ func _ensure_hedefler_paneli() -> void:
 	hedefler_label.add_theme_color_override("font_color", Color(0.88, 0.89, 0.86))
 	hedef_vbox.add_child(hedefler_label)
 
+func _hazirlik_panel_konumla() -> void:
+	if hazirlik_panel_root == null:
+		return
+	hazirlik_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	hazirlik_panel_root.offset_left = 20
+	hazirlik_panel_root.offset_top = -194
+	hazirlik_panel_root.offset_right = -20
+	hazirlik_panel_root.offset_bottom = -24
+
 func optimize_fonts(font_size: int, extra_roots: Array = []) -> void:
 	if ui_root != null:
 		_apply_font_size(ui_root, font_size)
@@ -279,16 +285,16 @@ func _savas_panel_alt_konumla() -> void:
 		return
 	savas_panel_root.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	savas_panel_root.offset_left = 22
-	savas_panel_root.offset_top = -198
+	savas_panel_root.offset_top = -128
 	savas_panel_root.offset_right = -362
-	savas_panel_root.offset_bottom = -12
+	savas_panel_root.offset_bottom = -6
 	savas_panel_root.add_theme_stylebox_override("panel", HudStyle.battle_bottom_shell_style())
 	var savas_margin = savas_panel_root.get_node_or_null("SavasMargin") as MarginContainer
 	if savas_margin != null:
-		savas_margin.add_theme_constant_override("margin_left", 6)
-		savas_margin.add_theme_constant_override("margin_right", 6)
-		savas_margin.add_theme_constant_override("margin_top", 6)
-		savas_margin.add_theme_constant_override("margin_bottom", 6)
+		savas_margin.add_theme_constant_override("margin_left", 5)
+		savas_margin.add_theme_constant_override("margin_right", 5)
+		savas_margin.add_theme_constant_override("margin_top", 4)
+		savas_margin.add_theme_constant_override("margin_bottom", 2)
 	var savas_scroll = savas_margin.get_node_or_null("SavasScroll") as ScrollContainer if savas_margin != null else null
 	if savas_scroll != null:
 		savas_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

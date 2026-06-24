@@ -41,7 +41,6 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 		return {}
 	var savas_icerik = ui_node.call("SavasIcerik") as VBoxContainer
 	var env_baslik = ui_node.call("Label_Envanter") as Label
-	var ult_btn = ui_node.call("UltBtn") as Button
 	if savas_icerik == null or envanter_grid == null or env_baslik == null:
 		return {}
 
@@ -135,8 +134,6 @@ func compose_battle_wireframe(deps: Dictionary) -> Dictionary:
 			btn.pressed.connect(func(): on_command_pressed.call(komut_id))
 		komut_grid.add_child(btn)
 		komut_butonlari[komut_id] = btn
-	if ult_btn != null:
-		ult_btn.visible = false
 	return {"komut_butonlari": komut_butonlari}
 
 func update_selected_unit_card(deps: Dictionary) -> void:

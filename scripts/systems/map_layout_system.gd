@@ -238,7 +238,9 @@ static func _nokta_yol_tip_mesafesi(
 	var min_d = INF
 	match yol_tipi:
 		"ana_yol":
-			min_d = minf(min_d, _nokta_segment_mesafesi(merkez, _ana_hat_bas(), _ana_hat_bit()))
+			var hat = _ana_hat_noktalari(map_data.get("nokta_duzen", {}) as Dictionary)
+			if hat.size() >= 2:
+				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, hat[0], hat[1]))
 			for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["ana"]):
 				min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
 		"yan_yol":
@@ -262,7 +264,9 @@ static func _nokta_ag_baglanti_mesafesi(
 	positions: Dictionary,
 	slot_id: String
 ) -> float:
-	var min_d = _nokta_segment_mesafesi(merkez, _ana_hat_bas(), _ana_hat_bit())
+	var duzen = map_data.get("nokta_duzen", {}) as Dictionary
+	var hat = _ana_hat_noktalari(duzen)
+	var min_d = _nokta_segment_mesafesi(merkez, hat[0], hat[1])
 	for seg in _gorsel_yol_segmentleri(map_data, positions, slot_id, ["ana", "normal"]):
 		min_d = minf(min_d, _nokta_segment_mesafesi(merkez, seg["a"], seg["b"]))
 	for seg in _patika_segmentleri(map_data, ["normal"]):
@@ -399,6 +403,15 @@ static func _aday_uygun(
 
 static func _slot_merkez(positions: Dictionary, slot_id: String) -> Vector2:
 	return positions[slot_id] + Vector2(40, 40)
+
+static func _ana_hat_noktalari(duzen: Dictionary) -> Array:
+	var raw = duzen.get("ana_hat", [])
+	if typeof(raw) == TYPE_ARRAY and raw.size() >= 2:
+		var a = raw[0]
+		var b = raw[1]
+		if typeof(a) == TYPE_VECTOR2 and typeof(b) == TYPE_VECTOR2:
+			return [a, b]
+	return [_ana_hat_bas(), _ana_hat_bit()]
 
 static func _ana_hat_bas() -> Vector2:
 	return Vector2(680, 1515)

@@ -139,6 +139,11 @@ var detay_popup_label: Label = null
 var secili_komut = "hareket"
 var komut_menusu_panel: PanelContainer = null
 var komut_menusu_hedef_birim = null
+var dusman_sag_tik_menu: PanelContainer = null
+var dusman_sag_tik_hedef_id := -1
+var harita_sag_tik_menu: PanelContainer = null
+var harita_sag_tik_hedef_pos := Vector2.ZERO
+var harita_sag_tik_kesfedildi := false
 var takviye_sag_tik_menu: PanelContainer = null
 var takviye_sag_tik_secili_idx = -1
 var kamera: Camera2D = null
@@ -365,6 +370,11 @@ func _unit_stats_hazirla() -> void:
 func _context_menus_refs_sync() -> void:
 	komut_menusu_panel = context_menus.komut_menusu_panel
 	komut_menusu_hedef_birim = context_menus.komut_menusu_hedef_birim
+	dusman_sag_tik_menu = context_menus.dusman_sag_tik_menu
+	dusman_sag_tik_hedef_id = context_menus.dusman_sag_tik_hedef_id
+	harita_sag_tik_menu = context_menus.harita_sag_tik_menu
+	harita_sag_tik_hedef_pos = context_menus.harita_sag_tik_hedef_pos
+	harita_sag_tik_kesfedildi = context_menus.harita_sag_tik_kesfedildi
 	takviye_sag_tik_menu = context_menus.takviye_sag_tik_menu
 	takviye_sag_tik_secili_idx = context_menus.takviye_sag_tik_secili_idx
 
@@ -422,6 +432,9 @@ func savas_sisi_katmani_olustur() -> void:
 
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	return world_system.birimin_arazisini_bul(konum)
+
+func gecis_engelli_mi(konum: Vector2) -> bool:
+	return world_system.gecis_engelli_mi(konum)
 
 func _orman_bolge_index(pos: Vector2) -> int:
 	return world_system.orman_bolge_index(pos)
@@ -532,6 +545,10 @@ func ui_fontlarini_optimize_et() -> void:
 		extras.append(yan_hud_panel)
 	if komut_menusu_panel != null:
 		extras.append(komut_menusu_panel)
+	if dusman_sag_tik_menu != null:
+		extras.append(dusman_sag_tik_menu)
+	if harita_sag_tik_menu != null:
+		extras.append(harita_sag_tik_menu)
 	if takviye_sag_tik_menu != null:
 		extras.append(takviye_sag_tik_menu)
 	if minimap_panel != null:
@@ -607,6 +624,8 @@ func komut_menusu_kapat() -> void:
 func takviye_sag_tik_menu_olustur() -> void:
 	context_menus.build_takviye_menu()
 	context_menus.build_birim_ekle_menu()
+	context_menus.build_dusman_menu()
+	context_menus.build_harita_menu()
 	_context_menus_refs_sync()
 
 func takviye_sag_tik_menu_ac(idx: int, ekran_pos: Vector2) -> void:
@@ -616,7 +635,64 @@ func takviye_sag_tik_menu_ac(idx: int, ekran_pos: Vector2) -> void:
 func takviye_sag_tik_menu_kapat() -> void:
 	context_menus.kapat_takviye_menu()
 	context_menus.kapat_birim_ekle_menu()
+	context_menus.kapat_dusman_menu()
+	context_menus.kapat_harita_menu()
 	_context_menus_refs_sync()
+
+func dusman_sag_tik_menu_ac(ekran_pos: Vector2, birim: Dictionary) -> void:
+	context_menus.ac_dusman_menu(ekran_pos, birim)
+	_context_menus_refs_sync()
+
+func dusman_sag_tik_menu_kapat() -> void:
+	context_menus.kapat_dusman_menu()
+	_context_menus_refs_sync()
+
+func harita_sag_tik_menu_ac(ekran_pos: Vector2, hedef_pos: Vector2) -> void:
+	var kesfedildi = fog_system.is_world_pos_discovered(hedef_pos, "osmanli")
+	context_menus.ac_harita_menu(ekran_pos, hedef_pos, kesfedildi)
+	_context_menus_refs_sync()
+
+func harita_sag_tik_menu_kapat() -> void:
+	context_menus.kapat_harita_menu()
+	_context_menus_refs_sync()
+
+func harita_sag_tik_komut_sec(komut: String) -> void:
+	if secili_birim == null:
+		harita_sag_tik_menu_kapat()
+		return
+	if komut == "hareket_et" or komut == "kesif_hareketi":
+		birim_hareket_ettir(harita_sag_tik_hedef_pos)
+	elif komut == "saldiri_modu":
+		birim_komut_saldir(secili_birim, harita_sag_tik_hedef_pos, -1)
+	elif komut == "geri_cekil":
+		birim_geri_cekil_baslat(secili_birim)
+	harita_sag_tik_menu_kapat()
+
+func dusman_sag_tik_komut_sec(komut: String) -> void:
+	if secili_birim == null or dusman_sag_tik_hedef_id < 0:
+		dusman_sag_tik_menu_kapat()
+		return
+	var hedef = birim_id_ile_bul(dusman_sag_tik_hedef_id)
+	if hedef.is_empty():
+		dusman_sag_tik_menu_kapat()
+		return
+	if not birim_gorunur_mu_tarafa(hedef, "osmanli"):
+		_command_status_line_uygula({"status_line": "Hedef gorus disinda"})
+		dusman_sag_tik_menu_kapat()
+		return
+	var hedef_pos = hedef["konum"]
+	if komut == "saldir_takip":
+		birim_komut_saldir(secili_birim, hedef_pos, dusman_sag_tik_hedef_id)
+	elif komut == "saldir_takipsiz":
+		birim_komut_saldir(secili_birim, hedef_pos, -1)
+	elif komut == "geri_cekil":
+		birim_geri_cekil_baslat(secili_birim)
+	elif komut == "hedef_birak":
+		secili_birim["takip_edilen_dusman"] = -1
+		secili_birim["savas_halinde"] = false
+		secili_birim["hedef"] = secili_birim["konum"]
+		_command_status_line_uygula({"status_line": "Hedef birakildi"})
+	dusman_sag_tik_menu_kapat()
 
 func birim_ekle_menu_ac(_idx: int) -> void:
 	context_menus.ac_birim_ekle_menu(get_viewport().get_mouse_position())

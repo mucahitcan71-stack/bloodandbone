@@ -6,6 +6,11 @@ var _host: Node2D = null
 
 var komut_menusu_panel: PanelContainer = null
 var komut_menusu_hedef_birim = null
+var dusman_sag_tik_menu: PanelContainer = null
+var dusman_sag_tik_hedef_id := -1
+var harita_sag_tik_menu: PanelContainer = null
+var harita_sag_tik_hedef_pos := Vector2.ZERO
+var harita_sag_tik_kesfedildi := false
 var takviye_sag_tik_menu: PanelContainer = null
 var takviye_sag_tik_secili_idx = -1
 var birim_ekle_menu_panel: PanelContainer = null
@@ -50,6 +55,7 @@ func build_komut_menusu() -> void:
 func ac_komut_menusu(ekran_pos: Vector2, birim: Dictionary) -> void:
 	if komut_menusu_panel == null:
 		return
+	kapat_dusman_menu()
 	komut_menusu_hedef_birim = birim
 	var view = _host.get_viewport_rect().size
 	var pos = ekran_pos
@@ -64,6 +70,129 @@ func kapat_komut_menusu() -> void:
 	if komut_menusu_panel != null:
 		komut_menusu_panel.visible = false
 	komut_menusu_hedef_birim = null
+
+func build_harita_menu() -> void:
+	harita_sag_tik_menu = _host.ui_node("Panel_HaritaSagTik") as PanelContainer
+	if harita_sag_tik_menu == null:
+		harita_sag_tik_menu = PanelContainer.new()
+		harita_sag_tik_menu.name = "Panel_HaritaSagTik"
+		harita_sag_tik_menu.custom_minimum_size = Vector2(190, 110)
+		harita_sag_tik_menu.visible = false
+		_host.get_node("CanvasLayer").add_child(harita_sag_tik_menu)
+	_yeniden_kur_harita_menu([])
+
+func ac_harita_menu(ekran_pos: Vector2, hedef_pos: Vector2, kesfedildi: bool) -> void:
+	if harita_sag_tik_menu == null:
+		return
+	kapat_komut_menusu()
+	kapat_dusman_menu()
+	kapat_takviye_menu()
+	harita_sag_tik_hedef_pos = hedef_pos
+	harita_sag_tik_kesfedildi = kesfedildi
+	var komutlar = []
+	if kesfedildi:
+		komutlar = [
+			{"id": "hareket_et", "text": "➤ Hareket Et"},
+			{"id": "saldiri_modu", "text": "⚔ Saldiri Modu"},
+			{"id": "geri_cekil", "text": "↩ Geri Cekil"},
+		]
+	else:
+		komutlar = [
+			{"id": "kesif_hareketi", "text": "🧭 Kesif Hareketi"},
+			{"id": "geri_cekil", "text": "↩ Geri Cekil"},
+		]
+	_yeniden_kur_harita_menu(komutlar)
+	var view = _host.get_viewport_rect().size
+	var pos = ekran_pos
+	if pos.x + harita_sag_tik_menu.size.x > view.x:
+		pos.x = view.x - harita_sag_tik_menu.size.x - 8
+	if pos.y + harita_sag_tik_menu.size.y > view.y:
+		pos.y = view.y - harita_sag_tik_menu.size.y - 8
+	harita_sag_tik_menu.position = pos
+	harita_sag_tik_menu.visible = true
+
+func kapat_harita_menu() -> void:
+	if harita_sag_tik_menu != null:
+		harita_sag_tik_menu.visible = false
+	harita_sag_tik_hedef_pos = Vector2.ZERO
+	harita_sag_tik_kesfedildi = false
+
+func _yeniden_kur_harita_menu(komutlar: Array) -> void:
+	if harita_sag_tik_menu == null:
+		return
+	for c in harita_sag_tik_menu.get_children():
+		c.queue_free()
+	var menu_margin = MarginContainer.new()
+	menu_margin.add_theme_constant_override("margin_left", 8)
+	menu_margin.add_theme_constant_override("margin_right", 8)
+	menu_margin.add_theme_constant_override("margin_top", 8)
+	menu_margin.add_theme_constant_override("margin_bottom", 8)
+	harita_sag_tik_menu.add_child(menu_margin)
+	var menu_vbox = VBoxContainer.new()
+	menu_vbox.add_theme_constant_override("separation", 4)
+	menu_margin.add_child(menu_vbox)
+	for i in range(komutlar.size()):
+		var btn = Button.new()
+		btn.text = str(komutlar[i].get("text", "Komut"))
+		btn.custom_minimum_size = Vector2(172, 30)
+		var cmd = str(komutlar[i].get("id", ""))
+		btn.pressed.connect(func(): _host.harita_sag_tik_komut_sec(cmd))
+		menu_vbox.add_child(btn)
+
+func build_dusman_menu() -> void:
+	dusman_sag_tik_menu = _host.ui_node("Panel_DusmanSagTik") as PanelContainer
+	if dusman_sag_tik_menu == null:
+		dusman_sag_tik_menu = PanelContainer.new()
+		dusman_sag_tik_menu.name = "Panel_DusmanSagTik"
+		dusman_sag_tik_menu.custom_minimum_size = Vector2(190, 124)
+		dusman_sag_tik_menu.visible = false
+		_host.get_node("CanvasLayer").add_child(dusman_sag_tik_menu)
+	for c in dusman_sag_tik_menu.get_children():
+		c.queue_free()
+
+	var menu_margin = MarginContainer.new()
+	menu_margin.add_theme_constant_override("margin_left", 8)
+	menu_margin.add_theme_constant_override("margin_right", 8)
+	menu_margin.add_theme_constant_override("margin_top", 8)
+	menu_margin.add_theme_constant_override("margin_bottom", 8)
+	dusman_sag_tik_menu.add_child(menu_margin)
+	var menu_vbox = VBoxContainer.new()
+	menu_vbox.add_theme_constant_override("separation", 4)
+	menu_margin.add_child(menu_vbox)
+	var satir = [
+		{"id": "saldir_takip", "text": "⚔ Takipli Saldir"},
+		{"id": "saldir_takipsiz", "text": "➤ Takipsiz Saldir"},
+		{"id": "geri_cekil", "text": "↩ Geri Cekil"},
+		{"id": "hedef_birak", "text": "✖ Hedefi Birak"},
+	]
+	for i in range(satir.size()):
+		var btn = Button.new()
+		btn.text = satir[i]["text"]
+		btn.custom_minimum_size = Vector2(172, 30)
+		var cmd = satir[i]["id"]
+		btn.pressed.connect(func(): _host.dusman_sag_tik_komut_sec(cmd))
+		menu_vbox.add_child(btn)
+
+func ac_dusman_menu(ekran_pos: Vector2, birim: Dictionary) -> void:
+	if dusman_sag_tik_menu == null:
+		return
+	kapat_komut_menusu()
+	kapat_takviye_menu()
+	kapat_harita_menu()
+	dusman_sag_tik_hedef_id = int(birim.get("id", -1))
+	var view = _host.get_viewport_rect().size
+	var pos = ekran_pos
+	if pos.x + dusman_sag_tik_menu.size.x > view.x:
+		pos.x = view.x - dusman_sag_tik_menu.size.x - 8
+	if pos.y + dusman_sag_tik_menu.size.y > view.y:
+		pos.y = view.y - dusman_sag_tik_menu.size.y - 8
+	dusman_sag_tik_menu.position = pos
+	dusman_sag_tik_menu.visible = true
+
+func kapat_dusman_menu() -> void:
+	if dusman_sag_tik_menu != null:
+		dusman_sag_tik_menu.visible = false
+	dusman_sag_tik_hedef_id = -1
 
 func build_takviye_menu() -> void:
 	takviye_sag_tik_menu = _host.ui_node("Panel_TakviyeSagTik") as PanelContainer
@@ -156,6 +285,8 @@ func ac_takviye_menu(idx: int, ekran_pos: Vector2) -> void:
 	if takviye_sag_tik_menu == null or idx < 0 or idx >= _host.osmanli_birim_tipleri.size():
 		return
 	kapat_komut_menusu()
+	kapat_dusman_menu()
+	kapat_harita_menu()
 	takviye_sag_tik_secili_idx = idx
 	var tip = _host.osmanli_birim_tipleri[idx]
 	var menu_btn = takviye_sag_tik_menu.find_child("TakviyeSagTikBtn", true, false) as Button

@@ -1,0 +1,40 @@
+[gd_scene format=3 uid="uid://ch2tj83u4c2qi"]
+
+[ext_resource type="Script" uid="uid://jn82jnocfk1f" path="res://scripts/Main.gd" id="1_elqb8"]
+
+[node name="Node2D" type="Node2D" unique_id=1081707448]
+script = ExtResource("1_elqb8")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=530589937]
+offset_left = -49.0
+offset_top = -197.00002
+offset_right = 82.03325
+offset_bottom = -84.28822
+scale = Vector2(0.7784283, 0.89609087)
+color = Color(0.5118653, 0.11845466, 0.12278726, 1)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=377955077]
+
+[node name="Label_Osmanli" type="Label" parent="CanvasLayer" unique_id=191324086]
+offset_left = -56.0
+offset_top = -233.0
+offset_right = -16.0
+offset_bottom = -210.0
+
+[node name="Label_DoguRoma" type="Label" parent="CanvasLayer" unique_id=619102635]
+offset_left = 22.0
+offset_top = -231.0
+offset_right = 62.0
+offset_bottom = -208.0
+
+[node name="Label_Round" type="Label" parent="CanvasLayer" unique_id=891268973]
+offset_left = -66.0
+offset_top = -59.0
+offset_right = -26.0
+offset_bottom = -36.0
+
+[node name="Label_Sure" type="Label" parent="CanvasLayer" unique_id=1414083239]
+offset_left = 11.0
+offset_top = -52.0
+offset_right = 51.0
+offset_bottom = -29.0

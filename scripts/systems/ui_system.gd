@@ -145,7 +145,7 @@ func add_battle_panel_element(node: Control) -> void:
 func register_battle_panel_widget(node: Control) -> void:
 	savas_paneli.append(node)
 
-func build_battle_panel_skeleton(ult_pressed: Callable) -> void:
+func build_battle_panel_skeleton(_ult_pressed: Callable) -> void:
 	if _layout.get_savas_icerik_vbox() == null:
 		return
 
@@ -172,17 +172,7 @@ func build_battle_panel_skeleton(ult_pressed: Callable) -> void:
 	ust_durum_satir.add_child(durum_l)
 	register_battle_panel_widget(durum_l)
 
-	var komut_satir = HBoxContainer.new()
-	add_battle_panel_element(komut_satir)
-
-	var ult_btn = Button.new()
-	ult_btn.name = "UltBtn"
-	ult_btn.text = "ULT"
-	ult_btn.custom_minimum_size = Vector2(70, 32)
-	if ult_pressed.is_valid():
-		ult_btn.pressed.connect(ult_pressed)
-	komut_satir.add_child(ult_btn)
-	register_battle_panel_widget(ult_btn)
+	# ULT komutu sagdaki komut modulu icindeki butonlardan yonetiliyor.
 
 func build_battle_panel_footer(speed_pressed: Callable) -> void:
 	if _layout.get_savas_icerik_vbox() == null:
@@ -299,7 +289,8 @@ func build_preparation_panel() -> void:
 	for t in tablar:
 		var tbtn = Button.new()
 		tbtn.text = t["text"]
-		tbtn.custom_minimum_size = Vector2(110, 32)
+		tbtn.custom_minimum_size = Vector2(92, 26)
+		tbtn.add_theme_font_size_override("font_size", 10)
 		var tab_id = t["id"]
 		tbtn.pressed.connect(func(): switch_preparation_tab(tab_id))
 		hazirlik_tabs_row.add_child(tbtn)

@@ -30,7 +30,8 @@ func build_panel() -> void:
 	for z in zorluklar:
 		var btn = Button.new()
 		btn.text = z["text"]
-		btn.custom_minimum_size = Vector2(90, 32)
+		btn.custom_minimum_size = Vector2(78, 26)
+		btn.add_theme_font_size_override("font_size", 10)
 		var z_isim = z["isim"]
 		btn.pressed.connect(func(): select_difficulty(z_isim))
 		zorluk_row.add_child(btn)
@@ -93,7 +94,7 @@ func build_panel() -> void:
 		grup.add_child(satir_h)
 		var btn_eksi = Button.new()
 		btn_eksi.text = "-"
-		btn_eksi.custom_minimum_size = Vector2(36, 32)
+		btn_eksi.custom_minimum_size = Vector2(30, 24)
 		var idx = i
 		btn_eksi.pressed.connect(func(): _host.kompozisyon_cikar(idx))
 		btn_eksi.mouse_entered.connect(func(): _host.birim_detay_hover_basla(hover_tip))
@@ -108,7 +109,7 @@ func build_panel() -> void:
 
 		var btn_arti = Button.new()
 		btn_arti.text = "+"
-		btn_arti.custom_minimum_size = Vector2(36, 32)
+		btn_arti.custom_minimum_size = Vector2(30, 24)
 		btn_arti.pressed.connect(func(): _host.kompozisyon_ekle(idx))
 		btn_arti.mouse_entered.connect(func(): _host.birim_detay_hover_basla(hover_tip))
 		btn_arti.mouse_exited.connect(func(): _host.birim_detay_hover_bitir())
@@ -129,7 +130,8 @@ func build_panel() -> void:
 	for f in formasyonlar_ui:
 		var fbtn = Button.new()
 		fbtn.text = f["text"]
-		fbtn.custom_minimum_size = Vector2(96, 32)
+		fbtn.custom_minimum_size = Vector2(84, 26)
+		fbtn.add_theme_font_size_override("font_size", 10)
 		var f_id = f["id"]
 		fbtn.pressed.connect(func(): _host.formasyon_sec(f_id))
 		form_row.add_child(fbtn)
@@ -148,7 +150,8 @@ func build_panel() -> void:
 	var savas_btn = Button.new()
 	savas_btn.name = "SavasBtn"
 	savas_btn.text = "SAVASA BASLA"
-	savas_btn.custom_minimum_size = Vector2(200, 42)
+	savas_btn.custom_minimum_size = Vector2(170, 34)
+	savas_btn.add_theme_font_size_override("font_size", 10)
 	savas_btn.pressed.connect(func(): _host.savas_baslat())
 	_host.ui_system.add_preparation_footer(savas_btn)
 	_host._ui_refs_sync()
@@ -197,7 +200,8 @@ func prepare_card_options() -> void:
 	_add_element("taktik", satir)
 	for i in range(_host.kart_secenekleri.size()):
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(220, 30)
+		btn.custom_minimum_size = Vector2(186, 24)
+		btn.add_theme_font_size_override("font_size", 10)
 		btn.text = _host.kart_secenekleri[i]["isim"]
 		var kart = _host.kart_secenekleri[i]
 		btn.pressed.connect(func(): select_card(kart))
@@ -230,7 +234,8 @@ func prepare_equipment_options() -> void:
 	for i in range(sirali.size()):
 		var anahtar = sirali[i]
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(220, 28)
+		btn.custom_minimum_size = Vector2(186, 24)
+		btn.add_theme_font_size_override("font_size", 10)
 		btn.text = _host.ekipmanlar[anahtar]["isim"]
 		var e = anahtar
 		btn.pressed.connect(func(): select_equipment(e))

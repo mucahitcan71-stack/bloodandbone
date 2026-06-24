@@ -51,6 +51,12 @@ func is_point_discovered(point_id: String) -> bool:
 		return true
 	return kesfedilen_noktalar.get(point_id, false)
 
+func is_world_pos_discovered(pos: Vector2, faction: String = "osmanli") -> bool:
+	if harita_sis_kapali:
+		return true
+	var gorus = get_current_vision(faction)
+	return _goruste_mi(pos, gorus) or kesfedilen_alanlar.get(_hucre_anahtari(pos), false)
+
 func get_last_known_enemy_positions() -> Dictionary:
 	return dusman_son_gorulen_konum
 

@@ -162,6 +162,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 	var gorsel_patikalar: Array = _parse_gorsel_patikalar(data.get("patikalar", []))
 	var gorsel_lekeler: Array = _parse_gorsel_lekeler(data.get("gorsel_lekeler", []))
 	var dere_yataklari: Array = _parse_dere_yataklari(data.get("dere_yataklari", []))
+	var nehir_hatlari: Array = _parse_nehir_hatlari(data.get("nehir_hatlari", []))
 	var cevre_dekor: Array = _parse_cevre_dekor(data.get("cevre_dekor", []))
 	var nokta_duzen: Dictionary = _parse_nokta_duzen(data.get("nokta_duzen", {}))
 	var nokta_slotlari: Dictionary = _parse_nokta_slotlari(data.get("nokta_slotlari", {}))
@@ -179,6 +180,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"gorsel_patikalar": gorsel_patikalar,
 		"gorsel_lekeler": gorsel_lekeler,
 		"dere_yataklari": dere_yataklari,
+		"nehir_hatlari": nehir_hatlari,
 		"cevre_dekor": cevre_dekor,
 		"nokta_duzen": nokta_duzen,
 		"nokta_slotlari": nokta_slotlari,
@@ -265,6 +267,26 @@ static func _parse_dere_yataklari(raw: Variant) -> Array:
 			dereler.append({"points": noktalar})
 	return dereler
 
+static func _parse_nehir_hatlari(raw: Variant) -> Array:
+	var hatlar: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return hatlar
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var noktalar: Array = []
+		var raw_pts = entry.get("points", [])
+		if typeof(raw_pts) == TYPE_ARRAY:
+			for pt in raw_pts:
+				if typeof(pt) == TYPE_ARRAY and pt.size() >= 2:
+					noktalar.append(Vector2(float(pt[0]), float(pt[1])))
+		if noktalar.size() >= 2:
+			hatlar.append({
+				"points": noktalar,
+				"genislik": float(entry.get("genislik", 72.0)),
+			})
+	return hatlar
+
 static func _parse_cevre_dekor(raw: Variant) -> Array:
 	var dekorlar: Array = []
 	if typeof(raw) != TYPE_ARRAY:
@@ -282,6 +304,15 @@ static func _parse_cevre_dekor(raw: Variant) -> Array:
 		})
 	return dekorlar
 
+static func _parse_ana_hat(raw: Variant) -> Array:
+	var hat: Array = []
+	if typeof(raw) != TYPE_ARRAY or raw.size() < 2:
+		return hat
+	for pt in raw:
+		if typeof(pt) == TYPE_ARRAY and pt.size() >= 2:
+			hat.append(Vector2(float(pt[0]), float(pt[1])))
+	return hat
+
 static func _parse_nokta_duzen(raw: Variant) -> Dictionary:
 	if typeof(raw) != TYPE_DICTIONARY:
 		return {"mod": "sabit"}
@@ -294,6 +325,7 @@ static func _parse_nokta_duzen(raw: Variant) -> Dictionary:
 		"max_patika_mesafe": float(raw.get("max_patika_mesafe", 340.0)),
 		"max_gizli_patika_mesafe": float(raw.get("max_gizli_patika_mesafe", 320.0)),
 		"max_patika_baglanti": float(raw.get("max_patika_baglanti", 520.0)),
+		"ana_hat": _parse_ana_hat(raw.get("ana_hat", [])),
 	}
 
 static func _parse_nokta_slotlari(raw: Variant) -> Dictionary:

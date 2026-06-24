@@ -164,6 +164,7 @@ func has_enemy_in_range(unit: Dictionary) -> bool:
 	return false
 
 func compute_unit_target(unit: Dictionary) -> Vector2:
+	var aday: Vector2
 	var dusman = find_nearest_enemy(unit)
 	if not dusman.is_empty():
 		var mesafe = unit["konum"].distance_to(dusman["konum"])
@@ -172,10 +173,37 @@ func compute_unit_target(unit: Dictionary) -> Vector2:
 			return unit["konum"]
 		var yon = (dusman["konum"] - unit["konum"]).normalized()
 		var adim = clamp(mesafe - etkiler["menzil"] * 0.6, 40.0, 180.0)
-		return _host.harita_sinirla(unit["konum"] + yon * adim)
+		aday = _host.harita_sinirla(unit["konum"] + yon * adim)
+	else:
+		var nokta = choose_target_point()
+		aday = pick_target_position(nokta)
 
-	var nokta = choose_target_point()
-	return pick_target_position(nokta)
+	if _yol_engelli_mi(unit["konum"], aday):
+		return _nearest_river_crossing(unit["konum"])
+	return aday
+
+func _yol_engelli_mi(baslangic: Vector2, hedef: Vector2) -> bool:
+	var adim_sayisi = 6
+	for i in range(1, adim_sayisi + 1):
+		var t = float(i) / float(adim_sayisi)
+		if _host.gecis_engelli_mi(baslangic.lerp(hedef, t)):
+			return true
+	return false
+
+func _nearest_river_crossing(pos: Vector2) -> Vector2:
+	var en_yakin = pos
+	var en_kisa = INF
+	for bolge in _host.arazi_bolgeleri:
+		var tip = str(bolge.get("tip", ""))
+		if tip != "kopru" and tip != "dar_gecit":
+			continue
+		var rect: Rect2 = bolge.get("rect", Rect2())
+		var merkez = rect.position + rect.size * 0.5
+		var d = pos.distance_to(merkez)
+		if d < en_kisa:
+			en_kisa = d
+			en_yakin = merkez
+	return en_yakin
 
 func update_units(delta: float) -> void:
 	var karar_suresi = _host.ai_karar_araligi.get(_host.zorluk, 3.5)

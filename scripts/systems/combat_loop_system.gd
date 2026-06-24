@@ -120,10 +120,9 @@ func _process_movement_and_deaths(delta: float) -> void:
 		if not dusman_menzilde and not hedefe_varildi:
 			var step = hareket_efekt["hiz"] * delta
 			if dist > 0.001:
-				if step >= dist:
-					birim["konum"] = hedef_pos
-				else:
-					birim["konum"] += (to_hedef / dist) * step
+				var aday_konum = hedef_pos if step >= dist else birim["konum"] + (to_hedef / dist) * step
+				if not _host.gecis_engelli_mi(aday_konum):
+					birim["konum"] = aday_konum
 			var arazi_hareket = _host.birimin_arazisini_bul(birim["konum"])
 			if bool(arazi_hareket.get("tek_sira", false)):
 				var snap_dist = birim["konum"].distance_to(hedef_pos)

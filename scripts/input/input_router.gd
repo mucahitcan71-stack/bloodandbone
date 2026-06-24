@@ -4,6 +4,10 @@ class_name InputRouter
 const CameraControllerScript = preload("res://scripts/camera/camera_controller.gd")
 
 var _host: Node2D = null
+var _sol_surukle_aktif := false
+var _sol_surukle_tasinmis := false
+var _sol_surukle_baslangic := Vector2.ZERO
+const SOL_SURUKLE_ESIK := 10.0
 
 func configure(host: Node2D) -> void:
 	_host = host
@@ -13,12 +17,55 @@ func handle_input(event: InputEvent) -> bool:
 		return true
 	if handle_cancel_menu(event):
 		return true
+	if event is InputEventMouseButton:
+		var mb = event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT:
+			handle_secondary_click(mb.position)
+			return true
 	if handle_camera_input(event, _host.kamera, _host.camera_controller):
 		return true
+	if _handle_left_drag_pan(event, _host.kamera, _host.camera_controller):
+		return true
 	if event.is_action_pressed("cmd_primary_click"):
-		handle_primary_click(event)
+		_sol_surukle_aktif = true
+		_sol_surukle_tasinmis = false
+		if event is InputEventMouseButton:
+			_sol_surukle_baslangic = (event as InputEventMouseButton).position
+		return true
+	if event.is_action_released("cmd_primary_click"):
+		if _sol_surukle_aktif and not _sol_surukle_tasinmis:
+			handle_primary_click(event)
+		_sol_surukle_aktif = false
+		_sol_surukle_tasinmis = false
 		return true
 	return false
+
+func handle_secondary_click(event_position: Vector2) -> void:
+	if _host.hazirlik_fazi:
+		return
+	_host.birim_detay_hover_bitir()
+	_close_menus_outside_click(event_position)
+	var dunya_pos = _host.get_global_mouse_position()
+	var tiklama_sonucu = _find_clicked_unit(dunya_pos)
+	var tiklanan_oyuncu = tiklama_sonucu.get("oyuncu", null)
+	var tiklanan_dusman = tiklama_sonucu.get("dusman", null)
+	if tiklanan_oyuncu != null:
+		if _host.secili_birim != tiklanan_oyuncu:
+			_host.komut_menusu_kapat()
+			_host.komut_sec("hareket")
+			_host.birim_tikla(tiklanan_oyuncu)
+		_host.dusman_sag_tik_menu_kapat()
+		_host.komut_menusu_ac(event_position, tiklanan_oyuncu)
+		return
+	if tiklanan_dusman != null and _host.secili_birim != null:
+		_host.komut_menusu_kapat()
+		_host.dusman_sag_tik_menu_ac(event_position, tiklanan_dusman)
+		return
+	_host.dusman_sag_tik_menu_kapat()
+	if _host.secili_birim != null:
+		_host.harita_sag_tik_menu_ac(event_position, dunya_pos)
+		return
+	_host.komut_menusu_kapat()
 
 func handle_camera_input(
 	event: InputEvent,
@@ -26,12 +73,31 @@ func handle_camera_input(
 	camera_controller: CameraControllerScript
 ) -> bool:
 	if event.is_action_pressed("cmd_zoom_in"):
-		camera_controller.apply_zoom(camera, true)
-		return true
-	if event.is_action_pressed("cmd_zoom_out"):
 		camera_controller.apply_zoom(camera, false)
 		return true
+	if event.is_action_pressed("cmd_zoom_out"):
+		camera_controller.apply_zoom(camera, true)
+		return true
 	return false
+
+func _handle_left_drag_pan(
+	event: InputEvent,
+	camera: Camera2D,
+	camera_controller: CameraControllerScript
+) -> bool:
+	if not _sol_surukle_aktif:
+		return false
+	if not (event is InputEventMouseMotion):
+		return false
+	var motion = event as InputEventMouseMotion
+	if motion.button_mask & MOUSE_BUTTON_MASK_LEFT == 0:
+		return false
+	if not _sol_surukle_tasinmis and motion.position.distance_to(_sol_surukle_baslangic) >= SOL_SURUKLE_ESIK:
+		_sol_surukle_tasinmis = true
+	if not _sol_surukle_tasinmis:
+		return false
+	camera_controller.apply_drag_pan(camera, motion.relative, Callable(_host, "kamera_sinirla"))
+	return true
 
 func handle_cancel_menu(event: InputEvent) -> bool:
 	if not event.is_action_pressed("cmd_cancel_menu"):
@@ -41,6 +107,12 @@ func handle_cancel_menu(event: InputEvent) -> bool:
 		return true
 	if _host.takviye_sag_tik_menu != null and _host.takviye_sag_tik_menu.visible:
 		_host.takviye_sag_tik_menu_kapat()
+		return true
+	if _host.dusman_sag_tik_menu != null and _host.dusman_sag_tik_menu.visible:
+		_host.dusman_sag_tik_menu_kapat()
+		return true
+	if _host.harita_sag_tik_menu != null and _host.harita_sag_tik_menu.visible:
+		_host.harita_sag_tik_menu_kapat()
 		return true
 	_host.komut_menusu_kapat()
 	return true
@@ -97,6 +169,14 @@ func _close_menus_outside_click(event_position: Vector2) -> void:
 		var menu_rect = Rect2(_host.takviye_sag_tik_menu.position, _host.takviye_sag_tik_menu.size)
 		if not menu_rect.has_point(event_position):
 			_host.takviye_sag_tik_menu_kapat()
+	if _host.dusman_sag_tik_menu != null and _host.dusman_sag_tik_menu.visible:
+		var dusman_rect = Rect2(_host.dusman_sag_tik_menu.position, _host.dusman_sag_tik_menu.size)
+		if not dusman_rect.has_point(event_position):
+			_host.dusman_sag_tik_menu_kapat()
+	if _host.harita_sag_tik_menu != null and _host.harita_sag_tik_menu.visible:
+		var harita_rect = Rect2(_host.harita_sag_tik_menu.position, _host.harita_sag_tik_menu.size)
+		if not harita_rect.has_point(event_position):
+			_host.harita_sag_tik_menu_kapat()
 
 func _is_click_on_takviye_menu(event_position: Vector2) -> bool:
 	if _host.takviye_sag_tik_menu == null or not _host.takviye_sag_tik_menu.visible:
@@ -125,19 +205,20 @@ func _find_clicked_unit(dunya_pos: Vector2) -> Dictionary:
 		if birim["taraf"] == "osmanli":
 			tiklanan_oyuncu = birim
 		else:
+			if not _host.birim_gorunur_mu_tarafa(birim, "osmanli"):
+				continue
 			tiklanan_dusman = birim
 		if tiklanan_oyuncu != null:
 			break
 	return {"oyuncu": tiklanan_oyuncu, "dusman": tiklanan_dusman}
 
 func _apply_unit_click_decision(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vector2, ekran_pos: Vector2) -> void:
+	_host.dusman_sag_tik_menu_kapat()
+	_host.harita_sag_tik_menu_kapat()
 	if tiklanan_oyuncu != null:
-		if _host.secili_birim == tiklanan_oyuncu:
-			_host.komut_menusu_ac(ekran_pos, tiklanan_oyuncu)
-		else:
-			_host.komut_menusu_kapat()
-			_host.komut_sec("hareket")
-			_host.birim_tikla(tiklanan_oyuncu)
+		_host.komut_menusu_kapat()
+		_host.komut_sec("hareket")
+		_host.birim_tikla(tiklanan_oyuncu)
 		return
 
 	if _host.secili_birim != null and _host.secili_komut == "saldir" and tiklanan_dusman != null:

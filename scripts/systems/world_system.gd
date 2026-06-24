@@ -29,6 +29,7 @@ var gorsel_yollar: Array = []
 var gorsel_patikalar: Array = []
 var gorsel_lekeler: Array = []
 var dere_yataklari: Array = []
+var nehir_hatlari: Array = []
 var cevre_dekor: Array = []
 var nokta_duzen: Dictionary = {}
 var nokta_slotlari: Dictionary = {}
@@ -98,6 +99,7 @@ func harita_uygula(map_id: String) -> void:
 	gorsel_patikalar = map_data.get("gorsel_patikalar", []).duplicate(true)
 	gorsel_lekeler = map_data.get("gorsel_lekeler", []).duplicate(true)
 	dere_yataklari = map_data.get("dere_yataklari", []).duplicate(true)
+	nehir_hatlari = map_data.get("nehir_hatlari", []).duplicate(true)
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
@@ -263,6 +265,23 @@ func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 			return bolge
 	return {"tip": "duz_arazi"}
 
+func gecis_engelli_mi(konum: Vector2) -> bool:
+	for nokta in nokta_konumlari:
+		if konum.distance_to(get_point_center(nokta)) <= 85.0:
+			return false
+	var su_var = false
+	var gecis_var = false
+	for bolge in arazi_bolgeleri:
+		var rect: Rect2 = bolge.get("rect", Rect2())
+		if not rect.has_point(konum):
+			continue
+		var tip = str(bolge.get("tip", ""))
+		if tip == "su":
+			su_var = true
+		elif tip == "kopru" or tip == "dar_gecit":
+			gecis_var = true
+	return su_var and not gecis_var
+
 func orman_bolge_index(pos: Vector2) -> int:
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
@@ -330,6 +349,7 @@ func decor_gorsellerini_guncelle() -> void:
 		c.queue_free()
 	_gorsel_yollar_ekle()
 	_gorsel_patikalar_ekle()
+	_nehir_hatlari_ekle()
 	_dere_yataklari_ekle()
 	_akarsu_ekle()
 	_cevre_dekor_ekle()
@@ -417,6 +437,8 @@ func _arazi_bolge_ciz(bolge: Dictionary, rect: Rect2, tip: String, bolge_idx: in
 			_vadi_gorsel_ekle(rect)
 		"dar_gecit", "kopru":
 			_gecit_gorsel_ekle(rect, tip)
+		"su":
+			pass
 		"yol":
 			pass
 
@@ -464,6 +486,29 @@ func _orman_gorsel_ekle(rect: Rect2, bolge_idx: int) -> void:
 		govde.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		govde.z_index = -1
 		arazi_katmani.add_child(govde)
+
+func _su_gorsel_ekle(rect: Rect2) -> void:
+	var akinti = ColorRect.new()
+	akinti.position = rect.position + Vector2(0, rect.size.y * 0.32)
+	akinti.size = Vector2(rect.size.x, rect.size.y * 0.36)
+	akinti.color = Color(0.36, 0.56, 0.66, 0.3)
+	akinti.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	akinti.z_index = -1
+	arazi_katmani.add_child(akinti)
+	var kenar_ust = ColorRect.new()
+	kenar_ust.position = rect.position
+	kenar_ust.size = Vector2(rect.size.x, 6)
+	kenar_ust.color = Color(0.5, 0.42, 0.3, 0.4)
+	kenar_ust.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kenar_ust.z_index = -1
+	arazi_katmani.add_child(kenar_ust)
+	var kenar_alt = ColorRect.new()
+	kenar_alt.position = rect.position + Vector2(0, rect.size.y - 6)
+	kenar_alt.size = Vector2(rect.size.x, 6)
+	kenar_alt.color = Color(0.5, 0.42, 0.3, 0.4)
+	kenar_alt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kenar_alt.z_index = -1
+	arazi_katmani.add_child(kenar_alt)
 
 func _vadi_gorsel_ekle(rect: Rect2) -> void:
 	var cukur = ColorRect.new()
@@ -540,6 +585,31 @@ func _dere_yataklari_ekle() -> void:
 		yatak.antialiased = true
 		yatak.z_index = -1
 		decor_katmani.add_child(yatak)
+
+func _nehir_hatlari_ekle() -> void:
+	for i in range(nehir_hatlari.size()):
+		var hat = nehir_hatlari[i]
+		var pts = hat.get("points", []) as Array
+		if pts.size() < 2:
+			continue
+		var packed = PackedVector2Array()
+		for pt in pts:
+			packed.append(pt as Vector2)
+		var genislik = float(hat.get("genislik", 72.0))
+		var kenar = Line2D.new()
+		kenar.points = packed
+		kenar.width = genislik + 22.0
+		kenar.default_color = Color(0.1, 0.18, 0.26, 0.55)
+		kenar.antialiased = true
+		kenar.z_index = -2
+		decor_katmani.add_child(kenar)
+		var su = Line2D.new()
+		su.points = packed
+		su.width = genislik
+		su.default_color = Color(0.18, 0.36, 0.48, 0.78)
+		su.antialiased = true
+		su.z_index = -1
+		decor_katmani.add_child(su)
 
 func _patika_noktalari_genislet(points: PackedVector2Array, seed_val: int, wobble: float) -> PackedVector2Array:
 	if points.size() < 2:
@@ -831,4 +901,6 @@ func _arazi_renk(tip: String) -> Color:
 		return Color(0.48, 0.4, 0.26, 0.38)
 	if tip == "kopru":
 		return Color(0.36, 0.36, 0.4, 0.8)
+	if tip == "su":
+		return Color(0.0, 0.0, 0.0, 0.0)
 	return Color(0, 0, 0, 0)
