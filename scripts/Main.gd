@@ -1,6 +1,7 @@
 extends Node2D
 
 const Constants = preload("res://scripts/constants.gd")
+const GameTables = preload("res://scripts/game_tables.gd")
 const CombatSystem = preload("res://scripts/systems/combat_system.gd")
 const MetaSystem = preload("res://scripts/systems/meta_system.gd")
 const SaveSystem = preload("res://scripts/systems/save_system.gd")
@@ -50,35 +51,7 @@ var max_sure = 2100.0
 
 # === ZORLUK ===
 var zorluk = "orta"
-var zorluk_ayarlari = {
-	"kolay": {
-		"spawn": 10.2,
-		"guc_carpan": 1.13,
-		"savunma_carpan": 1.1,
-		"hp_carpan": 1.12,
-		"kontenjan_hedef": 31,
-		"oyuncu_altin": 29,
-		"ai_altin": 44,
-	},
-	"orta": {
-		"spawn": 8.0,
-		"guc_carpan": 1.23,
-		"savunma_carpan": 1.19,
-		"hp_carpan": 1.21,
-		"kontenjan_hedef": 32,
-		"oyuncu_altin": 27,
-		"ai_altin": 52,
-	},
-	"zor": {
-		"spawn": 5.8,
-		"guc_carpan": 1.34,
-		"savunma_carpan": 1.28,
-		"hp_carpan": 1.3,
-		"kontenjan_hedef": 34,
-		"oyuncu_altin": 24,
-		"ai_altin": 62,
-	},
-}
+var zorluk_ayarlari = GameTables.ZORLUK_AYARLARI
 
 # === PUAN & ALTIN ===
 var osmanli_puani = 0
@@ -122,7 +95,7 @@ var aktif_birimler = []
 # === AI ===
 var ai_spawn_timer = 0.0
 var ai_spawn_suresi = 12.0
-var ai_karar_araligi = {"kolay": 1.9, "orta": 1.25, "zor": 0.8}
+var ai_karar_araligi = GameTables.AI_KARAR_ARALIGI
 var ai_takip_menzili = 430.0
 var ai_kompozisyon = [0, 0, 0]
 var ai_envanter: Array = []
@@ -200,11 +173,7 @@ var arazi_katmani: Node2D = null
 var suvari_isimleri = {"Akinci": true, "Kataphraktoi": true}
 
 # === FORMASYON / MORAL / GENERAL ===
-var formasyonlar = {
-	"hucum": {"guc": 1.2, "savunma": 0.85, "hiz": 1.05},
-	"savunma": {"guc": 0.9, "savunma": 1.2, "hiz": 0.9},
-	"dengeli": {"guc": 1.0, "savunma": 1.0, "hiz": 1.0}
-}
+var formasyonlar = GameTables.FORMASYONLAR
 var taraf_formasyon = {"osmanli": "dengeli", "dogu_roma": "dengeli"}
 var taraf_moral = {"osmanli": 100.0, "dogu_roma": 100.0}
 
@@ -212,27 +181,12 @@ var taraf_moral = {"osmanli": 100.0, "dogu_roma": 100.0}
 var ult_sarj = {"osmanli": 0.0, "dogu_roma": 0.0}
 var ult_aktif_sure = {"osmanli": 0.0, "dogu_roma": 0.0}
 var hava_durumu = "Acik"
-var hava_durumu_efektleri = {
-	"Acik": {"hiz": 1.0, "menzil": 1.0, "guc": 1.0},
-	"Yagmur": {"hiz": 0.9, "menzil": 0.9, "guc": 0.95},
-	"Sis": {"hiz": 0.95, "menzil": Constants.SIS_MENZIL_CARPAN, "guc": 1.0},
-	"Ruzgar": {"hiz": 1.05, "menzil": 1.08, "guc": 1.0},
-}
+var hava_durumu_efektleri = GameTables.HAVA_DURUMU_EFEKTLERI
 
 # === KART / EKIPMAN / TERFI ===
-var kart_havuzu = [
-	{"id": "disiplin", "isim": "Demir Disiplin", "aciklama": "+10 moral", "moral": 10.0},
-	{"id": "ikmal", "isim": "Hizli Ikmal", "aciklama": "+12 altin", "altin": 12},
-	{"id": "talim", "isim": "Saha Talimi", "aciklama": "+8% guc", "guc": Constants.TALIM_GUC_CARPAN},
-	{"id": "savunma_hatti", "isim": "Savunma Hatti", "aciklama": "+8% savunma", "savunma": Constants.SAVUNMA_HATTI_CARPAN},
-	{"id": "hucum_plani", "isim": "Hucum Plani", "aciklama": "Formasyon: Hucum", "formasyon": "hucum"},
-]
+var kart_havuzu = GameTables.KART_HAVUZU
 var kart_secenekleri = []
-var ekipmanlar = {
-	"celik": {"isim": "Keskin Celik", "guc": 1.12, "savunma": 1.0, "menzil": 1.0},
-	"zirh": {"isim": "Zirh Kaplama", "guc": 1.0, "savunma": 1.12, "menzil": 1.0},
-	"durbun": {"isim": "Saha Durbunu", "guc": 1.0, "savunma": 1.0, "menzil": 1.15}
-}
+var ekipmanlar = GameTables.EKIPMANLAR
 var taraf_carpanlari = {
 	"osmanli": {"guc": 1.0, "savunma": 1.0, "hiz": 1.0, "menzil": 1.0},
 	"dogu_roma": {"guc": 1.0, "savunma": 1.0, "hiz": 1.0, "menzil": 1.0}
