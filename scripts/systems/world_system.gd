@@ -3,6 +3,7 @@ class_name WorldSystem
 
 const GameData = preload("res://scripts/systems/game_data.gd")
 const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
+const IsoProj = preload("res://scripts/iso_projection.gd")
 
 const _VARSAYILAN_YOLLAR: Array = [
 	{"tip": "ana", "from": "A", "to": "C"},
@@ -364,6 +365,29 @@ func _taban_katmani_ekle(sinir: Dictionary) -> void:
 	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	taban.z_index = -2
 	arazi_katmani.add_child(taban)
+	_taban_iso_test_ekle(sinir)
+
+
+func _taban_iso_test_ekle(sinir: Dictionary) -> void:
+	var min_x := float(sinir["min_x"])
+	var min_y := float(sinir["min_y"])
+	var w := float(sinir["max_x"]) - min_x
+	var h := float(sinir["max_y"]) - min_y
+	var kose_logical: Array[Vector2] = [
+		Vector2(min_x, min_y),
+		Vector2(min_x + w, min_y),
+		Vector2(min_x + w, min_y + h),
+		Vector2(min_x, min_y + h),
+	]
+	var kose_iso := PackedVector2Array()
+	for k in kose_logical:
+		kose_iso.append(IsoProj.logical_to_iso(k))
+	var iso_poly := Polygon2D.new()
+	iso_poly.name = "AraziTabanIsoTest"
+	iso_poly.polygon = kose_iso
+	iso_poly.color = Color(0.4, 0.5, 0.3, 0.5)
+	iso_poly.z_index = 5
+	arazi_katmani.add_child(iso_poly)
 
 func _arazi_leke_katmani_ekle(sinir: Dictionary) -> void:
 	var w = sinir["max_x"] - sinir["min_x"]
