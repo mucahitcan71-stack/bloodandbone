@@ -122,7 +122,7 @@ func panel_to_world(pos: Vector2, harita_sinir: Dictionary) -> Vector2:
 		harita_sinir["min_y"] + (pos.y / panel_size.y) * h
 	)
 
-func update(fog_system: Object, nokta_konumlari: Dictionary, nokta_sahipleri: Dictionary, aktif_birimler: Array, kamera: Camera2D, viewport_size: Vector2, harita_sinir: Dictionary) -> void:
+func update(fog_system: Object, nokta_konumlari: Dictionary, nokta_sahipleri: Dictionary, aktif_birimler: Array, kamera: Camera2D, viewport_size: Vector2, harita_sinir: Dictionary, ekran_to_logical_fn: Callable = Callable(), logical_to_ekran_fn: Callable = Callable()) -> void:
 	if minimap_panel == null:
 		return
 	if fog_system != null and minimap_fow_rect != null:
@@ -170,14 +170,30 @@ func update(fog_system: Object, nokta_konumlari: Dictionary, nokta_sahipleri: Di
 	if kamera != null and minimap_kamera_rect != null:
 		var zoom = maxf(0.0001, kamera.zoom.x)
 		var ekran = viewport_size / zoom
-		var top_left = kamera.position - ekran * 0.5
-		var bot_right = kamera.position + ekran * 0.5
-		var mini_tl = world_to_panel(top_left, harita_sinir)
-		var mini_br = world_to_panel(bot_right, harita_sinir)
-		minimap_kamera_rect.position = mini_tl
-		minimap_kamera_rect.size = (mini_br - mini_tl).abs()
+		var merkez_ekran = kamera.position
+		var merkez_logical = merkez_ekran
+		if ekran_to_logical_fn.is_valid():
+			merkez_logical = ekran_to_logical_fn.call(merkez_ekran)
+		var logical_half := Vector2(ekran.x * 0.5, ekran.y * 0.5)
+		if ekran_to_logical_fn.is_valid():
+			var kenar_x: Vector2 = ekran_to_logical_fn.call(merkez_ekran + Vector2(ekran.x * 0.5, 0.0))
+			var kenar_y: Vector2 = ekran_to_logical_fn.call(merkez_ekran + Vector2(0.0, ekran.y * 0.5))
+			logical_half = Vector2(
+				absf(kenar_x.x - merkez_logical.x),
+				absf(kenar_y.y - merkez_logical.y)
+			)
+		var panel_size = minimap_surface.size if minimap_surface != null else minimap_boyut
+		var w = harita_sinir["max_x"] - harita_sinir["min_x"]
+		var h = harita_sinir["max_y"] - harita_sinir["min_y"]
+		var mini_center = world_to_panel(merkez_logical, harita_sinir)
+		var mini_half = Vector2(
+			(logical_half.x / w) * panel_size.x if w > 0.0 else 0.0,
+			(logical_half.y / h) * panel_size.y if h > 0.0 else 0.0
+		)
+		minimap_kamera_rect.position = mini_center - mini_half
+		minimap_kamera_rect.size = mini_half * 2.0
 
-func handle_click(event_position: Vector2, kamera: Camera2D, harita_sinir: Dictionary, camera_clamp: Callable) -> bool:
+func handle_click(event_position: Vector2, kamera: Camera2D, harita_sinir: Dictionary, camera_clamp: Callable, logical_to_ekran_fn: Callable = Callable()) -> bool:
 	if minimap_panel == null:
 		return false
 	var hedef_rect = Rect2(
@@ -188,7 +204,11 @@ func handle_click(event_position: Vector2, kamera: Camera2D, harita_sinir: Dicti
 		return false
 	if kamera != null:
 		var yerel = event_position - hedef_rect.position
-		kamera.position = panel_to_world(yerel, harita_sinir)
+		var mantiksal = panel_to_world(yerel, harita_sinir)
+		if logical_to_ekran_fn.is_valid():
+			kamera.position = logical_to_ekran_fn.call(mantiksal)
+		else:
+			kamera.position = mantiksal
 		if camera_clamp.is_valid():
 			camera_clamp.call()
 	return true

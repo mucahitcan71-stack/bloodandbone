@@ -442,6 +442,9 @@ func birim_y_sort_foot(logical: Vector2) -> Vector2:
 func ekran_to_logical(ekran_pos: Vector2) -> Vector2:
 	return world_system.ekran_to_logical(ekran_pos)
 
+func logical_to_ekran(logical: Vector2) -> Vector2:
+	return world_system.logical_to_ekran(logical)
+
 func get_nesne_katmani() -> Node2D:
 	return world_system.get_nesne_katmani()
 
@@ -765,7 +768,9 @@ func minimap_guncelle() -> void:
 		aktif_birimler,
 		kamera,
 		get_viewport_rect().size,
-		harita_sinir
+		harita_sinir,
+		Callable(self, "ekran_to_logical"),
+		Callable(self, "logical_to_ekran")
 	)
 
 func formasyon_sec(formasyon: String) -> void:

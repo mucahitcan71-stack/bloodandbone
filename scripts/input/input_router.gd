@@ -8,7 +8,8 @@ var _sol_surukle_aktif := false
 var _sol_surukle_tasinmis := false
 var _sol_surukle_baslangic := Vector2.ZERO
 const SOL_SURUKLE_ESIK := 10.0
-const BIRIM_SECIM_YARICAP := 15.0
+const BIRIM_GORSEL_BOYUT := Vector2(30, 30)
+const NOKTA_SECIM_YARICAP := 70.0
 
 func configure(host: Node2D) -> void:
 	_host = host
@@ -148,8 +149,7 @@ func handle_primary_click(event: InputEvent) -> void:
 
 	for birim in _host.aktif_birimler:
 		if birim["taraf"] == "osmanli" and birim["hp"] > 0:
-			var logical_click: Vector2 = _host.ekran_to_logical(dunya_pos)
-			if logical_click.distance_to(birim["konum"] + Vector2(15, 15)) <= BIRIM_SECIM_YARICAP:
+			if _birim_gorseline_tiklandi(dunya_pos, birim["konum"]):
 				_host.birim_tikla(birim)
 				break
 
@@ -158,7 +158,8 @@ func _handle_minimap_click(event_position: Vector2) -> bool:
 		event_position,
 		_host.kamera,
 		_host.harita_sinir,
-		Callable(_host, "kamera_sinirla")
+		Callable(_host, "kamera_sinirla"),
+		Callable(_host, "logical_to_ekran")
 	)
 
 func _close_menus_outside_click(event_position: Vector2) -> void:
@@ -186,16 +187,27 @@ func _is_click_on_takviye_menu(event_position: Vector2) -> bool:
 	return takviye_menu_rect.has_point(event_position)
 
 func _try_empty_area_point_selection(dunya_pos: Vector2) -> bool:
+	var logical_click: Vector2 = _host.ekran_to_logical(dunya_pos)
+	var en_yakin := ""
+	var en_kisa := INF
 	for nokta in _host.nokta_konumlari:
 		if not _host.fog_system.is_point_discovered(nokta):
 			continue
-		if dunya_pos.distance_to(_host.nokta_merkezi(nokta)) <= 70.0:
-			_host.nokta_sec(nokta)
-			return true
+		var d := logical_click.distance_to(_host.nokta_merkezi(nokta))
+		if d <= NOKTA_SECIM_YARICAP and d < en_kisa:
+			en_kisa = d
+			en_yakin = nokta
+	if en_yakin != "":
+		_host.nokta_sec(en_yakin)
+		return true
 	return false
 
+func _birim_gorseline_tiklandi(dunya_pos: Vector2, konum: Vector2) -> bool:
+	var rect := Rect2(_host.birim_gorsel_konum(konum), BIRIM_GORSEL_BOYUT)
+	return rect.has_point(dunya_pos)
+
+
 func _find_clicked_unit(dunya_pos: Vector2) -> Dictionary:
-	var logical_click: Vector2 = _host.ekran_to_logical(dunya_pos)
 	var tiklanan_oyuncu = null
 	var tiklanan_dusman = null
 	var en_onde_oyuncu_y := -INF
@@ -203,8 +215,7 @@ func _find_clicked_unit(dunya_pos: Vector2) -> Dictionary:
 	for birim in _host.aktif_birimler:
 		if birim["hp"] <= 0:
 			continue
-		var merkez: Vector2 = birim["konum"] + Vector2(15, 15)
-		if logical_click.distance_to(merkez) > BIRIM_SECIM_YARICAP:
+		if not _birim_gorseline_tiklandi(dunya_pos, birim["konum"]):
 			continue
 		var on_y: float = _host.birim_y_sort_foot(birim["konum"]).y
 		if birim["taraf"] == "osmanli":

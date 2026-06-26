@@ -116,6 +116,10 @@ func ekran_to_logical(ekran_pos: Vector2) -> Vector2:
 	return ekran_pos
 
 
+func logical_to_ekran(logical: Vector2) -> Vector2:
+	return _izo(logical)
+
+
 func birim_gorselini_uygula(birim: Dictionary) -> void:
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
 	var kok = birim.get("kok_node")
