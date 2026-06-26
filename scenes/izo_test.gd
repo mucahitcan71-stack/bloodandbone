@@ -9,16 +9,36 @@ class ClickMarker extends Node2D:
 		draw_line(Vector2(0, -10), Vector2(0, 10), Color.YELLOW, 2.0)
 
 
+class IsoProp extends Node2D:
+	var body_color := Color.WHITE
+	var body_size := Vector2(40, 100)
+
+	func _draw() -> void:
+		var w := body_size.x
+		var h := body_size.y
+		draw_rect(Rect2(-w * 0.5, -h, w, h), body_color)
+		draw_line(Vector2(-w * 0.5, 0), Vector2(w * 0.5, 0), Color(1, 1, 1, 0.7), 2.0)
+
+
 @onready var tile_layer: TileMapLayer = $TileMapLayer
 @onready var camera: Camera2D = $Camera2D
 
 var _marker: ClickMarker
+var _moving_prop: IsoProp
+var _move_phase := 0.0
+
 const GRID_HALF := 8
+const PROP_BACK := Vector2i(-3, -4)
+const PROP_MID := Vector2i(0, 0)
+const PROP_FRONT := Vector2i(3, 4)
 
 
 func _ready() -> void:
+	y_sort_enabled = true
+	tile_layer.y_sort_enabled = true
 	_setup_marker()
 	_setup_grid()
+	_setup_props()
 	camera.make_current()
 
 
@@ -28,6 +48,34 @@ func _setup_marker() -> void:
 	_marker.z_index = 10
 	_marker.visible = false
 	add_child(_marker)
+
+
+func _setup_props() -> void:
+	var back := _make_prop(Color(0.85, 0.2, 0.2), PROP_BACK, "PropBack")
+	var front := _make_prop(Color(0.2, 0.45, 0.9), PROP_FRONT, "PropFront")
+	add_child(back)
+	add_child(front)
+
+	_moving_prop = _make_prop(Color(0.95, 0.85, 0.15), PROP_MID, "PropMoving")
+	add_child(_moving_prop)
+
+
+func _make_prop(color: Color, map_coord: Vector2i, node_name: String) -> IsoProp:
+	var prop := IsoProp.new()
+	prop.name = node_name
+	prop.body_color = color
+	prop.position = tile_layer.map_to_local(map_coord)
+	return prop
+
+
+func _process(delta: float) -> void:
+	if _moving_prop == null:
+		return
+	_move_phase += delta * 0.45
+	var t := (sin(_move_phase) + 1.0) * 0.5
+	var start := tile_layer.map_to_local(PROP_BACK)
+	var end := tile_layer.map_to_local(PROP_FRONT)
+	_moving_prop.position = start.lerp(end, t)
 
 
 func _setup_grid() -> void:
