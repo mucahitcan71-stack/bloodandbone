@@ -151,7 +151,7 @@ func reset_point_colors() -> void:
 			_host.capture_barlar[nokta].size.x = 40.0
 
 func update_point_color(nokta: String) -> void:
-	var kare = _host.get_node("Nokta_" + nokta)
+	var kare = _host.map_gorsel_node("Nokta_" + nokta)
 	var sahip = _host.nokta_sahibi_getir(nokta)
 	if sahip == "osmanli":
 		kare.color = Color.GOLD

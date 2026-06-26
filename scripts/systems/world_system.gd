@@ -42,6 +42,7 @@ var _sabit_nokta_puan: Dictionary = {}
 var _sabit_nokta_altin: Dictionary = {}
 var arazi_katmani: Node2D = null
 var decor_katmani: Node2D = null
+var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
 
 func configure(root: Node2D) -> void:
@@ -80,6 +81,17 @@ func get_camera() -> Camera2D:
 func get_arazi_katmani() -> Node2D:
 	return arazi_katmani
 
+
+func get_nesne_katmani() -> Node2D:
+	nesne_katmani_olustur()
+	return nesne_katmani
+
+
+func find_map_node(node_name: String) -> Node:
+	if _root == null:
+		return null
+	return _root.find_child(node_name, true, false)
+
 func get_point_center(nokta: String) -> Vector2:
 	return nokta_konumlari[nokta] + Vector2(40, 40)
 
@@ -94,8 +106,17 @@ func birim_gorsel_konum(logical: Vector2) -> Vector2:
 	return logical
 
 
+func birim_y_sort_foot(logical: Vector2) -> Vector2:
+	return birim_gorsel_konum(logical) + Vector2(15.0, 30.0)
+
+
 func birim_gorselini_uygula(birim: Dictionary) -> void:
-	var gorsel: Vector2 = birim_gorsel_konum(birim.get("konum", Vector2.ZERO))
+	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
+	var kok = birim.get("kok_node")
+	if is_instance_valid(kok):
+		kok.position = birim_y_sort_foot(konum)
+		return
+	var gorsel: Vector2 = birim_gorsel_konum(konum)
 	var node = birim.get("node")
 	if is_instance_valid(node):
 		node.position = gorsel
@@ -123,6 +144,12 @@ func _nokta_gorsel_anchor(nokta: String) -> Vector2:
 	if _ISO_ARAZI_CIZIMI:
 		return _izo(get_point_center(nokta)) - Vector2(40.0, 40.0)
 	return nokta_konumlari[nokta]
+
+
+func _nokta_y_sort_foot(nokta: String) -> Vector2:
+	if _ISO_ARAZI_CIZIMI:
+		return _izo(get_point_center(nokta)) + Vector2(0.0, 40.0)
+	return nokta_konumlari[nokta] + Vector2(40.0, 80.0)
 
 
 func _decor_z(topdown_z: int) -> int:
@@ -233,87 +260,114 @@ func decor_katmani_olustur() -> void:
 	if is_instance_valid(arazi_katmani):
 		var arazi_idx = arazi_katmani.get_index()
 		_root.move_child(decor_katmani, arazi_idx + 1)
+	nesne_katmani_olustur()
+
+func nesne_katmani_olustur() -> void:
+	if _root == null or is_instance_valid(nesne_katmani):
+		return
+	nesne_katmani = Node2D.new()
+	nesne_katmani.name = "NesneKatmani"
+	nesne_katmani.position = Vector2.ZERO
+	nesne_katmani.y_sort_enabled = true
+	nesne_katmani.z_index = 10
+	_root.add_child(nesne_katmani)
+	if is_instance_valid(decor_katmani):
+		_root.move_child(nesne_katmani, decor_katmani.get_index() + 1)
+	elif is_instance_valid(arazi_katmani):
+		_root.move_child(nesne_katmani, arazi_katmani.get_index() + 1)
 
 func build_control_points(capture_barlar: Dictionary) -> void:
+	nesne_katmani_olustur()
 	for nokta in nokta_konumlari:
-		var pos = _nokta_gorsel_anchor(nokta)
+		var anchor = _nokta_gorsel_anchor(nokta)
+		var foot = _nokta_y_sort_foot(nokta)
+		var rel = anchor - foot
+		var parent: Node = nesne_katmani if _ISO_ARAZI_CIZIMI else _root
+
+		var kok: Node2D = null
+		if _ISO_ARAZI_CIZIMI:
+			kok = Node2D.new()
+			kok.name = "NoktaKok_" + nokta
+			kok.position = foot
+			nesne_katmani.add_child(kok)
+			parent = kok
 
 		var zemin = ColorRect.new()
 		zemin.color = Color(0.34, 0.3, 0.22, 0.5)
 		zemin.size = Vector2(132, 132)
-		zemin.position = pos - Vector2(26, 26)
+		zemin.position = rel - Vector2(26, 26)
 		zemin.name = "NoktaZemin_" + nokta
 		zemin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		zemin.z_index = _nokta_gorsel_z(-3)
-		_root.add_child(zemin)
+		zemin.z_index = _nokta_gorsel_z(-3) if not _ISO_ARAZI_CIZIMI else -3
+		parent.add_child(zemin)
 
 		var tas_leke = ColorRect.new()
 		tas_leke.color = Color(0.42, 0.38, 0.3, 0.35)
 		tas_leke.size = Vector2(96, 96)
-		tas_leke.position = pos - Vector2(8, 8)
+		tas_leke.position = rel - Vector2(8, 8)
 		tas_leke.name = "NoktaTas_" + nokta
 		tas_leke.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tas_leke.z_index = _nokta_gorsel_z(-2)
-		_root.add_child(tas_leke)
+		tas_leke.z_index = _nokta_gorsel_z(-2) if not _ISO_ARAZI_CIZIMI else -2
+		parent.add_child(tas_leke)
 
 		var halka = ColorRect.new()
 		halka.color = Color(0.5, 0.44, 0.32, 0.45)
 		halka.size = Vector2(104, 104)
-		halka.position = pos - Vector2(12, 12)
+		halka.position = rel - Vector2(12, 12)
 		halka.name = "NoktaHalka_" + nokta
 		halka.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		halka.z_index = _nokta_gorsel_z(-1)
-		_root.add_child(halka)
+		halka.z_index = _nokta_gorsel_z(-1) if not _ISO_ARAZI_CIZIMI else -1
+		parent.add_child(halka)
 
 		var cerceve = ColorRect.new()
 		cerceve.color = Color(0.1, 0.1, 0.12, 0.65)
 		cerceve.size = Vector2(84, 84)
-		cerceve.position = pos - Vector2(2, 2)
+		cerceve.position = rel - Vector2(2, 2)
 		cerceve.name = "NoktaCerceve_" + nokta
 		cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cerceve.z_index = _nokta_gorsel_z(0)
-		_root.add_child(cerceve)
+		cerceve.z_index = _nokta_gorsel_z(0) if not _ISO_ARAZI_CIZIMI else 0
+		parent.add_child(cerceve)
 
 		var kare = ColorRect.new()
 		kare.color = Color(0.44, 0.4, 0.34, 0.94)
 		kare.size = Vector2(80, 80)
-		kare.position = pos
+		kare.position = rel
 		kare.name = "Nokta_" + nokta
-		kare.z_index = _nokta_gorsel_z(1)
-		_root.add_child(kare)
+		kare.z_index = _nokta_gorsel_z(1) if not _ISO_ARAZI_CIZIMI else 1
+		parent.add_child(kare)
 
 		var isim_l = Label.new()
 		isim_l.name = "Label_Nokta_" + nokta
 		isim_l.text = nokta
 		isim_l.add_theme_font_size_override("font_size", 14)
 		isim_l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
-		isim_l.position = pos + Vector2(30, 30)
-		isim_l.z_index = _nokta_gorsel_z(2)
-		_root.add_child(isim_l)
+		isim_l.position = rel + Vector2(30, 30)
+		isim_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
+		parent.add_child(isim_l)
 
 		var bar_bg = ColorRect.new()
 		bar_bg.name = "CaptureBg_" + nokta
 		bar_bg.color = Color(0.15, 0.15, 0.18, 0.9)
 		bar_bg.size = Vector2(80, 8)
-		bar_bg.position = pos + Vector2(0, 85)
-		bar_bg.z_index = _nokta_gorsel_z(2)
-		_root.add_child(bar_bg)
+		bar_bg.position = rel + Vector2(0, 85)
+		bar_bg.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
+		parent.add_child(bar_bg)
 
 		var bar = ColorRect.new()
 		bar.color = Color(0.85, 0.72, 0.2, 1.0)
 		bar.size = Vector2(40, 8)
-		bar.position = pos + Vector2(0, 85)
+		bar.position = rel + Vector2(0, 85)
 		bar.name = "CaptureBar_" + nokta
-		bar.z_index = _nokta_gorsel_z(3)
-		_root.add_child(bar)
+		bar.z_index = _nokta_gorsel_z(3) if not _ISO_ARAZI_CIZIMI else 3
+		parent.add_child(bar)
 		capture_barlar[nokta] = bar
 
 		var puan_l = Label.new()
 		puan_l.name = "Label_Puan_" + nokta
 		puan_l.text = "+" + str(nokta_puan[nokta])
-		puan_l.position = pos + Vector2(30, -20)
-		puan_l.z_index = _nokta_gorsel_z(2)
-		_root.add_child(puan_l)
+		puan_l.position = rel + Vector2(30, -20)
+		puan_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
+		parent.add_child(puan_l)
 
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	for nokta in nokta_konumlari:
@@ -365,44 +419,59 @@ func harita_gorsellerini_guncelle() -> void:
 		_on_map_visuals_extra.call()
 
 func _nokta_gorsel_konumla(nokta: String, _logical_pos: Vector2) -> void:
-	var pos := _nokta_gorsel_anchor(nokta)
-	if _root.has_node("NoktaZemin_" + nokta):
-		var zemin = _root.get_node("NoktaZemin_" + nokta) as ColorRect
-		zemin.position = pos - Vector2(26, 26)
-		zemin.z_index = _nokta_gorsel_z(-3)
-	if _root.has_node("NoktaTas_" + nokta):
-		var tas = _root.get_node("NoktaTas_" + nokta) as ColorRect
-		tas.position = pos - Vector2(8, 8)
-		tas.z_index = _nokta_gorsel_z(-2)
-	if _root.has_node("NoktaHalka_" + nokta):
-		var halka = _root.get_node("NoktaHalka_" + nokta) as ColorRect
-		halka.position = pos - Vector2(12, 12)
-		halka.z_index = _nokta_gorsel_z(-1)
-	if _root.has_node("NoktaCerceve_" + nokta):
-		var cerceve = _root.get_node("NoktaCerceve_" + nokta) as ColorRect
-		cerceve.position = pos - Vector2(2, 2)
-		cerceve.z_index = _nokta_gorsel_z(0)
-	if _root.has_node("Nokta_" + nokta):
-		var kare = _root.get_node("Nokta_" + nokta) as ColorRect
-		kare.position = pos
-		kare.z_index = _nokta_gorsel_z(1)
-	if _root.has_node("Label_Nokta_" + nokta):
-		var isim = _root.get_node("Label_Nokta_" + nokta) as Label
-		isim.position = pos + Vector2(30, 30)
-		isim.z_index = _nokta_gorsel_z(2)
-	if _root.has_node("Label_Puan_" + nokta):
-		var puan = _root.get_node("Label_Puan_" + nokta) as Label
-		puan.position = pos + Vector2(30, -20)
+	var anchor := _nokta_gorsel_anchor(nokta)
+	var foot := _nokta_y_sort_foot(nokta)
+	var rel := anchor - foot
+	if _ISO_ARAZI_CIZIMI:
+		var kok = find_map_node("NoktaKok_" + nokta) as Node2D
+		if kok:
+			kok.position = foot
+	var zemin = find_map_node("NoktaZemin_" + nokta) as ColorRect
+	if zemin:
+		zemin.position = rel - Vector2(26, 26)
+		if not _ISO_ARAZI_CIZIMI:
+			zemin.z_index = _nokta_gorsel_z(-3)
+	var tas = find_map_node("NoktaTas_" + nokta) as ColorRect
+	if tas:
+		tas.position = rel - Vector2(8, 8)
+		if not _ISO_ARAZI_CIZIMI:
+			tas.z_index = _nokta_gorsel_z(-2)
+	var halka = find_map_node("NoktaHalka_" + nokta) as ColorRect
+	if halka:
+		halka.position = rel - Vector2(12, 12)
+		if not _ISO_ARAZI_CIZIMI:
+			halka.z_index = _nokta_gorsel_z(-1)
+	var cerceve = find_map_node("NoktaCerceve_" + nokta) as ColorRect
+	if cerceve:
+		cerceve.position = rel - Vector2(2, 2)
+		if not _ISO_ARAZI_CIZIMI:
+			cerceve.z_index = _nokta_gorsel_z(0)
+	var kare = find_map_node("Nokta_" + nokta) as ColorRect
+	if kare:
+		kare.position = rel
+		if not _ISO_ARAZI_CIZIMI:
+			kare.z_index = _nokta_gorsel_z(1)
+	var isim = find_map_node("Label_Nokta_" + nokta) as Label
+	if isim:
+		isim.position = rel + Vector2(30, 30)
+		if not _ISO_ARAZI_CIZIMI:
+			isim.z_index = _nokta_gorsel_z(2)
+	var puan = find_map_node("Label_Puan_" + nokta) as Label
+	if puan:
+		puan.position = rel + Vector2(30, -20)
 		puan.text = "+" + str(nokta_puan.get(nokta, 1))
-		puan.z_index = _nokta_gorsel_z(2)
-	if _root.has_node("CaptureBg_" + nokta):
-		var bar_bg = _root.get_node("CaptureBg_" + nokta) as ColorRect
-		bar_bg.position = pos + Vector2(0, 85)
-		bar_bg.z_index = _nokta_gorsel_z(2)
-	if _root.has_node("CaptureBar_" + nokta):
-		var bar = _root.get_node("CaptureBar_" + nokta) as ColorRect
-		bar.position = pos + Vector2(0, 85)
-		bar.z_index = _nokta_gorsel_z(3)
+		if not _ISO_ARAZI_CIZIMI:
+			puan.z_index = _nokta_gorsel_z(2)
+	var bar_bg = find_map_node("CaptureBg_" + nokta) as ColorRect
+	if bar_bg:
+		bar_bg.position = rel + Vector2(0, 85)
+		if not _ISO_ARAZI_CIZIMI:
+			bar_bg.z_index = _nokta_gorsel_z(2)
+	var bar = find_map_node("CaptureBar_" + nokta) as ColorRect
+	if bar:
+		bar.position = rel + Vector2(0, 85)
+		if not _ISO_ARAZI_CIZIMI:
+			bar.z_index = _nokta_gorsel_z(3)
 
 func arazi_gorsellerini_guncelle() -> void:
 	if not is_instance_valid(arazi_katmani):

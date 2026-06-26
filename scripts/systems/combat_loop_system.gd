@@ -70,9 +70,12 @@ func _process_movement_and_deaths(delta: float) -> void:
 			var birim_id = int(birim.get("id", -1))
 			if birim_id >= 0:
 				_host.fog_system.remove_enemy_intel(birim_id)
-			if birim.has("cerceve_node") and is_instance_valid(birim["cerceve_node"]):
-				birim["cerceve_node"].queue_free()
-			birim["node"].queue_free()
+			if birim.has("kok_node") and is_instance_valid(birim["kok_node"]):
+				birim["kok_node"].queue_free()
+			elif is_instance_valid(birim.get("node")):
+				if birim.has("cerceve_node") and is_instance_valid(birim["cerceve_node"]):
+					birim["cerceve_node"].queue_free()
+				birim["node"].queue_free()
 			silinecekler.append(birim)
 			var taraf = birim["taraf"]
 			var diger = "dogu_roma" if taraf == "osmanli" else "osmanli"

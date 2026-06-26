@@ -436,6 +436,15 @@ func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 func birim_gorsel_konum(logical: Vector2) -> Vector2:
 	return world_system.birim_gorsel_konum(logical)
 
+func birim_y_sort_foot(logical: Vector2) -> Vector2:
+	return world_system.birim_y_sort_foot(logical)
+
+func get_nesne_katmani() -> Node2D:
+	return world_system.get_nesne_katmani()
+
+func map_gorsel_node(node_name: String) -> Node:
+	return world_system.find_map_node(node_name)
+
 func birim_gorselini_uygula(birim: Dictionary) -> void:
 	world_system.birim_gorselini_uygula(birim)
 
@@ -1083,7 +1092,7 @@ func nokta_sec(nokta: String) -> void:
 
 func nokta_vurgula() -> void:
 	for nokta in nokta_konumlari:
-		var kare = get_node("Nokta_" + nokta)
+		var kare = map_gorsel_node("Nokta_" + nokta)
 		kare.modulate = Color(1.5, 1.5, 1.5) if nokta == secili_nokta else Color(1, 1, 1)
 
 func nokta_merkezi(nokta: String) -> Vector2:

@@ -117,10 +117,10 @@ func update_point_visibility() -> void:
 		return
 	for nokta in _root.nokta_konumlari:
 		var kesfedildi = is_point_discovered(nokta)
-		var kare = _root.get_node_or_null("Nokta_" + nokta)
-		var isim_l = _root.get_node_or_null("Label_Nokta_" + nokta)
-		var puan_l = _root.get_node_or_null("Label_Puan_" + nokta)
-		var bg = _root.get_node_or_null("CaptureBg_" + nokta)
+		var kare = _root.map_gorsel_node("Nokta_" + nokta)
+		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta)
+		var puan_l = _root.map_gorsel_node("Label_Puan_" + nokta)
+		var bg = _root.map_gorsel_node("CaptureBg_" + nokta)
 		var bar = _root.capture_barlar.get(nokta, null)
 		if not kesfedildi:
 			if kare: kare.visible = false
@@ -379,10 +379,10 @@ func _update_ghost_icons() -> void:
 
 func _tum_noktalari_goster() -> void:
 	for nokta in _root.nokta_konumlari:
-		var kare = _root.get_node_or_null("Nokta_" + nokta)
-		var isim_l = _root.get_node_or_null("Label_Nokta_" + nokta)
-		var puan_l = _root.get_node_or_null("Label_Puan_" + nokta)
-		var bg = _root.get_node_or_null("CaptureBg_" + nokta)
+		var kare = _root.map_gorsel_node("Nokta_" + nokta)
+		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta)
+		var puan_l = _root.map_gorsel_node("Label_Puan_" + nokta)
+		var bg = _root.map_gorsel_node("CaptureBg_" + nokta)
 		var bar = _root.capture_barlar.get(nokta, null)
 		if kare:
 			kare.visible = true
