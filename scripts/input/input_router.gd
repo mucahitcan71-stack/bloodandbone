@@ -232,7 +232,7 @@ func _apply_unit_click_decision(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vec
 		elif _host.secili_komut == "saldir":
 			_host.birim_komut_saldir(_host.secili_birim, dunya_pos)
 		else:
-			_host.birim_hareket_ettir(dunya_pos)
+			_host.birim_hareket_ettir(_host.ekran_to_logical(dunya_pos))
 	elif _host.secili_envanter_tip_anahtari != "":
 		_host.birim_haritadan_gonder(dunya_pos)
 	else:

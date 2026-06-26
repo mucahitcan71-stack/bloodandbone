@@ -439,6 +439,9 @@ func birim_gorsel_konum(logical: Vector2) -> Vector2:
 func birim_y_sort_foot(logical: Vector2) -> Vector2:
 	return world_system.birim_y_sort_foot(logical)
 
+func ekran_to_logical(ekran_pos: Vector2) -> Vector2:
+	return world_system.ekran_to_logical(ekran_pos)
+
 func get_nesne_katmani() -> Node2D:
 	return world_system.get_nesne_katmani()
 

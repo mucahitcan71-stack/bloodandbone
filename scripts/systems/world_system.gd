@@ -110,6 +110,12 @@ func birim_y_sort_foot(logical: Vector2) -> Vector2:
 	return birim_gorsel_konum(logical) + Vector2(15.0, 30.0)
 
 
+func ekran_to_logical(ekran_pos: Vector2) -> Vector2:
+	if _ISO_ARAZI_CIZIMI:
+		return IsoProj.iso_to_logical(ekran_pos - _izo_cizim_offseti(harita_sinir))
+	return ekran_pos
+
+
 func birim_gorselini_uygula(birim: Dictionary) -> void:
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
 	var kok = birim.get("kok_node")
