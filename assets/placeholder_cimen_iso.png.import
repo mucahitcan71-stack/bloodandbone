@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c8noaq2marfj0"
-path="res://.godot/imported/izo_kare.png-2f80fddb3b02e331773ad794d8eaaaaa.ctex"
+uid="uid://c4a6r2kch48ve"
+path="res://.godot/imported/placeholder_cimen_iso.png-91f179df0658e2d3be17b392b58dac40.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/izo_kare.png"
-dest_files=["res://.godot/imported/izo_kare.png-2f80fddb3b02e331773ad794d8eaaaaa.ctex"]
+source_file="res://assets/placeholder_cimen_iso.png"
+dest_files=["res://.godot/imported/placeholder_cimen_iso.png-91f179df0658e2d3be17b392b58dac40.ctex"]
 
 [params]
 
