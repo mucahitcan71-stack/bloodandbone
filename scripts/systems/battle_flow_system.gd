@@ -117,10 +117,7 @@ func start_preparation() -> void:
 	_host.fog_system.update_point_visibility()
 	_host.nokta_renkleri_sifirla()
 	if _host.kamera != null:
-		_host.kamera.position = Vector2(
-			(_host.harita_sinir["min_x"] + _host.harita_sinir["max_x"]) * 0.5,
-			(_host.harita_sinir["min_y"] + _host.harita_sinir["max_y"]) * 0.5
-		)
+		_host.kamera.position = _host.world_system.kamera_merkez_konum()
 		_host.kamera.zoom = Vector2(0.7, 0.7)
 		_host.kamera_sinirla()
 	_host.ui_guncelle()
@@ -182,7 +179,7 @@ func start_battle() -> void:
 	_host.envanter_olustur()
 	_host.komut_sec("hareket")
 	if _host.kamera != null and _host.nokta_konumlari.has("C"):
-		_host.kamera.position = _host.nokta_merkezi("C")
+		_host.kamera.position = _host.logical_to_ekran(_host.nokta_merkezi("C"))
 		_host.kamera_sinirla()
 	_host.fog_system.tick_battle_fog()
 	_host.ui_guncelle()

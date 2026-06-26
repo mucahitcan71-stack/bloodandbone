@@ -120,6 +120,32 @@ func logical_to_ekran(logical: Vector2) -> Vector2:
 	return _izo(logical)
 
 
+func izo_ekran_sinir(sinir: Dictionary) -> Dictionary:
+	var min_x := float(sinir["min_x"])
+	var max_x := float(sinir["max_x"])
+	var min_y := float(sinir["min_y"])
+	var max_y := float(sinir["max_y"])
+	var koseler: Array[Vector2] = [
+		Vector2(min_x, min_y),
+		Vector2(max_x, min_y),
+		Vector2(max_x, max_y),
+		Vector2(min_x, max_y),
+	]
+	var off := _izo_cizim_offseti(sinir)
+	var ilk: Vector2 = IsoProj.logical_to_iso(koseler[0]) + off
+	var bx_min := ilk.x
+	var bx_max := ilk.x
+	var by_min := ilk.y
+	var by_max := ilk.y
+	for k in koseler:
+		var p: Vector2 = IsoProj.logical_to_iso(k) + off
+		bx_min = minf(bx_min, p.x)
+		bx_max = maxf(bx_max, p.x)
+		by_min = minf(by_min, p.y)
+		by_max = maxf(by_max, p.y)
+	return {"min_x": bx_min, "max_x": bx_max, "min_y": by_min, "max_y": by_max}
+
+
 func birim_gorselini_uygula(birim: Dictionary) -> void:
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
 	var kok = birim.get("kok_node")
@@ -234,17 +260,28 @@ func kamera_hazirla() -> void:
 func kamera_limitlerini_guncelle() -> void:
 	if kamera == null:
 		return
-	kamera.limit_left = int(harita_sinir["min_x"])
-	kamera.limit_right = int(harita_sinir["max_x"])
-	kamera.limit_top = int(harita_sinir["min_y"])
-	kamera.limit_bottom = int(harita_sinir["max_y"])
+	var s := _aktif_kamera_sinir()
+	kamera.limit_left = int(s["min_x"])
+	kamera.limit_right = int(s["max_x"])
+	kamera.limit_top = int(s["min_y"])
+	kamera.limit_bottom = int(s["max_y"])
 	kamera_sinirla()
 
 func kamera_sinirla() -> void:
 	if kamera == null:
 		return
-	kamera.position.x = clamp(kamera.position.x, harita_sinir["min_x"], harita_sinir["max_x"])
-	kamera.position.y = clamp(kamera.position.y, harita_sinir["min_y"], harita_sinir["max_y"])
+	var s := _aktif_kamera_sinir()
+	kamera.position.x = clamp(kamera.position.x, s["min_x"], s["max_x"])
+	kamera.position.y = clamp(kamera.position.y, s["min_y"], s["max_y"])
+
+func kamera_merkez_konum() -> Vector2:
+	var s := _aktif_kamera_sinir()
+	return Vector2((s["min_x"] + s["max_x"]) * 0.5, (s["min_y"] + s["max_y"]) * 0.5)
+
+func _aktif_kamera_sinir() -> Dictionary:
+	if _ISO_ARAZI_CIZIMI:
+		return izo_ekran_sinir(harita_sinir)
+	return harita_sinir
 
 func arazi_katmani_olustur() -> void:
 	if _root == null:
@@ -496,6 +533,8 @@ func arazi_gorsellerini_guncelle() -> void:
 		_arazi_leke_katmani_ekle(sinir)
 		_gorsel_lekeler_ekle()
 	# --- YENI IZOMETRIK CIZIM (aktif) ---
+	if _ISO_ARAZI_CIZIMI:
+		_izo_taban_ekle(sinir)
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
 		var rect: Rect2 = bolge.get("rect", Rect2())
@@ -528,6 +567,29 @@ func _taban_katmani_ekle(sinir: Dictionary) -> void:
 	taban.color = Color(0.16, 0.21, 0.13, 1.0)
 	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	taban.z_index = -2
+	arazi_katmani.add_child(taban)
+
+
+func _izo_taban_ekle(sinir: Dictionary) -> void:
+	var min_x := float(sinir["min_x"])
+	var max_x := float(sinir["max_x"])
+	var min_y := float(sinir["min_y"])
+	var max_y := float(sinir["max_y"])
+	var koseler_logical: Array[Vector2] = [
+		Vector2(min_x, min_y),
+		Vector2(max_x, min_y),
+		Vector2(max_x, max_y),
+		Vector2(min_x, max_y),
+	]
+	var off := _izo_cizim_offseti(sinir)
+	var koseler_iso := PackedVector2Array()
+	for k in koseler_logical:
+		koseler_iso.append(IsoProj.logical_to_iso(k) + off)
+	var taban := Polygon2D.new()
+	taban.name = "AraziIsoTaban"
+	taban.polygon = koseler_iso
+	taban.color = Color(0.16, 0.21, 0.13, 1.0)
+	taban.z_index = 0
 	arazi_katmani.add_child(taban)
 
 
