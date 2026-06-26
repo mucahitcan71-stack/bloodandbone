@@ -335,6 +335,7 @@ func arazi_gorsellerini_guncelle() -> void:
 	_taban_katmani_ekle(sinir)
 	_arazi_leke_katmani_ekle(sinir)
 	_gorsel_lekeler_ekle()
+	var iso_offset := _izo_cizim_offseti(sinir)
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
 		var rect: Rect2 = bolge.get("rect", Rect2())
@@ -342,6 +343,7 @@ func arazi_gorsellerini_guncelle() -> void:
 			continue
 		var tip = str(bolge.get("tip", "duz_arazi"))
 		_arazi_bolge_ciz(bolge, rect, tip, i)
+		_arazi_bolgesini_izo_ciz(bolge, rect, tip, i, iso_offset)
 
 func decor_gorsellerini_guncelle() -> void:
 	if not is_instance_valid(decor_katmani):
@@ -365,32 +367,71 @@ func _taban_katmani_ekle(sinir: Dictionary) -> void:
 	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	taban.z_index = -2
 	arazi_katmani.add_child(taban)
-	_taban_iso_test_ekle(sinir)
 
 
-func _taban_iso_test_ekle(sinir: Dictionary) -> void:
+func _izo_cizim_offseti(sinir: Dictionary) -> Vector2:
 	var min_x := float(sinir["min_x"])
 	var min_y := float(sinir["min_y"])
 	var w := float(sinir["max_x"]) - min_x
 	var h := float(sinir["max_y"]) - min_y
-	var kose_logical: Array[Vector2] = [
-		Vector2(min_x, min_y),
-		Vector2(min_x + w, min_y),
-		Vector2(min_x + w, min_y + h),
-		Vector2(min_x, min_y + h),
-	]
-	var kose_iso := PackedVector2Array()
-	for k in kose_logical:
-		kose_iso.append(IsoProj.logical_to_iso(k))
 	var merkez_logical := Vector2(min_x + w * 0.5, min_y + h * 0.5)
 	var merkez_iso := IsoProj.logical_to_iso(merkez_logical)
-	var iso_poly := Polygon2D.new()
-	iso_poly.name = "AraziTabanIsoTest"
-	iso_poly.polygon = kose_iso
-	iso_poly.position = merkez_logical - merkez_iso
-	iso_poly.color = Color(0.4, 0.5, 0.3, 0.5)
-	iso_poly.z_index = 5
-	arazi_katmani.add_child(iso_poly)
+	return merkez_logical - merkez_iso
+
+
+func _arazi_tip_rengi(tip: String) -> Color:
+	match tip:
+		"orman":
+			return Color(0.08, 0.28, 0.12, 0.65)
+		"vadi":
+			return Color(0.22, 0.42, 0.2, 0.6)
+		"yol":
+			return Color(0.55, 0.45, 0.28, 0.6)
+		"su":
+			return Color(0.2, 0.45, 0.72, 0.6)
+		"tepe":
+			return Color(0.42, 0.34, 0.26, 0.65)
+		"dar_gecit":
+			return Color(0.28, 0.28, 0.3, 0.65)
+		"kopru":
+			return Color(0.48, 0.38, 0.28, 0.65)
+		_:
+			return Color(0.35, 0.48, 0.28, 0.55)
+
+
+func _arazi_bolge_izo_z_index(tip: String) -> int:
+	match tip:
+		"yol":
+			return 2
+		"vadi", "su":
+			return 3
+		"dar_gecit", "kopru":
+			return 4
+		"orman":
+			return 5
+		"tepe":
+			return 6
+		_:
+			return 3
+
+
+func _arazi_bolgesini_izo_ciz(bolge: Dictionary, rect: Rect2, tip: String, bolge_idx: int, iso_offset: Vector2) -> void:
+	var koseler_logical: Array[Vector2] = [
+		rect.position,
+		rect.position + Vector2(rect.size.x, 0.0),
+		rect.position + rect.size,
+		rect.position + Vector2(0.0, rect.size.y),
+	]
+	var koseler_iso := PackedVector2Array()
+	for k in koseler_logical:
+		koseler_iso.append(IsoProj.logical_to_iso(k))
+	var poly := Polygon2D.new()
+	poly.name = "AraziIso_" + tip + "_" + str(bolge_idx)
+	poly.polygon = koseler_iso
+	poly.position = iso_offset
+	poly.color = _arazi_tip_rengi(tip)
+	poly.z_index = _arazi_bolge_izo_z_index(tip)
+	arazi_katmani.add_child(poly)
 
 func _arazi_leke_katmani_ekle(sinir: Dictionary) -> void:
 	var w = sinir["max_x"] - sinir["min_x"]
