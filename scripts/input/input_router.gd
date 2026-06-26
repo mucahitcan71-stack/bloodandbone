@@ -8,6 +8,7 @@ var _sol_surukle_aktif := false
 var _sol_surukle_tasinmis := false
 var _sol_surukle_baslangic := Vector2.ZERO
 const SOL_SURUKLE_ESIK := 10.0
+const BIRIM_SECIM_YARICAP := 15.0
 
 func configure(host: Node2D) -> void:
 	_host = host
@@ -147,8 +148,8 @@ func handle_primary_click(event: InputEvent) -> void:
 
 	for birim in _host.aktif_birimler:
 		if birim["taraf"] == "osmanli" and birim["hp"] > 0:
-			var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
-			if birim_rect.has_point(dunya_pos):
+			var logical_click: Vector2 = _host.ekran_to_logical(dunya_pos)
+			if logical_click.distance_to(birim["konum"] + Vector2(15, 15)) <= BIRIM_SECIM_YARICAP:
 				_host.birim_tikla(birim)
 				break
 
@@ -194,22 +195,28 @@ func _try_empty_area_point_selection(dunya_pos: Vector2) -> bool:
 	return false
 
 func _find_clicked_unit(dunya_pos: Vector2) -> Dictionary:
+	var logical_click: Vector2 = _host.ekran_to_logical(dunya_pos)
 	var tiklanan_oyuncu = null
 	var tiklanan_dusman = null
+	var en_onde_oyuncu_y := -INF
+	var en_onde_dusman_y := -INF
 	for birim in _host.aktif_birimler:
 		if birim["hp"] <= 0:
 			continue
-		var birim_rect = Rect2(birim["konum"], Vector2(30, 30))
-		if not birim_rect.has_point(dunya_pos):
+		var merkez: Vector2 = birim["konum"] + Vector2(15, 15)
+		if logical_click.distance_to(merkez) > BIRIM_SECIM_YARICAP:
 			continue
+		var on_y: float = _host.birim_y_sort_foot(birim["konum"]).y
 		if birim["taraf"] == "osmanli":
-			tiklanan_oyuncu = birim
+			if on_y >= en_onde_oyuncu_y:
+				en_onde_oyuncu_y = on_y
+				tiklanan_oyuncu = birim
 		else:
 			if not _host.birim_gorunur_mu_tarafa(birim, "osmanli"):
 				continue
-			tiklanan_dusman = birim
-		if tiklanan_oyuncu != null:
-			break
+			if on_y >= en_onde_dusman_y:
+				en_onde_dusman_y = on_y
+				tiklanan_dusman = birim
 	return {"oyuncu": tiklanan_oyuncu, "dusman": tiklanan_dusman}
 
 func _apply_unit_click_decision(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vector2, ekran_pos: Vector2) -> void:
