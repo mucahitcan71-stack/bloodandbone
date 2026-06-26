@@ -14,6 +14,8 @@ const _VARSAYILAN_YOLLAR: Array = [
 	{"tip": "gizli", "from": "D", "to": "E"},
 ]
 
+const _ISO_ARAZI_CIZIMI := true
+
 var _root: Node2D = null
 var _on_map_applied: Callable
 var _on_map_visuals_extra: Callable
@@ -332,18 +334,23 @@ func arazi_gorsellerini_guncelle() -> void:
 	for c in arazi_katmani.get_children():
 		c.queue_free()
 	var sinir = harita_sinir
-	_taban_katmani_ekle(sinir)
-	_arazi_leke_katmani_ekle(sinir)
-	_gorsel_lekeler_ekle()
 	var iso_offset := _izo_cizim_offseti(sinir)
+	# --- ESKI TOP-DOWN CIZIM (izometrige gecis - kapatildi) ---
+	if not _ISO_ARAZI_CIZIMI:
+		_taban_katmani_ekle(sinir)
+		_arazi_leke_katmani_ekle(sinir)
+		_gorsel_lekeler_ekle()
+	# --- YENI IZOMETRIK CIZIM (aktif) ---
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
 		var rect: Rect2 = bolge.get("rect", Rect2())
 		if rect.size.x <= 0 or rect.size.y <= 0:
 			continue
 		var tip = str(bolge.get("tip", "duz_arazi"))
-		_arazi_bolge_ciz(bolge, rect, tip, i)
-		_arazi_bolgesini_izo_ciz(bolge, rect, tip, i, iso_offset)
+		if not _ISO_ARAZI_CIZIMI:
+			_arazi_bolge_ciz(bolge, rect, tip, i)
+		if _ISO_ARAZI_CIZIMI:
+			_arazi_bolgesini_izo_ciz(bolge, rect, tip, i, iso_offset)
 
 func decor_gorsellerini_guncelle() -> void:
 	if not is_instance_valid(decor_katmani):
