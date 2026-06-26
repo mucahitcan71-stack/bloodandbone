@@ -83,6 +83,39 @@ func get_arazi_katmani() -> Node2D:
 func get_point_center(nokta: String) -> Vector2:
 	return nokta_konumlari[nokta] + Vector2(40, 40)
 
+
+func nokta_gorsel_kok_pos(nokta: String) -> Vector2:
+	return _nokta_gorsel_anchor(nokta)
+
+
+func _izo(logical: Vector2) -> Vector2:
+	if _ISO_ARAZI_CIZIMI:
+		return IsoProj.logical_to_iso(logical) + _izo_cizim_offseti(harita_sinir)
+	return logical
+
+
+func _izo_nokta_dizisi(points: PackedVector2Array) -> PackedVector2Array:
+	if not _ISO_ARAZI_CIZIMI:
+		return points
+	var out := PackedVector2Array()
+	for p in points:
+		out.append(_izo(p))
+	return out
+
+
+func _nokta_gorsel_anchor(nokta: String) -> Vector2:
+	if _ISO_ARAZI_CIZIMI:
+		return _izo(get_point_center(nokta)) - Vector2(40.0, 40.0)
+	return nokta_konumlari[nokta]
+
+
+func _decor_z(topdown_z: int) -> int:
+	return topdown_z + 8 if _ISO_ARAZI_CIZIMI else topdown_z
+
+
+func _nokta_gorsel_z(topdown_z: int) -> int:
+	return topdown_z + 12 if _ISO_ARAZI_CIZIMI else topdown_z
+
 func harita_uygula(map_id: String) -> void:
 	var map_data = GameData.load_map(map_id)
 	if map_data.is_empty():
@@ -166,6 +199,7 @@ func arazi_katmani_olustur() -> void:
 	if not is_instance_valid(arazi_katmani):
 		arazi_katmani = Node2D.new()
 		arazi_katmani.name = "AraziLayer"
+		arazi_katmani.position = Vector2.ZERO
 		_root.add_child(arazi_katmani)
 		_root.move_child(arazi_katmani, 0)
 	decor_katmani_olustur()
@@ -177,6 +211,7 @@ func decor_katmani_olustur() -> void:
 		return
 	decor_katmani = Node2D.new()
 	decor_katmani.name = "MapDecorLayer"
+	decor_katmani.position = Vector2.ZERO
 	decor_katmani.z_index = -1
 	_root.add_child(decor_katmani)
 	if is_instance_valid(arazi_katmani):
@@ -185,7 +220,7 @@ func decor_katmani_olustur() -> void:
 
 func build_control_points(capture_barlar: Dictionary) -> void:
 	for nokta in nokta_konumlari:
-		var pos = nokta_konumlari[nokta]
+		var pos = _nokta_gorsel_anchor(nokta)
 
 		var zemin = ColorRect.new()
 		zemin.color = Color(0.34, 0.3, 0.22, 0.5)
@@ -193,7 +228,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		zemin.position = pos - Vector2(26, 26)
 		zemin.name = "NoktaZemin_" + nokta
 		zemin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		zemin.z_index = -3
+		zemin.z_index = _nokta_gorsel_z(-3)
 		_root.add_child(zemin)
 
 		var tas_leke = ColorRect.new()
@@ -202,7 +237,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		tas_leke.position = pos - Vector2(8, 8)
 		tas_leke.name = "NoktaTas_" + nokta
 		tas_leke.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tas_leke.z_index = -2
+		tas_leke.z_index = _nokta_gorsel_z(-2)
 		_root.add_child(tas_leke)
 
 		var halka = ColorRect.new()
@@ -211,7 +246,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		halka.position = pos - Vector2(12, 12)
 		halka.name = "NoktaHalka_" + nokta
 		halka.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		halka.z_index = -1
+		halka.z_index = _nokta_gorsel_z(-1)
 		_root.add_child(halka)
 
 		var cerceve = ColorRect.new()
@@ -220,6 +255,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		cerceve.position = pos - Vector2(2, 2)
 		cerceve.name = "NoktaCerceve_" + nokta
 		cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cerceve.z_index = _nokta_gorsel_z(0)
 		_root.add_child(cerceve)
 
 		var kare = ColorRect.new()
@@ -227,6 +263,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		kare.size = Vector2(80, 80)
 		kare.position = pos
 		kare.name = "Nokta_" + nokta
+		kare.z_index = _nokta_gorsel_z(1)
 		_root.add_child(kare)
 
 		var isim_l = Label.new()
@@ -235,6 +272,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		isim_l.add_theme_font_size_override("font_size", 14)
 		isim_l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
 		isim_l.position = pos + Vector2(30, 30)
+		isim_l.z_index = _nokta_gorsel_z(2)
 		_root.add_child(isim_l)
 
 		var bar_bg = ColorRect.new()
@@ -242,6 +280,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		bar_bg.color = Color(0.15, 0.15, 0.18, 0.9)
 		bar_bg.size = Vector2(80, 8)
 		bar_bg.position = pos + Vector2(0, 85)
+		bar_bg.z_index = _nokta_gorsel_z(2)
 		_root.add_child(bar_bg)
 
 		var bar = ColorRect.new()
@@ -249,6 +288,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		bar.size = Vector2(40, 8)
 		bar.position = pos + Vector2(0, 85)
 		bar.name = "CaptureBar_" + nokta
+		bar.z_index = _nokta_gorsel_z(3)
 		_root.add_child(bar)
 		capture_barlar[nokta] = bar
 
@@ -256,6 +296,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		puan_l.name = "Label_Puan_" + nokta
 		puan_l.text = "+" + str(nokta_puan[nokta])
 		puan_l.position = pos + Vector2(30, -20)
+		puan_l.z_index = _nokta_gorsel_z(2)
 		_root.add_child(puan_l)
 
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
@@ -307,26 +348,45 @@ func harita_gorsellerini_guncelle() -> void:
 	if _on_map_visuals_extra.is_valid():
 		_on_map_visuals_extra.call()
 
-func _nokta_gorsel_konumla(nokta: String, pos: Vector2) -> void:
+func _nokta_gorsel_konumla(nokta: String, _logical_pos: Vector2) -> void:
+	var pos := _nokta_gorsel_anchor(nokta)
 	if _root.has_node("NoktaZemin_" + nokta):
-		_root.get_node("NoktaZemin_" + nokta).position = pos - Vector2(26, 26)
+		var zemin = _root.get_node("NoktaZemin_" + nokta) as ColorRect
+		zemin.position = pos - Vector2(26, 26)
+		zemin.z_index = _nokta_gorsel_z(-3)
 	if _root.has_node("NoktaTas_" + nokta):
-		_root.get_node("NoktaTas_" + nokta).position = pos - Vector2(8, 8)
+		var tas = _root.get_node("NoktaTas_" + nokta) as ColorRect
+		tas.position = pos - Vector2(8, 8)
+		tas.z_index = _nokta_gorsel_z(-2)
 	if _root.has_node("NoktaHalka_" + nokta):
-		_root.get_node("NoktaHalka_" + nokta).position = pos - Vector2(12, 12)
+		var halka = _root.get_node("NoktaHalka_" + nokta) as ColorRect
+		halka.position = pos - Vector2(12, 12)
+		halka.z_index = _nokta_gorsel_z(-1)
 	if _root.has_node("NoktaCerceve_" + nokta):
-		_root.get_node("NoktaCerceve_" + nokta).position = pos - Vector2(2, 2)
+		var cerceve = _root.get_node("NoktaCerceve_" + nokta) as ColorRect
+		cerceve.position = pos - Vector2(2, 2)
+		cerceve.z_index = _nokta_gorsel_z(0)
 	if _root.has_node("Nokta_" + nokta):
-		_root.get_node("Nokta_" + nokta).position = pos
+		var kare = _root.get_node("Nokta_" + nokta) as ColorRect
+		kare.position = pos
+		kare.z_index = _nokta_gorsel_z(1)
 	if _root.has_node("Label_Nokta_" + nokta):
-		_root.get_node("Label_Nokta_" + nokta).position = pos + Vector2(30, 30)
+		var isim = _root.get_node("Label_Nokta_" + nokta) as Label
+		isim.position = pos + Vector2(30, 30)
+		isim.z_index = _nokta_gorsel_z(2)
 	if _root.has_node("Label_Puan_" + nokta):
-		_root.get_node("Label_Puan_" + nokta).position = pos + Vector2(30, -20)
-		_root.get_node("Label_Puan_" + nokta).text = "+" + str(nokta_puan.get(nokta, 1))
+		var puan = _root.get_node("Label_Puan_" + nokta) as Label
+		puan.position = pos + Vector2(30, -20)
+		puan.text = "+" + str(nokta_puan.get(nokta, 1))
+		puan.z_index = _nokta_gorsel_z(2)
 	if _root.has_node("CaptureBg_" + nokta):
-		_root.get_node("CaptureBg_" + nokta).position = pos + Vector2(0, 85)
+		var bar_bg = _root.get_node("CaptureBg_" + nokta) as ColorRect
+		bar_bg.position = pos + Vector2(0, 85)
+		bar_bg.z_index = _nokta_gorsel_z(2)
 	if _root.has_node("CaptureBar_" + nokta):
-		_root.get_node("CaptureBar_" + nokta).position = pos + Vector2(0, 85)
+		var bar = _root.get_node("CaptureBar_" + nokta) as ColorRect
+		bar.position = pos + Vector2(0, 85)
+		bar.z_index = _nokta_gorsel_z(3)
 
 func arazi_gorsellerini_guncelle() -> void:
 	if not is_instance_valid(arazi_katmani):
@@ -646,19 +706,20 @@ func _dere_yataklari_ekle() -> void:
 		var packed = PackedVector2Array()
 		for pt in pts:
 			packed.append(pt as Vector2)
+		packed = _izo_nokta_dizisi(packed)
 		var kenar = Line2D.new()
 		kenar.points = packed
 		kenar.width = 10.0
 		kenar.default_color = Color(0.22, 0.2, 0.16, 0.35)
 		kenar.antialiased = true
-		kenar.z_index = -2
+		kenar.z_index = _decor_z(-2)
 		decor_katmani.add_child(kenar)
 		var yatak = Line2D.new()
 		yatak.points = packed
 		yatak.width = 5.0
 		yatak.default_color = Color(0.34, 0.3, 0.24, 0.45)
 		yatak.antialiased = true
-		yatak.z_index = -1
+		yatak.z_index = _decor_z(-1)
 		decor_katmani.add_child(yatak)
 
 func _nehir_hatlari_ekle() -> void:
@@ -670,20 +731,21 @@ func _nehir_hatlari_ekle() -> void:
 		var packed = PackedVector2Array()
 		for pt in pts:
 			packed.append(pt as Vector2)
+		packed = _izo_nokta_dizisi(packed)
 		var genislik = float(hat.get("genislik", 72.0))
 		var kenar = Line2D.new()
 		kenar.points = packed
 		kenar.width = genislik + 22.0
 		kenar.default_color = Color(0.1, 0.18, 0.26, 0.55)
 		kenar.antialiased = true
-		kenar.z_index = -2
+		kenar.z_index = _decor_z(-2)
 		decor_katmani.add_child(kenar)
 		var su = Line2D.new()
 		su.points = packed
 		su.width = genislik
 		su.default_color = Color(0.18, 0.36, 0.48, 0.78)
 		su.antialiased = true
-		su.z_index = -1
+		su.z_index = _decor_z(-1)
 		decor_katmani.add_child(su)
 
 func _patika_noktalari_genislet(points: PackedVector2Array, seed_val: int, wobble: float) -> PackedVector2Array:
@@ -703,27 +765,28 @@ func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val
 	_yol_cizgisi_noktalari_ekle(noktalar, tip)
 
 func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> void:
+	var cizim_noktalari := _izo_nokta_dizisi(noktalar)
 	var stil = _yol_stili(tip)
 	var kenar = Line2D.new()
-	kenar.points = noktalar
+	kenar.points = cizim_noktalari
 	kenar.width = float(stil.get("kenar", 24.0))
 	kenar.default_color = stil.get("kenar_c", Color(0.28, 0.22, 0.14, 0.55))
 	kenar.antialiased = true
-	kenar.z_index = -2
+	kenar.z_index = _decor_z(-2)
 	decor_katmani.add_child(kenar)
 	var yol = Line2D.new()
-	yol.points = noktalar
+	yol.points = cizim_noktalari
 	yol.width = float(stil.get("yol", 16.0))
 	yol.default_color = stil.get("yol_c", Color(0.5, 0.42, 0.28, 0.82))
 	yol.antialiased = true
-	yol.z_index = -1
+	yol.z_index = _decor_z(-1)
 	decor_katmani.add_child(yol)
 	var orta = Line2D.new()
-	orta.points = noktalar
+	orta.points = cizim_noktalari
 	orta.width = float(stil.get("orta", 5.0))
 	orta.default_color = stil.get("orta_c", Color(0.62, 0.54, 0.36, 0.45))
 	orta.antialiased = true
-	orta.z_index = 0
+	orta.z_index = _decor_z(0)
 	decor_katmani.add_child(orta)
 
 func _yol_stili(tip: String) -> Dictionary:
@@ -782,6 +845,7 @@ func _akarsu_ekle() -> void:
 		pts.append(Vector2(bas_x + rect.size.x * 0.48, mid_y - rect.size.y * 0.06))
 		pts.append(Vector2(bas_x + rect.size.x * 0.68, mid_y + rect.size.y * 0.12))
 		pts.append(Vector2(bit_x, mid_y - rect.size.y * 0.04))
+		pts = _izo_nokta_dizisi(pts)
 		var kenar = Line2D.new()
 		kenar.points = pts
 		kenar.width = 14.0
@@ -829,7 +893,7 @@ func _dekor_kaya(rect: Rect2, seed_i: int) -> void:
 		var tas = ColorRect.new()
 		var s = Vector2(rng.randf_range(16.0, 34.0), rng.randf_range(12.0, 24.0))
 		tas.size = s
-		tas.position = rect.position + Vector2(rng.randf_range(0.0, max(4.0, rect.size.x - s.x)), rng.randf_range(0.0, max(4.0, rect.size.y - s.y)))
+		tas.position = _izo(rect.position + Vector2(rng.randf_range(0.0, max(4.0, rect.size.x - s.x)), rng.randf_range(0.0, max(4.0, rect.size.y - s.y))))
 		tas.color = Color(0.38, 0.35, 0.32, 0.72)
 		tas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(tas)
@@ -840,20 +904,20 @@ func _dekor_calik(rect: Rect2, seed_i: int) -> void:
 	for j in range(5):
 		var cali = ColorRect.new()
 		cali.size = Vector2(10, 8)
-		cali.position = rect.position + Vector2(rng.randf_range(0.0, rect.size.x - 10.0), rng.randf_range(0.0, rect.size.y - 8.0))
+		cali.position = _izo(rect.position + Vector2(rng.randf_range(0.0, rect.size.x - 10.0), rng.randf_range(0.0, rect.size.y - 8.0)))
 		cali.color = Color(0.14, 0.26, 0.12, 0.7)
 		cali.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(cali)
 
 func _dekor_harabe(rect: Rect2) -> void:
 	var duvar = ColorRect.new()
-	duvar.position = rect.position
+	duvar.position = _izo(rect.position)
 	duvar.size = Vector2(rect.size.x * 0.7, rect.size.y * 0.55)
 	duvar.color = Color(0.42, 0.4, 0.38, 0.65)
 	duvar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	decor_katmani.add_child(duvar)
 	var kiris = ColorRect.new()
-	kiris.position = rect.position + Vector2(rect.size.x * 0.45, rect.size.y * 0.2)
+	kiris.position = _izo(rect.position + Vector2(rect.size.x * 0.45, rect.size.y * 0.2))
 	kiris.size = Vector2(rect.size.x * 0.35, 8)
 	kiris.color = Color(0.36, 0.34, 0.32, 0.6)
 	kiris.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -863,20 +927,20 @@ func _dekor_kamp(rect: Rect2) -> void:
 	for i in range(2):
 		var cadir = ColorRect.new()
 		cadir.size = Vector2(22, 16)
-		cadir.position = rect.position + Vector2(float(i) * 28.0 + 8.0, rect.size.y * 0.35)
+		cadir.position = _izo(rect.position + Vector2(float(i) * 28.0 + 8.0, rect.size.y * 0.35))
 		cadir.color = Color(0.52, 0.44, 0.3, 0.7)
 		cadir.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(cadir)
 	var ates = ColorRect.new()
 	ates.size = Vector2(8, 8)
-	ates.position = rect.position + Vector2(rect.size.x * 0.55, rect.size.y * 0.55)
+	ates.position = _izo(rect.position + Vector2(rect.size.x * 0.55, rect.size.y * 0.55))
 	ates.color = Color(0.7, 0.42, 0.18, 0.55)
 	ates.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	decor_katmani.add_child(ates)
 
 func _dekor_tarla(rect: Rect2) -> void:
 	var taban = ColorRect.new()
-	taban.position = rect.position
+	taban.position = _izo(rect.position)
 	taban.size = rect.size
 	taban.color = Color(0.48, 0.42, 0.28, 0.45)
 	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -884,7 +948,7 @@ func _dekor_tarla(rect: Rect2) -> void:
 	var satir_say = clampi(int(rect.size.y / 14.0), 3, 8)
 	for i in range(satir_say):
 		var satir = ColorRect.new()
-		satir.position = rect.position + Vector2(4, float(i) * 14.0 + 4)
+		satir.position = _izo(rect.position + Vector2(4, float(i) * 14.0 + 4))
 		satir.size = Vector2(rect.size.x - 8, 4)
 		satir.color = Color(0.4, 0.36, 0.24, 0.35)
 		satir.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -892,13 +956,13 @@ func _dekor_tarla(rect: Rect2) -> void:
 
 func _dekor_sirt(rect: Rect2) -> void:
 	var isik = ColorRect.new()
-	isik.position = rect.position + Vector2(6, 4)
+	isik.position = _izo(rect.position + Vector2(6, 4))
 	isik.size = Vector2(rect.size.x * 0.55, rect.size.y * 0.45)
 	isik.color = Color(0.34, 0.38, 0.26, 0.35)
 	isik.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	decor_katmani.add_child(isik)
 	var golge = ColorRect.new()
-	golge.position = rect.position + Vector2(rect.size.x * 0.2, rect.size.y * 0.48)
+	golge.position = _izo(rect.position + Vector2(rect.size.x * 0.2, rect.size.y * 0.48))
 	golge.size = Vector2(rect.size.x * 0.72, rect.size.y * 0.42)
 	golge.color = Color(0.12, 0.14, 0.1, 0.32)
 	golge.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -912,32 +976,32 @@ func _dekor_agac_kume(rect: Rect2, adet: int, seed_i: int) -> void:
 		var py = rect.position.y + rng.randf_range(0.0, max(8.0, rect.size.y - 10.0))
 		var canopy = ColorRect.new()
 		canopy.size = Vector2(11, 8)
-		canopy.position = Vector2(px, py - 5)
+		canopy.position = _izo(Vector2(px, py - 5))
 		canopy.color = Color(0.07, 0.24, 0.11, 0.8)
 		canopy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(canopy)
 		var trunk = ColorRect.new()
 		trunk.size = Vector2(3, 6)
-		trunk.position = Vector2(px + 4, py)
+		trunk.position = _izo(Vector2(px + 4, py))
 		trunk.color = Color(0.2, 0.14, 0.09, 0.9)
 		trunk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(trunk)
 
 func _dekor_kopru(rect: Rect2) -> void:
 	var ayak1 = ColorRect.new()
-	ayak1.position = rect.position
+	ayak1.position = _izo(rect.position)
 	ayak1.size = Vector2(10, rect.size.y)
 	ayak1.color = Color(0.36, 0.34, 0.32, 0.75)
 	ayak1.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	decor_katmani.add_child(ayak1)
 	var ayak2 = ColorRect.new()
-	ayak2.position = rect.position + Vector2(rect.size.x - 10.0, 0)
+	ayak2.position = _izo(rect.position + Vector2(rect.size.x - 10.0, 0))
 	ayak2.size = Vector2(10, rect.size.y)
 	ayak2.color = Color(0.36, 0.34, 0.32, 0.75)
 	ayak2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	decor_katmani.add_child(ayak2)
 	var tabla = ColorRect.new()
-	tabla.position = rect.position + Vector2(0, rect.size.y * 0.35)
+	tabla.position = _izo(rect.position + Vector2(0, rect.size.y * 0.35))
 	tabla.size = Vector2(rect.size.x, max(8.0, rect.size.y * 0.22))
 	tabla.color = Color(0.44, 0.38, 0.3, 0.8)
 	tabla.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -950,14 +1014,15 @@ func _bolge_etiketleri_ekle() -> void:
 			continue
 		var golge = Label.new()
 		golge.text = metin
-		golge.position = Vector2(float(etiket.get("x", 0.0)) + 1.0, float(etiket.get("y", 0.0)) + 1.0)
+		var etiket_pos := _izo(Vector2(float(etiket.get("x", 0.0)), float(etiket.get("y", 0.0))))
+		golge.position = etiket_pos + Vector2(1.0, 1.0)
 		golge.add_theme_font_size_override("font_size", 11)
 		golge.add_theme_color_override("font_color", Color(0.05, 0.06, 0.05, 0.55))
 		golge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		decor_katmani.add_child(golge)
 		var label = Label.new()
 		label.text = metin
-		label.position = Vector2(float(etiket.get("x", 0.0)), float(etiket.get("y", 0.0)))
+		label.position = etiket_pos
 		label.add_theme_font_size_override("font_size", 11)
 		label.add_theme_color_override("font_color", Color(0.78, 0.76, 0.7, 0.72))
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE

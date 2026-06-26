@@ -284,7 +284,7 @@ func _world_system_hazirla() -> void:
 		var positions = world_system.get_point_positions()
 		for nokta in positions:
 			if capture_barlar.has(nokta):
-				var pos = positions[nokta]
+				var pos = world_system.nokta_gorsel_kok_pos(nokta)
 				capture_barlar[nokta].position = pos + Vector2(0, 85)
 				capture_barlar[nokta].size.x = 80.0 * (nokta_capture.get(nokta, 50.0) / 100.0)
 	)
