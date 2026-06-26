@@ -88,6 +88,22 @@ func nokta_gorsel_kok_pos(nokta: String) -> Vector2:
 	return _nokta_gorsel_anchor(nokta)
 
 
+func birim_gorsel_konum(logical: Vector2) -> Vector2:
+	if _ISO_ARAZI_CIZIMI:
+		return _izo(logical) - Vector2(15.0, 15.0)
+	return logical
+
+
+func birim_gorselini_uygula(birim: Dictionary) -> void:
+	var gorsel: Vector2 = birim_gorsel_konum(birim.get("konum", Vector2.ZERO))
+	var node = birim.get("node")
+	if is_instance_valid(node):
+		node.position = gorsel
+	var cerceve = birim.get("cerceve_node")
+	if is_instance_valid(cerceve):
+		cerceve.position = gorsel - Vector2(2.0, 2.0)
+
+
 func _izo(logical: Vector2) -> Vector2:
 	if _ISO_ARAZI_CIZIMI:
 		return IsoProj.logical_to_iso(logical) + _izo_cizim_offseti(harita_sinir)

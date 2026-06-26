@@ -70,6 +70,8 @@ func _process_movement_and_deaths(delta: float) -> void:
 			var birim_id = int(birim.get("id", -1))
 			if birim_id >= 0:
 				_host.fog_system.remove_enemy_intel(birim_id)
+			if birim.has("cerceve_node") and is_instance_valid(birim["cerceve_node"]):
+				birim["cerceve_node"].queue_free()
 			birim["node"].queue_free()
 			silinecekler.append(birim)
 			var taraf = birim["taraf"]
@@ -133,7 +135,6 @@ func _process_movement_and_deaths(delta: float) -> void:
 						birim["konum"].x = merkez.x
 					else:
 						birim["konum"].y = merkez.y
-			birim["node"].position = birim["konum"]
 			birim["pusu_arazi_gizli"] = false
 			dist = birim["konum"].distance_to(hedef_pos)
 			hedefe_varildi = dist <= varis_esigi
@@ -145,6 +146,8 @@ func _process_movement_and_deaths(delta: float) -> void:
 			birim["hareket_durdu"] = true
 		if birim.get("geri_cekiliyor", false) and hedefe_varildi:
 			birim["geri_cekiliyor"] = false
+
+		_host.birim_gorselini_uygula(birim)
 
 		if is_instance_valid(birim["node"]):
 			var hp_bar = birim["node"].get_node_or_null("HPBar")

@@ -433,6 +433,12 @@ func savas_sisi_katmani_olustur() -> void:
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	return world_system.birimin_arazisini_bul(konum)
 
+func birim_gorsel_konum(logical: Vector2) -> Vector2:
+	return world_system.birim_gorsel_konum(logical)
+
+func birim_gorselini_uygula(birim: Dictionary) -> void:
+	world_system.birim_gorselini_uygula(birim)
+
 func gecis_engelli_mi(konum: Vector2) -> bool:
 	return world_system.gecis_engelli_mi(konum)
 

@@ -255,10 +255,11 @@ func purchase_unit(idx: int) -> void:
 	_host.ui_guncelle()
 
 func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Dictionary, hedef_konum: Vector2 = Vector2(-1, -1)) -> void:
+	var gorsel: Vector2 = _host.birim_gorsel_konum(baslangic)
 	var cerceve = ColorRect.new()
 	cerceve.color = Color(0.05, 0.05, 0.08, 0.55) if taraf == "osmanli" else Color(0.15, 0.05, 0.25, 0.65)
 	cerceve.size = Vector2(34, 34)
-	cerceve.position = baslangic - Vector2(2, 2)
+	cerceve.position = gorsel - Vector2(2, 2)
 	cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cerceve.z_index = 19
 	_host.add_child(cerceve)
@@ -266,7 +267,7 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	var kare = ColorRect.new()
 	kare.color = tip["renk"]
 	kare.size = Vector2(30, 30)
-	kare.position = baslangic
+	kare.position = gorsel
 	kare.z_index = 20
 	_host.add_child(kare)
 
@@ -312,6 +313,7 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 		"id": _host.birim_id_sayaci,
 		"strip_slot": _strip_slot_from_tip(tip),
 		"node": kare,
+		"cerceve_node": cerceve,
 		"konum": baslangic,
 		"hedef": gidilecek,
 		"hedef_nokta": hedef_nokta,
