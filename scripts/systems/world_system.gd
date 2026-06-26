@@ -382,9 +382,12 @@ func _taban_iso_test_ekle(sinir: Dictionary) -> void:
 	var kose_iso := PackedVector2Array()
 	for k in kose_logical:
 		kose_iso.append(IsoProj.logical_to_iso(k))
+	var merkez_logical := Vector2(min_x + w * 0.5, min_y + h * 0.5)
+	var merkez_iso := IsoProj.logical_to_iso(merkez_logical)
 	var iso_poly := Polygon2D.new()
 	iso_poly.name = "AraziTabanIsoTest"
 	iso_poly.polygon = kose_iso
+	iso_poly.position = merkez_logical - merkez_iso
 	iso_poly.color = Color(0.4, 0.5, 0.3, 0.5)
 	iso_poly.z_index = 5
 	arazi_katmani.add_child(iso_poly)

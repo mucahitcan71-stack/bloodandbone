@@ -36,9 +36,9 @@ func _init() -> void:
 	print("")
 	print("=== IsoProjection A3: BILINEN DEGERLER ===")
 	all_ok = _check_known(Vector2(0, 0), Vector2(0, 0), all_ok)
-	all_ok = _check_known(Vector2(1, 0), Vector2(64, 32), all_ok)
-	all_ok = _check_known(Vector2(0, 1), Vector2(-64, 32), all_ok)
-	all_ok = _check_known(Vector2(1, 1), Vector2(0, 64), all_ok)
+	all_ok = _check_known(Vector2(1, 0), Vector2(0.5, 0.25), all_ok)
+	all_ok = _check_known(Vector2(0, 1), Vector2(-0.5, 0.25), all_ok)
+	all_ok = _check_known(Vector2(1, 1), Vector2(0, 0.5), all_ok)
 
 	print("")
 	print("SONUC: ", "TUM TESTLER GECTI" if all_ok else "BASARISIZ")
