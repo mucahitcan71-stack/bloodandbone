@@ -5,16 +5,14 @@ const GameData = preload("res://scripts/systems/game_data.gd")
 const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
 const IsoProj = preload("res://scripts/iso_projection.gd")
 
-const _VARSAYILAN_YOLLAR: Array = [
-	{"tip": "ana", "from": "A", "to": "C"},
-	{"tip": "ana", "from": "C", "to": "B"},
-	{"tip": "ana", "from": "C", "to": "D"},
-	{"tip": "normal", "from": "C", "to": "E"},
-	{"tip": "normal", "from": "A", "to": "D"},
-	{"tip": "gizli", "from": "D", "to": "E"},
-]
-
 const _ISO_ARAZI_CIZIMI := true
+const _PIXEL_CIMEN_ZEMIN := true
+const _GIZLE_ARAZI_BOLGE_GORSEL := true
+const _CIMEN_GRID_K := 64.0
+const _CIMEN_KARO_YOLLARI := [
+	"res://assets/zemin/cimen_duz.png",
+	"res://assets/placeholder_cimen_iso.png",
+]
 
 var _root: Node2D = null
 var _on_map_applied: Callable
@@ -41,6 +39,7 @@ var _sabit_nokta_konumlari: Dictionary = {}
 var _sabit_nokta_puan: Dictionary = {}
 var _sabit_nokta_altin: Dictionary = {}
 var arazi_katmani: Node2D = null
+var cimen_katmani: Node2D = null
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -286,6 +285,7 @@ func _aktif_kamera_sinir() -> Dictionary:
 func arazi_katmani_olustur() -> void:
 	if _root == null:
 		return
+	cimen_katmani_olustur()
 	if not is_instance_valid(arazi_katmani):
 		arazi_katmani = Node2D.new()
 		arazi_katmani.name = "AraziLayer"
@@ -295,6 +295,16 @@ func arazi_katmani_olustur() -> void:
 	decor_katmani_olustur()
 	arazi_gorsellerini_guncelle()
 	decor_gorsellerini_guncelle()
+
+func cimen_katmani_olustur() -> void:
+	if _root == null or is_instance_valid(cimen_katmani):
+		return
+	cimen_katmani = Node2D.new()
+	cimen_katmani.name = "CimenLayer"
+	cimen_katmani.position = Vector2.ZERO
+	cimen_katmani.z_index = -20
+	_root.add_child(cimen_katmani)
+	_root.move_child(cimen_katmani, 0)
 
 func decor_katmani_olustur() -> void:
 	if _root == null or is_instance_valid(decor_katmani):
@@ -533,8 +543,13 @@ func arazi_gorsellerini_guncelle() -> void:
 		_arazi_leke_katmani_ekle(sinir)
 		_gorsel_lekeler_ekle()
 	# --- YENI IZOMETRIK CIZIM (aktif) ---
-	if _ISO_ARAZI_CIZIMI:
+	if _PIXEL_CIMEN_ZEMIN:
+		_pixel_cimen_zemin_ekle(sinir)
+	elif _ISO_ARAZI_CIZIMI:
 		_izo_taban_ekle(sinir)
+	if is_instance_valid(cimen_katmani) and not _PIXEL_CIMEN_ZEMIN:
+		for c in cimen_katmani.get_children():
+			c.queue_free()
 	for i in range(arazi_bolgeleri.size()):
 		var bolge = arazi_bolgeleri[i]
 		var rect: Rect2 = bolge.get("rect", Rect2())
@@ -543,7 +558,7 @@ func arazi_gorsellerini_guncelle() -> void:
 		var tip = str(bolge.get("tip", "duz_arazi"))
 		if not _ISO_ARAZI_CIZIMI:
 			_arazi_bolge_ciz(bolge, rect, tip, i)
-		if _ISO_ARAZI_CIZIMI:
+		if _ISO_ARAZI_CIZIMI and not _GIZLE_ARAZI_BOLGE_GORSEL:
 			_arazi_bolgesini_izo_ciz(bolge, rect, tip, i, iso_offset)
 
 func decor_gorsellerini_guncelle() -> void:
@@ -568,6 +583,47 @@ func _taban_katmani_ekle(sinir: Dictionary) -> void:
 	taban.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	taban.z_index = -2
 	arazi_katmani.add_child(taban)
+
+
+func _cimen_karo_yukle() -> Texture2D:
+	for yol in _CIMEN_KARO_YOLLARI:
+		if ResourceLoader.exists(yol):
+			var tex := load(yol) as Texture2D
+			if tex:
+				return tex
+	return null
+
+
+func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
+	cimen_katmani_olustur()
+	if not is_instance_valid(cimen_katmani):
+		return
+	for c in cimen_katmani.get_children():
+		c.queue_free()
+	var cimen_tex := _cimen_karo_yukle()
+	if cimen_tex == null:
+		push_warning("WorldSystem: cimen karo bulunamadi, izo taban kullaniliyor.")
+		_izo_taban_ekle(sinir)
+		return
+	var off := _izo_cizim_offseti(sinir)
+	var min_x := float(sinir["min_x"])
+	var max_x := float(sinir["max_x"])
+	var min_y := float(sinir["min_y"])
+	var max_y := float(sinir["max_y"])
+	var k := _CIMEN_GRID_K
+	var x := min_x
+	while x <= max_x:
+		var y := min_y
+		while y <= max_y:
+			var s := Sprite2D.new()
+			s.texture = cimen_tex
+			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			s.centered = true
+			s.position = IsoProj.logical_to_iso(Vector2(x, y)) + off
+			s.z_index = 0
+			cimen_katmani.add_child(s)
+			y += k
+		x += k
 
 
 func _izo_taban_ekle(sinir: Dictionary) -> void:
@@ -826,8 +882,7 @@ func _gecit_gorsel_ekle(rect: Rect2, tip: String) -> void:
 	arazi_katmani.add_child(cizgi)
 
 func _gorsel_yollar_ekle() -> void:
-	var yollar = gorsel_yollar if not gorsel_yollar.is_empty() else _VARSAYILAN_YOLLAR
-	for baglanti in yollar:
+	for baglanti in gorsel_yollar:
 		if typeof(baglanti) != TYPE_DICTIONARY:
 			continue
 		var a_id = str(baglanti.get("from", ""))
