@@ -7,6 +7,7 @@ const IsoProj = preload("res://scripts/iso_projection.gd")
 
 const _ISO_ARAZI_CIZIMI := true
 const _PIXEL_CIMEN_ZEMIN := true
+const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
 const _CIMEN_GRID_K := 64.0
 const _CIMEN_KARO_YOLLARI := [
@@ -604,7 +605,7 @@ func _cimen_tilemap_olustur() -> void:
 	_cimen_tilemap.name = "CimenTileMap"
 	_cimen_tilemap.tile_set = load("res://assets/zemin/cimen_tileset.tres")
 	_cimen_tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_cimen_tilemap.z_index = -1
+	_cimen_tilemap.z_index = 0
 	_cimen_tilemap.position = Vector2.ZERO
 	cimen_katmani.add_child(_cimen_tilemap)
 
@@ -616,11 +617,6 @@ func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 	for c in cimen_katmani.get_children():
 		c.queue_free()
 	_cimen_tilemap = null
-	var cimen_tex := _cimen_karo_yukle()
-	if cimen_tex == null:
-		push_warning("WorldSystem: cimen karo bulunamadi, izo taban kullaniliyor.")
-		_izo_taban_ekle(sinir)
-		return
 	_cimen_tilemap_olustur()
 	var off := _izo_cizim_offseti(sinir)
 	var min_x := float(sinir["min_x"])
@@ -650,24 +646,30 @@ func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 		if is_instance_valid(_cimen_tilemap.get_parent()) and _cimen_tilemap.get_parent() is CanvasItem:
 			parent_pos = (_cimen_tilemap.get_parent() as CanvasItem).position
 		print("[TILE-HIZA] hedef0=", hedef0, " map_to_local(hedef_hucre)=", simdiki0, " hedef_hucre=", hedef_hucre, " tilemap.position=", _cimen_tilemap.position, " parent.position=", parent_pos)
-	var x := min_x
-	var ilk_sprite: Sprite2D = null
-	while x <= max_x:
-		var y := min_y
-		while y <= max_y:
-			var s := Sprite2D.new()
-			s.texture = cimen_tex
-			s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			s.centered = true
-			s.position = IsoProj.logical_to_iso(Vector2(x, y)) + off
-			s.z_index = 0
-			cimen_katmani.add_child(s)
-			if ilk_sprite == null:
-				ilk_sprite = s
-			y += k
-		x += k
-	if is_instance_valid(ilk_sprite):
-		print("[TILE-HIZA] eski_ilk_sprite=", ilk_sprite.global_position)
+	if _ESKI_SPRITE_ZEMIN:
+		var cimen_tex := _cimen_karo_yukle()
+		if cimen_tex == null:
+			push_warning("WorldSystem: cimen karo bulunamadi, izo taban kullaniliyor.")
+			_izo_taban_ekle(sinir)
+			return
+		var x := min_x
+		var ilk_sprite: Sprite2D = null
+		while x <= max_x:
+			var y := min_y
+			while y <= max_y:
+				var s := Sprite2D.new()
+				s.texture = cimen_tex
+				s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				s.centered = true
+				s.position = IsoProj.logical_to_iso(Vector2(x, y)) + off
+				s.z_index = 0
+				cimen_katmani.add_child(s)
+				if ilk_sprite == null:
+					ilk_sprite = s
+				y += k
+			x += k
+		if is_instance_valid(ilk_sprite):
+			print("[TILE-HIZA] eski_ilk_sprite=", ilk_sprite.global_position)
 
 
 func _izo_taban_ekle(sinir: Dictionary) -> void:
