@@ -6,7 +6,7 @@ const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
 const IsoProj = preload("res://scripts/iso_projection.gd")
 
 const _ISO_ARAZI_CIZIMI := true
-const _PIXEL_CIMEN_ZEMIN := true
+const _PIXEL_CIMEN_ZEMIN := false
 const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
 const _CIMEN_GRID_K := 64.0
@@ -14,6 +14,7 @@ const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
 ]
+const _YOL_KALINLIK_OLCEK := 0.45  # kenar/yol/orta genisligi carpani
 
 var _root: Node2D = null
 var _on_map_applied: Callable
@@ -636,7 +637,7 @@ func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 				var dunya_pos := IsoProj.logical_to_iso(Vector2(tx, ty)) + off
 				var hucre := _cimen_tilemap.local_to_map(dunya_pos - _cimen_tilemap.position)
 				if not yazilan_hucreler.has(hucre):
-					_cimen_tilemap.set_cell(hucre, 0, Vector2i(0, 0))
+					_cimen_tilemap.set_cell(hucre, 0, Vector2i(0, 0), 0)
 					yazilan_hucreler[hucre] = true
 				ty += k
 			tx += k
@@ -1027,21 +1028,21 @@ func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> v
 	var stil = _yol_stili(tip)
 	var kenar = Line2D.new()
 	kenar.points = cizim_noktalari
-	kenar.width = float(stil.get("kenar", 24.0))
+	kenar.width = float(stil.get("kenar", 24.0)) * _YOL_KALINLIK_OLCEK
 	kenar.default_color = stil.get("kenar_c", Color(0.28, 0.22, 0.14, 0.55))
 	kenar.antialiased = true
 	kenar.z_index = _decor_z(-2)
 	decor_katmani.add_child(kenar)
 	var yol = Line2D.new()
 	yol.points = cizim_noktalari
-	yol.width = float(stil.get("yol", 16.0))
+	yol.width = float(stil.get("yol", 16.0)) * _YOL_KALINLIK_OLCEK
 	yol.default_color = stil.get("yol_c", Color(0.5, 0.42, 0.28, 0.82))
 	yol.antialiased = true
 	yol.z_index = _decor_z(-1)
 	decor_katmani.add_child(yol)
 	var orta = Line2D.new()
 	orta.points = cizim_noktalari
-	orta.width = float(stil.get("orta", 5.0))
+	orta.width = float(stil.get("orta", 5.0)) * _YOL_KALINLIK_OLCEK
 	orta.default_color = stil.get("orta_c", Color(0.62, 0.54, 0.36, 0.45))
 	orta.antialiased = true
 	orta.z_index = _decor_z(0)
