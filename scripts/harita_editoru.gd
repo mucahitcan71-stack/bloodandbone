@@ -1,6 +1,8 @@
 extends Node2D
 
 const IsoProjection = preload("res://scripts/iso_projection.gd")
+const PathSpline = preload("res://scripts/path_spline.gd")
+const _YOL_SPLINE_ADIM := 10
 
 const HARITA_SINIR := {"min_x": 0.0, "max_x": 5000.0, "min_y": 0.0, "max_y": 3000.0}
 const KAMERA_HIZ := 900.0
@@ -28,6 +30,7 @@ var _surukleme_eski_konum := Vector2.ZERO
 var _durum_mesaji := ""
 var _durum_sure := 0.0
 var _sonraki_nokta_index := 0
+var _secili_yol_tipi := "ana"
 
 
 func _ready() -> void:
@@ -98,7 +101,7 @@ func _draw() -> void:
 	for yol in yollar:
 		var iso_pts := _yol_iso_polyline(yol, off)
 		if iso_pts.size() >= 2:
-			draw_polyline(iso_pts, Color(0.66, 0.52, 0.3, 0.92), 6.0, true)
+			_ciz_editor_yol(iso_pts, str(yol.get("tip", "ana")))
 		var ara_raw: Variant = yol.get("ara", [])
 		if typeof(ara_raw) == TYPE_ARRAY:
 			for v in ara_raw as Array:
@@ -138,44 +141,52 @@ func _draw() -> void:
 	if mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 		var bas_n := _nokta_id_ile_bul(_secili_yol_kaynak_id)
 		if not bas_n.is_empty():
-			var onizleme := PackedVector2Array()
-			onizleme.append(IsoProjection.logical_to_iso(bas_n["konum"]) + off)
+			var ctrl: Array = [bas_n["konum"]]
 			for v in _yol_cizim_ara:
 				if v is Vector2:
-					onizleme.append(IsoProjection.logical_to_iso(v) + off)
+					ctrl.append(v)
 					draw_circle(IsoProjection.logical_to_iso(v) + off, 4.0, Color(1.0, 0.65, 0.15, 0.85))
-			if onizleme.size() >= 1:
-				draw_polyline(onizleme, Color(0.8, 0.6, 0.35, 0.65), 5.0, true)
-				var fare_logical := IsoProjection.iso_to_logical(get_global_mouse_position() - off)
-				var fare_iso := IsoProjection.logical_to_iso(fare_logical) + off
-				draw_line(onizleme[onizleme.size() - 1], fare_iso, Color(0.9, 0.7, 0.4, 0.45), 4.0, true)
+			var fare_logical := IsoProjection.iso_to_logical(get_global_mouse_position() - off)
+			ctrl.append(fare_logical)
+			var onizleme := _logical_to_iso_polyline(PathSpline.yumusat_catmull(ctrl, _YOL_SPLINE_ADIM), off)
+			if onizleme.size() >= 2:
+				_ciz_editor_yol(onizleme, _secili_yol_tipi)
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
-	var durum_y := 70.0
 	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
+	draw_string(
+		font,
+		Vector2(18, 70),
+		"YOL TIPI: %s (3=ana 4=patika 5=gizli)" % _yol_tip_etiketi(_secili_yol_tipi),
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		fs,
+		Color(0.95, 0.88, 0.55, 1.0)
+	)
+	var durum_y := 92.0
 	if mod == EditorMod.YOL:
 		draw_string(
 			font,
-			Vector2(18, 70),
+			Vector2(18, 92),
 			"Noktadan basla -> serbest tikla -> bitis noktasi | Sag tik/Backspace geri | Esc iptal",
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
 			Color(0.9, 0.85, 0.65, 1.0)
 		)
-		durum_y = 92.0
+		durum_y = 114.0
 	elif mod == EditorMod.KIVIR:
 		draw_string(
 			font,
-			Vector2(18, 70),
+			Vector2(18, 92),
 			"Yola tikla=ara nokta, surukle=tasi, sag tik=sil",
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
 			Color(0.9, 0.85, 0.65, 1.0)
 		)
-		durum_y = 92.0
+		durum_y = 114.0
 	if _durum_sure > 0.0 and _durum_mesaji != "":
 		draw_string(font, Vector2(18, durum_y), _durum_mesaji, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 1, 0.85, 1))
 
@@ -213,6 +224,15 @@ func _handle_key_input(ev: InputEventKey) -> void:
 	elif _tus_mu(ev, KEY_2):
 			mod = EditorMod.NOKTA
 			_yol_cizim_iptal()
+			queue_redraw()
+	elif _tus_mu(ev, KEY_3):
+			_secili_yol_tipi = "ana"
+			queue_redraw()
+	elif _tus_mu(ev, KEY_4):
+			_secili_yol_tipi = "patika"
+			queue_redraw()
+	elif _tus_mu(ev, KEY_5):
+			_secili_yol_tipi = "gizli"
 			queue_redraw()
 	elif _tus_mu(ev, KEY_Y):
 			mod = EditorMod.YOL
@@ -300,7 +320,7 @@ func _yol_modu_tikla(mouse_dunya: Vector2) -> void:
 		for v in _yol_cizim_ara:
 			if v is Vector2:
 				ara_kopya.append(v)
-		var yol := {"a": _secili_yol_kaynak_id, "b": bitis_id, "ara": ara_kopya}
+		var yol := {"a": _secili_yol_kaynak_id, "b": bitis_id, "ara": ara_kopya, "tip": _secili_yol_tipi}
 		yollar.append(yol)
 		_islem_gecmisi.append({"tip": "yol", "a": _secili_yol_kaynak_id, "b": bitis_id})
 		_yol_cizim_iptal()
@@ -358,12 +378,90 @@ func _yol_polyline_logical(yol: Dictionary) -> PackedVector2Array:
 	return pts
 
 
-func _yol_iso_polyline(yol: Dictionary, off: Vector2) -> PackedVector2Array:
-	var logical_pts := _yol_polyline_logical(yol)
+func _logical_to_iso_polyline(logical_pts: PackedVector2Array, off: Vector2) -> PackedVector2Array:
 	var iso_pts := PackedVector2Array()
 	for p in logical_pts:
 		iso_pts.append(IsoProjection.logical_to_iso(p) + off)
 	return iso_pts
+
+
+func _yol_iso_polyline(yol: Dictionary, off: Vector2) -> PackedVector2Array:
+	var ctrl: Array = []
+	for p in _yol_polyline_logical(yol):
+		ctrl.append(p)
+	return _logical_to_iso_polyline(PathSpline.yumusat_catmull(ctrl, _YOL_SPLINE_ADIM), off)
+
+
+func _yol_tip_etiketi(tip: String) -> String:
+	match tip:
+		"patika":
+			return "PATIKA"
+		"gizli":
+			return "GIZLI"
+		_:
+			return "ANA"
+
+
+func _editor_yol_stili(tip: String) -> Dictionary:
+	match tip:
+		"patika":
+			return {"width": 3.0, "color": Color(0.58, 0.48, 0.32, 0.88), "kesik": false}
+		"gizli":
+			return {"width": 2.5, "color": Color(0.45, 0.52, 0.38, 0.72), "kesik": true}
+		_:
+			return {"width": 6.0, "color": Color(0.66, 0.52, 0.3, 0.92), "kesik": false}
+
+
+func _ciz_editor_yol(iso_pts: PackedVector2Array, tip: String) -> void:
+	if iso_pts.size() < 2:
+		return
+	var stil := _editor_yol_stili(tip)
+	if stil.kesik:
+		_ciz_kesik_polyline(iso_pts, stil.color, stil.width)
+	else:
+		draw_polyline(iso_pts, stil.color, stil.width, true)
+
+
+func _ciz_kesik_polyline(pts: PackedVector2Array, color: Color, width: float, dash := 12.0, gap := 8.0) -> void:
+	for i in range(pts.size() - 1):
+		_ciz_kesik_segment(pts[i], pts[i + 1], color, width, dash, gap)
+
+
+func _ciz_kesik_segment(a: Vector2, b: Vector2, color: Color, width: float, dash: float, gap: float) -> void:
+	var delta := b - a
+	var uzunluk := delta.length()
+	if uzunluk < 0.01:
+		return
+	var yon := delta / uzunluk
+	var t := 0.0
+	var ciz := true
+	while t < uzunluk:
+		var parca := dash if ciz else gap
+		var t2 := minf(t + parca, uzunluk)
+		if ciz:
+			draw_line(a + yon * t, a + yon * t2, color, width, true)
+		t = t2
+		ciz = not ciz
+
+
+func _editor_tip_to_oyun(tip: String) -> String:
+	match tip:
+		"patika":
+			return "normal"
+		"gizli":
+			return "gizli"
+		_:
+			return "ana"
+
+
+func _oyun_tip_to_editor(tip: String) -> String:
+	match tip:
+		"normal":
+			return "patika"
+		"gizli":
+			return "gizli"
+		_:
+			return "ana"
 
 
 func _nokta_segment_mesafe(p: Vector2, a: Vector2, b: Vector2) -> float:
@@ -583,7 +681,7 @@ func _patika_to_yol(patika: Dictionary) -> Dictionary:
 		var pt: Array = points[i]
 		if pt.size() >= 2:
 			ara_list.append(Vector2(float(pt[0]), float(pt[1])))
-	return {"a": a_id, "b": b_id, "ara": ara_list}
+	return {"a": a_id, "b": b_id, "ara": ara_list, "tip": _oyun_tip_to_editor(str(patika.get("tip", "ana")))}
 
 
 func _kaydet_editor_cikti() -> void:
@@ -618,7 +716,7 @@ func _kaydet_editor_cikti() -> void:
 		var pts := _yol_patika_points(yol)
 		if pts.size() < 2:
 			continue
-		patikalar.append({"tip": "ana", "points": pts})
+		patikalar.append({"tip": _editor_tip_to_oyun(str(yol.get("tip", "ana"))), "points": pts})
 
 	var json_data := {
 		"id": "editor_cikti",
@@ -746,7 +844,7 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 						if typeof(pt) == TYPE_ARRAY and (pt as Array).size() >= 2:
 							var parr: Array = pt
 							ara_list.append(Vector2(float(parr[0]), float(parr[1])))
-				yeni_yollar.append({"a": a, "b": b, "ara": ara_list})
+				yeni_yollar.append({"a": a, "b": b, "ara": ara_list, "tip": str(yol.get("tip", "ana"))})
 	yollar = yeni_yollar
 	print("Yuklendi: %s (%d nokta, %d yol)" % [CIKTI_DOSYA, noktalar.size(), yollar.size()])
 	_durum_mesaji = "Yuklendi: %d nokta, %d yol" % [noktalar.size(), yollar.size()]

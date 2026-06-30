@@ -4,6 +4,8 @@ class_name WorldSystem
 const GameData = preload("res://scripts/systems/game_data.gd")
 const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
 const IsoProj = preload("res://scripts/iso_projection.gd")
+const PathSpline = preload("res://scripts/path_spline.gd")
+const _YOL_SPLINE_ADIM := 10
 
 const _ISO_ARAZI_CIZIMI := true
 const _PIXEL_CIMEN_ZEMIN := false
@@ -1034,16 +1036,13 @@ func _nehir_hatlari_ekle() -> void:
 		su.z_index = _decor_z(-1)
 		decor_katmani.add_child(su)
 
-func _patika_noktalari_genislet(points: PackedVector2Array, seed_val: int, wobble: float) -> PackedVector2Array:
+func _patika_noktalari_genislet(points: PackedVector2Array, _seed_val: int, _wobble: float) -> PackedVector2Array:
 	if points.size() < 2:
 		return points
-	var out = PackedVector2Array()
-	out.append(points[0])
-	for i in range(points.size() - 1):
-		var segment = _organik_yol_noktalari(points[i], points[i + 1], seed_val + i, wobble)
-		for j in range(1, segment.size()):
-			out.append(segment[j])
-	return out
+	var kontrol: Array = []
+	for p in points:
+		kontrol.append(p)
+	return PathSpline.yumusat_catmull(kontrol, _YOL_SPLINE_ADIM)
 
 func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val: int) -> void:
 	var stil = _yol_stili(tip)
@@ -1053,6 +1052,9 @@ func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val
 func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> void:
 	var cizim_noktalari := _izo_nokta_dizisi(noktalar)
 	var stil = _yol_stili(tip)
+	if bool(stil.get("kesik", false)):
+		_yol_kesik_hat_ekle(cizim_noktalari, stil)
+		return
 	var kenar = Line2D.new()
 	kenar.points = cizim_noktalari
 	kenar.width = float(stil.get("kenar", 24.0)) * _YOL_KALINLIK_OLCEK
@@ -1075,23 +1077,62 @@ func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> v
 	orta.z_index = _decor_z(0)
 	decor_katmani.add_child(orta)
 
+func _yol_kesik_hat_ekle(pts: PackedVector2Array, stil: Dictionary) -> void:
+	if pts.size() < 2:
+		return
+	var dash := 12.0
+	var gap := 8.0
+	var w := float(stil.get("yol", 5.0)) * _YOL_KALINLIK_OLCEK
+	var renk: Color = stil.get("yol_c", Color(0.4, 0.45, 0.32, 0.55))
+	for i in range(pts.size() - 1):
+		_kesik_segment_line2d(pts[i], pts[i + 1], w, renk, dash, gap)
+
+func _kesik_segment_line2d(a: Vector2, b: Vector2, width: float, color: Color, dash: float, gap: float) -> void:
+	var delta := b - a
+	var uzunluk := delta.length()
+	if uzunluk < 0.01:
+		return
+	var yon := delta / uzunluk
+	var t := 0.0
+	var ciz := true
+	while t < uzunluk:
+		var parca := dash if ciz else gap
+		var t2 := minf(t + parca, uzunluk)
+		if ciz:
+			var line := Line2D.new()
+			line.points = PackedVector2Array([a + yon * t, a + yon * t2])
+			line.width = width
+			line.default_color = color
+			line.antialiased = true
+			line.z_index = _decor_z(-1)
+			decor_katmani.add_child(line)
+		t = t2
+		ciz = not ciz
+
 func _yol_stili(tip: String) -> Dictionary:
 	if tip == "ana":
 		return {
-			"kenar": 36.0, "yol": 26.0, "orta": 8.0, "wobble": 18.0,
+			"kenar": 36.0, "yol": 26.0, "orta": 8.0, "wobble": 18.0, "kesik": false,
 			"kenar_c": Color(0.24, 0.19, 0.12, 0.58),
 			"yol_c": Color(0.54, 0.46, 0.3, 0.88),
 			"orta_c": Color(0.66, 0.58, 0.38, 0.5),
 		}
 	if tip == "gizli":
 		return {
-			"kenar": 14.0, "yol": 8.0, "orta": 2.0, "wobble": 34.0,
+			"kenar": 0.0, "yol": 5.0, "orta": 0.0, "wobble": 34.0, "kesik": true,
 			"kenar_c": Color(0.12, 0.16, 0.1, 0.5),
-			"yol_c": Color(0.28, 0.32, 0.22, 0.62),
+			"yol_c": Color(0.38, 0.44, 0.3, 0.58),
 			"orta_c": Color(0.36, 0.4, 0.28, 0.35),
 		}
+	if tip == "normal":
+		return {
+			"kenar": 12.0, "yol": 8.0, "orta": 2.0, "wobble": 24.0, "kesik": false,
+			"kenar_c": Color(0.22, 0.18, 0.12, 0.48),
+			"yol_c": Color(0.42, 0.36, 0.26, 0.72),
+			"orta_c": Color(0.5, 0.44, 0.32, 0.35),
+		}
 	return {
-		"kenar": 24.0, "yol": 16.0, "orta": 5.0, "wobble": 24.0,
+		"kenar": 24.0, "yol": 16.0, "orta": 5.0, "wobble": 24.0, "kesik": false,
 		"kenar_c": Color(0.26, 0.21, 0.14, 0.52),
 		"yol_c": Color(0.46, 0.4, 0.28, 0.78),
 		"orta_c": Color(0.56, 0.48, 0.34, 0.42),
