@@ -37,6 +37,7 @@ var cevre_dekor: Array = []
 var nokta_duzen: Dictionary = {}
 var nokta_slotlari: Dictionary = {}
 var us_idleri: Array = []
+var us_taraf: Dictionary = {}
 var _map_layout_kaynak: Dictionary = {}
 var _sabit_nokta_konumlari: Dictionary = {}
 var _sabit_nokta_puan: Dictionary = {}
@@ -223,6 +224,7 @@ func harita_uygula(map_id: String) -> void:
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
 	us_idleri = map_data.get("usler", []).duplicate()
 	_map_layout_kaynak = map_data.duplicate(true)
+	us_taraf_eslemesi_kur()
 	orman_bolgeleri = []
 	for bolge in arazi_bolgeleri:
 		if str(bolge.get("tip", "")) == "orman":
@@ -231,6 +233,28 @@ func harita_uygula(map_id: String) -> void:
 	kamera_limitlerini_guncelle()
 	if _on_map_applied.is_valid():
 		_on_map_applied.call()
+
+func us_taraf_eslemesi_kur(ters_cevir: bool = false) -> void:
+	us_taraf.clear()
+	if us_idleri.is_empty():
+		return
+	var orta_y := (float(harita_sinir.get("min_y", 0.0)) + float(harita_sinir.get("max_y", 0.0))) * 0.5
+	for uid in us_idleri:
+		var us_id := str(uid)
+		if not nokta_konumlari.has(us_id):
+			continue
+		var y := float(nokta_konumlari[us_id].y)
+		var taraf := "osmanli" if y > orta_y else "dogu_roma"
+		if ters_cevir:
+			taraf = "dogu_roma" if taraf == "osmanli" else "osmanli"
+		us_taraf[us_id] = taraf
+
+func us_taraf_getir(taraf: String) -> String:
+	for uid in us_idleri:
+		var us_id := str(uid)
+		if us_taraf.get(us_id, "") == taraf:
+			return us_id
+	return ""
 
 func noktalari_sabite_don() -> void:
 	nokta_konumlari = _sabit_nokta_konumlari.duplicate()

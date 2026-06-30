@@ -269,10 +269,21 @@ func send_unit() -> void:
 
 	var hedef_nokta = choose_target_point()
 	var hedef_pos = pick_target_position(hedef_nokta)
-	var baslangic = _host.harita_sinirla(Vector2(
-		randf_range(_host.harita_sinir["min_x"] + 80.0, _host.harita_sinir["max_x"] - 80.0),
-		randf_range(_host.harita_sinir["min_y"] + 40.0, _host.harita_sinir["min_y"] + 180.0)
-	))
+	var baslangic: Vector2
+	if _host.world_system != null:
+		var us_id: String = _host.world_system.us_taraf_getir("dogu_roma")
+		if us_id != "" and _host.nokta_konumlari.has(us_id):
+			baslangic = _host.nokta_konumlari[us_id]
+		else:
+			baslangic = _host.harita_sinirla(Vector2(
+				randf_range(_host.harita_sinir["min_x"] + 80.0, _host.harita_sinir["max_x"] - 80.0),
+				randf_range(_host.harita_sinir["min_y"] + 40.0, _host.harita_sinir["min_y"] + 180.0)
+			))
+	else:
+		baslangic = _host.harita_sinirla(Vector2(
+			randf_range(_host.harita_sinir["min_x"] + 80.0, _host.harita_sinir["max_x"] - 80.0),
+			randf_range(_host.harita_sinir["min_y"] + 40.0, _host.harita_sinir["min_y"] + 180.0)
+		))
 	_host.birim_olustur(baslangic, hedef_nokta, "dogu_roma", tip, hedef_pos)
 	print("AI " + tip["isim"] + " (" + kaynak + ") -> " + hedef_nokta + " | kalan ordu: " + str(_host.ai_envanter.size()))
 

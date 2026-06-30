@@ -178,6 +178,13 @@ func calculate_spawn_position(nokta: String, taraf: String) -> Vector2:
 		_host.nokta_konumlari[nokta].y - 120 - satir * 35
 	)
 
+func _oyuncu_us_spawn_konumu(dagilim: Vector2, fallback_x: float) -> Vector2:
+	if _host.world_system != null:
+		var us_id: String = _host.world_system.us_taraf_getir("osmanli")
+		if us_id != "" and _host.nokta_konumlari.has(us_id):
+			return _host.nokta_konumlari[us_id] + dagilim
+	return Vector2(fallback_x, _host.harita_sinir["max_y"] - 60.0)
+
 func send_from_point() -> void:
 	if _host.secili_nokta == "":
 		print("Once nokta sec!")
@@ -198,14 +205,14 @@ func send_from_point() -> void:
 	_clear_selection_after_send(adet)
 
 	var hedef_pos = calculate_spawn_position(_host.secili_nokta, "osmanli")
-	var oyuncu_spawn_y = _host.harita_sinir["max_y"] - 60.0
 	for i in range(adet):
 		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
 		var deploy_tip = tip.duplicate()
 		if i < deploy_slots.size() and int(deploy_slots[i]) >= 0:
 			deploy_tip["strip_slot"] = int(deploy_slots[i])
+		var fallback_x: float = _host.nokta_konumlari[_host.secili_nokta].x + dagilim.x
 		create_unit(
-			Vector2(_host.nokta_konumlari[_host.secili_nokta].x + dagilim.x, oyuncu_spawn_y),
+			_oyuncu_us_spawn_konumu(dagilim, fallback_x),
 			_host.secili_nokta, "osmanli", deploy_tip, hedef_pos + dagilim
 		)
 	rebuild_inventory()
@@ -215,6 +222,7 @@ func send_from_map(hedef_pos: Vector2) -> void:
 	if secili_indeksler.is_empty():
 		return
 
+	hedef_pos = _host.ekran_to_logical(hedef_pos)
 	hedef_pos = _host.harita_sinirla(hedef_pos)
 	var adet = min(1, secili_indeksler.size())
 	var tip = _selected_type()
@@ -229,14 +237,13 @@ func send_from_map(hedef_pos: Vector2) -> void:
 	_clear_selection_after_send(adet)
 
 	var nokta = _host.en_yakin_nokta_bul(hedef_pos)
-	var oyuncu_spawn_y = _host.harita_sinir["max_y"] - 60.0
 	for i in range(adet):
 		var dagilim = Vector2(float((i % 3) - 1) * 24.0, float(i / 3) * 22.0)
 		var deploy_tip = tip.duplicate()
 		if deploy_slot >= 0:
 			deploy_tip["strip_slot"] = deploy_slot
 		create_unit(
-			Vector2(hedef_pos.x + dagilim.x, oyuncu_spawn_y),
+			_oyuncu_us_spawn_konumu(dagilim, hedef_pos.x + dagilim.x),
 			nokta, "osmanli", deploy_tip, hedef_pos + dagilim
 		)
 	rebuild_inventory()
