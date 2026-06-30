@@ -8,9 +8,10 @@ const ZOOM_ADIM := 0.1
 const ZOOM_MIN := 0.3
 const ZOOM_MAX := 2.5
 const SECIM_YARICAP := 22.0
+const YOL_SEG_ESIK := 50.0
 const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
 
-enum EditorMod { US, NOKTA, YOL }
+enum EditorMod { US, NOKTA, YOL, KIVIR }
 
 var mod: EditorMod = EditorMod.NOKTA
 var noktalar: Array[Dictionary] = []
@@ -19,6 +20,8 @@ var _secili_yol_kaynak_id := ""
 var _islem_gecmisi: Array[Dictionary] = []
 var _kamera: Camera2D
 var _orta_tik_surukleme := false
+var _surukleme_ara: Dictionary = {}
+var _surukleme_eski_konum := Vector2.ZERO
 var _durum_mesaji := ""
 var _durum_sure := 0.0
 
@@ -27,6 +30,7 @@ func _ready() -> void:
 	_kamera = $Camera2D
 	_kamera.position = _harita_merkez_logical()
 	_kamera.zoom = Vector2.ONE
+	_yukle_editor_cikti()
 	queue_redraw()
 
 
@@ -50,17 +54,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_key_input(event as InputEventKey)
 	elif event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
-			_handle_left_click(get_global_mouse_position())
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.pressed:
+				_handle_left_click(get_global_mouse_position())
+			else:
+				_handle_left_release()
+		elif mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed:
+			_handle_right_click(get_global_mouse_position())
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			_orta_tik_surukleme = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
 			_zoom_ayarla(_kamera.zoom.x - ZOOM_ADIM)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
 			_zoom_ayarla(_kamera.zoom.x + ZOOM_ADIM)
-	elif event is InputEventMouseMotion and _orta_tik_surukleme:
-		var mm := event as InputEventMouseMotion
-		_kamera.position -= mm.relative * _kamera.zoom
+	elif event is InputEventMouseMotion:
+		if not _surukleme_ara.is_empty():
+			_ara_nokta_surukle(get_global_mouse_position())
+			queue_redraw()
+		elif _orta_tik_surukleme:
+			var mm := event as InputEventMouseMotion
+			_kamera.position -= mm.relative * _kamera.zoom
 
 
 func _draw() -> void:
@@ -76,15 +89,32 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	var fs := ThemeDB.fallback_font_size
 	for yol in yollar:
-		var a_id := str(yol.get("a", ""))
-		var b_id := str(yol.get("b", ""))
-		var a_nokta := _nokta_id_ile_bul(a_id)
-		var b_nokta := _nokta_id_ile_bul(b_id)
-		if a_nokta.is_empty() or b_nokta.is_empty():
-			continue
-		var a_pos := IsoProjection.logical_to_iso(a_nokta["konum"]) + off
-		var b_pos := IsoProjection.logical_to_iso(b_nokta["konum"]) + off
-		draw_line(a_pos, b_pos, Color(0.66, 0.52, 0.3, 0.92), 6.0, true)
+		var iso_pts := _yol_iso_polyline(yol, off)
+		if iso_pts.size() >= 2:
+			draw_polyline(iso_pts, Color(0.66, 0.52, 0.3, 0.92), 6.0, true)
+		var ara_raw: Variant = yol.get("ara", [])
+		if typeof(ara_raw) == TYPE_ARRAY:
+			for v in ara_raw as Array:
+				if v is Vector2:
+					var iso_ara := IsoProjection.logical_to_iso(v) + off
+					draw_circle(iso_ara, 5.0, Color(1.0, 0.65, 0.15, 0.95))
+
+	if not _surukleme_ara.is_empty():
+		var yi: int = _surukleme_ara["yol_idx"]
+		var ai: int = _surukleme_ara["ara_idx"]
+		var ara_arr: Array = yollar[yi]["ara"]
+		var suruklenen: Vector2 = ara_arr[ai]
+		var iso_suruk := IsoProjection.logical_to_iso(suruklenen) + off
+		draw_circle(iso_suruk, 7.0, Color(1.0, 0.85, 0.2, 1.0))
+		draw_string(
+			font,
+			iso_suruk + Vector2(10, -8),
+			"(%d, %d)" % [int(round(suruklenen.x)), int(round(suruklenen.y))],
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(1.0, 0.9, 0.5, 1.0)
+		)
 
 	for nokta in noktalar:
 		var logical: Vector2 = nokta["konum"]
@@ -100,8 +130,20 @@ func _draw() -> void:
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
+	var durum_y := 48.0
+	if mod == EditorMod.KIVIR:
+		draw_string(
+			font,
+			Vector2(18, 48),
+			"Yola tikla=ara nokta, surukle=tasi, sag tik=sil",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(0.9, 0.85, 0.65, 1.0)
+		)
+		durum_y = 70.0
 	if _durum_sure > 0.0 and _durum_mesaji != "":
-		draw_string(font, Vector2(18, 48), _durum_mesaji, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 1, 0.85, 1))
+		draw_string(font, Vector2(18, durum_y), _durum_mesaji, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 1, 0.85, 1))
 
 
 func merkez_logical_iso_offseti(sinir: Dictionary) -> Vector2:
@@ -127,33 +169,45 @@ func _zoom_ayarla(deger: float) -> void:
 
 
 func _handle_key_input(ev: InputEventKey) -> void:
-	if ev.ctrl_pressed and ev.keycode == KEY_S:
+	if (ev.ctrl_pressed and _tus_mu(ev, KEY_S)) or _tus_mu(ev, KEY_SEMICOLON):
 		_kaydet_editor_cikti()
 		return
-	match ev.keycode:
-		KEY_1:
+	if _tus_mu(ev, KEY_1):
 			mod = EditorMod.US
 			_secili_yol_kaynak_id = ""
 			queue_redraw()
-		KEY_2:
+	elif _tus_mu(ev, KEY_2):
 			mod = EditorMod.NOKTA
 			_secili_yol_kaynak_id = ""
 			queue_redraw()
-		KEY_Y:
+	elif _tus_mu(ev, KEY_Y):
 			mod = EditorMod.YOL
 			_secili_yol_kaynak_id = ""
 			queue_redraw()
-		KEY_S:
-			_kaydet_editor_cikti()
-		KEY_Z:
+	elif _tus_mu(ev, KEY_K):
+			mod = EditorMod.KIVIR
+			_secili_yol_kaynak_id = ""
+			_surukleme_ara = {}
+			queue_redraw()
+	elif _tus_mu(ev, KEY_Z):
 			_geri_al()
-		KEY_C, KEY_DELETE:
+	elif _tus_mu(ev, KEY_C) or _tus_mu(ev, KEY_DELETE):
 			_tumunu_temizle()
+	elif _tus_mu(ev, KEY_L):
+		_yukle_editor_cikti()
+		queue_redraw()
+
+
+func _tus_mu(ev: InputEventKey, code: Key) -> bool:
+	return ev.keycode == code or ev.physical_keycode == code
 
 
 func _handle_left_click(mouse_dunya: Vector2) -> void:
 	if mod == EditorMod.YOL:
 		_yol_modu_tikla(mouse_dunya)
+		return
+	if mod == EditorMod.KIVIR:
+		_kivir_modu_tikla(mouse_dunya)
 		return
 	var logical := IsoProjection.iso_to_logical(mouse_dunya - merkez_logical_iso_offseti(HARITA_SINIR))
 	var yeni_id := _id_uret(noktalar.size())
@@ -183,7 +237,7 @@ func _yol_modu_tikla(mouse_dunya: Vector2) -> void:
 		_secili_yol_kaynak_id = id
 		queue_redraw()
 		return
-	var yol := {"a": _secili_yol_kaynak_id, "b": id}
+	var yol := {"a": _secili_yol_kaynak_id, "b": id, "ara": []}
 	yollar.append(yol)
 	_islem_gecmisi.append({"tip": "yol", "a": _secili_yol_kaynak_id, "b": id})
 	_secili_yol_kaynak_id = ""
@@ -221,6 +275,143 @@ func _nokta_id_ile_bul(id: String) -> Dictionary:
 	return {}
 
 
+func _yol_polyline_logical(yol: Dictionary) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var a_nokta := _nokta_id_ile_bul(str(yol.get("a", "")))
+	var b_nokta := _nokta_id_ile_bul(str(yol.get("b", "")))
+	if a_nokta.is_empty() or b_nokta.is_empty():
+		return pts
+	pts.append(a_nokta["konum"])
+	var ara_raw: Variant = yol.get("ara", [])
+	if typeof(ara_raw) == TYPE_ARRAY:
+		for v in ara_raw as Array:
+			if v is Vector2:
+				pts.append(v)
+	pts.append(b_nokta["konum"])
+	return pts
+
+
+func _yol_iso_polyline(yol: Dictionary, off: Vector2) -> PackedVector2Array:
+	var logical_pts := _yol_polyline_logical(yol)
+	var iso_pts := PackedVector2Array()
+	for p in logical_pts:
+		iso_pts.append(IsoProjection.logical_to_iso(p) + off)
+	return iso_pts
+
+
+func _nokta_segment_mesafe(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var len_sq := ab.length_squared()
+	if len_sq < 0.0001:
+		return p.distance_to(a)
+	var t := clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _en_yakin_yol_segmenti(logical: Vector2) -> Dictionary:
+	var min_d := INF
+	var sonuc: Dictionary = {}
+	for yi in range(yollar.size()):
+		var poly := _yol_polyline_logical(yollar[yi])
+		if poly.size() < 2:
+			continue
+		for si in range(poly.size() - 1):
+			var d := _nokta_segment_mesafe(logical, poly[si], poly[si + 1])
+			if d < min_d:
+				min_d = d
+				sonuc = {"yol_idx": yi, "segment_idx": si}
+	if min_d <= YOL_SEG_ESIK:
+		return sonuc
+	return {}
+
+
+func _en_yakin_ara_nokta(mouse_dunya: Vector2) -> Dictionary:
+	var off := merkez_logical_iso_offseti(HARITA_SINIR)
+	var min_d := INF
+	var sonuc: Dictionary = {}
+	for yi in range(yollar.size()):
+		var ara_raw: Variant = yollar[yi].get("ara", [])
+		if typeof(ara_raw) != TYPE_ARRAY:
+			continue
+		var ara_arr: Array = ara_raw
+		for ai in range(ara_arr.size()):
+			var v: Vector2 = ara_arr[ai]
+			var iso := IsoProjection.logical_to_iso(v) + off
+			var d := iso.distance_to(mouse_dunya)
+			if d < min_d:
+				min_d = d
+				sonuc = {"yol_idx": yi, "ara_idx": ai}
+	if min_d <= SECIM_YARICAP:
+		return sonuc
+	return {}
+
+
+func _kivir_modu_tikla(mouse_dunya: Vector2) -> void:
+	var ara_hit := _en_yakin_ara_nokta(mouse_dunya)
+	if not ara_hit.is_empty():
+		_surukleme_ara = ara_hit
+		var ara_arr: Array = yollar[ara_hit["yol_idx"]]["ara"]
+		_surukleme_eski_konum = ara_arr[ara_hit["ara_idx"]]
+		return
+	var off := merkez_logical_iso_offseti(HARITA_SINIR)
+	var logical := IsoProjection.iso_to_logical(mouse_dunya - off)
+	var seg_hit := _en_yakin_yol_segmenti(logical)
+	if seg_hit.is_empty():
+		return
+	var yol_idx: int = seg_hit["yol_idx"]
+	var seg_idx: int = seg_hit["segment_idx"]
+	var yol: Dictionary = yollar[yol_idx]
+	if not yol.has("ara"):
+		yol["ara"] = []
+	var ara_arr: Array = yol["ara"]
+	ara_arr.insert(seg_idx, logical)
+	_islem_gecmisi.append({"tip": "ara_ekle", "yol_idx": yol_idx, "ara_idx": seg_idx, "konum": logical})
+	queue_redraw()
+
+
+func _handle_left_release() -> void:
+	if _surukleme_ara.is_empty():
+		return
+	var yi: int = _surukleme_ara["yol_idx"]
+	var ai: int = _surukleme_ara["ara_idx"]
+	var yeni: Vector2 = yollar[yi]["ara"][ai]
+	if yeni.distance_to(_surukleme_eski_konum) > 0.5:
+		_islem_gecmisi.append({
+			"tip": "ara_tasi",
+			"yol_idx": yi,
+			"ara_idx": ai,
+			"eski_konum": _surukleme_eski_konum,
+		})
+	_surukleme_ara = {}
+	queue_redraw()
+
+
+func _handle_right_click(mouse_dunya: Vector2) -> void:
+	if mod != EditorMod.KIVIR:
+		return
+	var hit := _en_yakin_ara_nokta(mouse_dunya)
+	if hit.is_empty():
+		return
+	var yi: int = hit["yol_idx"]
+	var ai: int = hit["ara_idx"]
+	var ara_arr: Array = yollar[yi]["ara"]
+	var konum: Vector2 = ara_arr[ai]
+	ara_arr.remove_at(ai)
+	_islem_gecmisi.append({"tip": "ara_sil", "yol_idx": yi, "ara_idx": ai, "konum": konum})
+	queue_redraw()
+
+
+func _ara_nokta_surukle(mouse_dunya: Vector2) -> void:
+	if _surukleme_ara.is_empty():
+		return
+	var yi: int = _surukleme_ara["yol_idx"]
+	var ai: int = _surukleme_ara["ara_idx"]
+	var off := merkez_logical_iso_offseti(HARITA_SINIR)
+	var logical := IsoProjection.iso_to_logical(mouse_dunya - off)
+	var ara_arr: Array = yollar[yi]["ara"]
+	ara_arr[ai] = logical
+
+
 func _id_uret(index: int) -> String:
 	if index < 26:
 		return char(65 + index)
@@ -245,27 +436,120 @@ func _kaydet_editor_cikti() -> void:
 		if str(nokta.get("tip", "nokta")) == "us":
 			json_data["usler"].append(id)
 	for yol in yollar:
-		json_data["yollar_basit"].append({"a": str(yol.get("a", "")), "b": str(yol.get("b", ""))})
+		var ara_json: Array = []
+		var ara_raw: Variant = yol.get("ara", [])
+		if typeof(ara_raw) == TYPE_ARRAY:
+			for v in ara_raw as Array:
+				if v is Vector2:
+					ara_json.append([int(round(v.x)), int(round(v.y))])
+		json_data["yollar_basit"].append({
+			"a": str(yol.get("a", "")),
+			"b": str(yol.get("b", "")),
+			"ara": ara_json,
+		})
 
+	var klasor := "res://data/maps"
+	var klasor_abs := ProjectSettings.globalize_path(klasor)
+	DirAccess.make_dir_recursive_absolute(klasor_abs)
 	var hedef_yol := CIKTI_DOSYA
 	var dosya := FileAccess.open(hedef_yol, FileAccess.WRITE)
 	if dosya == null:
-		_durum_mesaji = "res:// yazilamadi, user:// yaziliyor"
-		_durum_sure = 2.0
-		hedef_yol = "user://editor_cikti.json"
-		dosya = FileAccess.open(hedef_yol, FileAccess.WRITE)
-		if dosya == null:
-			push_error("Kaydetme basarisiz: editor_cikti.json")
-			_durum_mesaji = "Kaydetme basarisiz"
-			_durum_sure = 2.0
-			queue_redraw()
-			return
+		var err := FileAccess.get_open_error()
+		push_error("Kaydetme basarisiz: %s (err=%d)" % [hedef_yol, err])
+		_durum_mesaji = "Kaydetme basarisiz (err=%d)" % err
+		_durum_sure = 2.5
+		queue_redraw()
+		return
 	dosya.store_string(JSON.stringify(json_data, "\t"))
 	dosya.close()
-	print("Kaydedildi: %s" % hedef_yol)
-	_durum_mesaji = "Kaydedildi: %s" % hedef_yol
+	var hedef_abs := ProjectSettings.globalize_path(hedef_yol)
+	print("Kaydedildi: %s" % hedef_abs)
+	_durum_mesaji = "Kaydedildi: %s" % hedef_abs
 	_durum_sure = 3.0
 	queue_redraw()
+
+
+func _yukle_editor_cikti() -> void:
+	if not FileAccess.file_exists(CIKTI_DOSYA):
+		_durum_mesaji = "Kayit bulunamadi: editor_cikti.json"
+		_durum_sure = 1.5
+		return
+	var dosya := FileAccess.open(CIKTI_DOSYA, FileAccess.READ)
+	if dosya == null:
+		_durum_mesaji = "Kayit acilamadi"
+		_durum_sure = 2.0
+		return
+	var metin := dosya.get_as_text()
+	dosya.close()
+	var json := JSON.new()
+	var err := json.parse(metin)
+	if err != OK:
+		_durum_mesaji = "JSON parse hatasi"
+		_durum_sure = 2.0
+		return
+	var data: Variant = json.data
+	if typeof(data) != TYPE_DICTIONARY:
+		_durum_mesaji = "Gecersiz kayit formati"
+		_durum_sure = 2.0
+		return
+	var kayit: Dictionary = data
+	var yeni_noktalar: Array[Dictionary] = []
+	var us_set: Dictionary = {}
+	var usler: Variant = kayit.get("usler", [])
+	if typeof(usler) == TYPE_ARRAY:
+		for uid in usler as Array:
+			us_set[str(uid)] = true
+	var ham_noktalar: Variant = kayit.get("noktalar", {})
+	if typeof(ham_noktalar) == TYPE_DICTIONARY:
+		var nokta_sozluk: Dictionary = ham_noktalar
+		for id_key in nokta_sozluk:
+			var id_str: String = str(id_key)
+			var ham: Variant = nokta_sozluk[id_key]
+			if typeof(ham) == TYPE_ARRAY and (ham as Array).size() >= 2:
+				var arr: Array = ham
+				var x: float = float(arr[0])
+				var y: float = float(arr[1])
+				var tip: String = "us" if us_set.has(id_str) else "nokta"
+				yeni_noktalar.append({"tip": tip, "konum": Vector2(x, y), "id": id_str})
+	var yeni_yollar: Array[Dictionary] = []
+	var ham_yollar: Variant = kayit.get("yollar_basit", [])
+	if typeof(ham_yollar) == TYPE_ARRAY:
+		for y in ham_yollar as Array:
+			if typeof(y) != TYPE_DICTIONARY:
+				continue
+			var yol: Dictionary = y
+			var a := str(yol.get("a", ""))
+			var b := str(yol.get("b", ""))
+			if a == "" or b == "" or a == b:
+				continue
+			if _yol_listesinde_var(yeni_yollar, a, b):
+				continue
+			var ara_list: Array = []
+			var ham_ara: Variant = yol.get("ara", [])
+			if typeof(ham_ara) == TYPE_ARRAY:
+				for pt in ham_ara as Array:
+					if typeof(pt) == TYPE_ARRAY and (pt as Array).size() >= 2:
+						var parr: Array = pt
+						ara_list.append(Vector2(float(parr[0]), float(parr[1])))
+			yeni_yollar.append({"a": a, "b": b, "ara": ara_list})
+	noktalar = yeni_noktalar
+	yollar = yeni_yollar
+	_islem_gecmisi.clear()
+	_secili_yol_kaynak_id = ""
+	_surukleme_ara = {}
+	var abs := ProjectSettings.globalize_path(CIKTI_DOSYA)
+	print("Yuklendi: %s" % abs)
+	_durum_mesaji = "Yuklendi: %s" % abs
+	_durum_sure = 3.0
+
+
+func _yol_listesinde_var(liste: Array[Dictionary], a: String, b: String) -> bool:
+	for yol in liste:
+		var ya := str(yol.get("a", ""))
+		var yb := str(yol.get("b", ""))
+		if (ya == a and yb == b) or (ya == b and yb == a):
+			return true
+	return false
 
 
 func _geri_al() -> void:
@@ -293,7 +577,22 @@ func _geri_al() -> void:
 			if str(noktalar[i].get("id", "")) == id:
 				noktalar.remove_at(i)
 				break
+	elif tip == "ara_ekle":
+		var yi: int = son["yol_idx"]
+		var ai: int = son["ara_idx"]
+		(yollar[yi]["ara"] as Array).remove_at(ai)
+	elif tip == "ara_sil":
+		var yi_s: int = son["yol_idx"]
+		var ai_s: int = son["ara_idx"]
+		var konum: Vector2 = son["konum"]
+		(yollar[yi_s]["ara"] as Array).insert(ai_s, konum)
+	elif tip == "ara_tasi":
+		var yi_t: int = son["yol_idx"]
+		var ai_t: int = son["ara_idx"]
+		var eski: Vector2 = son["eski_konum"]
+		(yollar[yi_t]["ara"] as Array)[ai_t] = eski
 	_secili_yol_kaynak_id = ""
+	_surukleme_ara = {}
 	queue_redraw()
 
 
@@ -302,6 +601,7 @@ func _tumunu_temizle() -> void:
 	yollar.clear()
 	_islem_gecmisi.clear()
 	_secili_yol_kaynak_id = ""
+	_surukleme_ara = {}
 	_durum_mesaji = "Temizlendi"
 	_durum_sure = 1.5
 	queue_redraw()
@@ -315,4 +615,6 @@ func _mod_adi() -> String:
 			return "NOKTA"
 		EditorMod.YOL:
 			return "YOL"
+		EditorMod.KIVIR:
+			return "KIVIR"
 	return "?"
