@@ -130,18 +130,19 @@ func _draw() -> void:
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
-	var durum_y := 48.0
+	var durum_y := 70.0
+	draw_string(font, Vector2(18, 48), "Kaydet: P", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	if mod == EditorMod.KIVIR:
 		draw_string(
 			font,
-			Vector2(18, 48),
+			Vector2(18, 70),
 			"Yola tikla=ara nokta, surukle=tasi, sag tik=sil",
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
 			Color(0.9, 0.85, 0.65, 1.0)
 		)
-		durum_y = 70.0
+		durum_y = 92.0
 	if _durum_sure > 0.0 and _durum_mesaji != "":
 		draw_string(font, Vector2(18, durum_y), _durum_mesaji, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 1, 0.85, 1))
 
@@ -169,7 +170,7 @@ func _zoom_ayarla(deger: float) -> void:
 
 
 func _handle_key_input(ev: InputEventKey) -> void:
-	if (ev.ctrl_pressed and _tus_mu(ev, KEY_S)) or _tus_mu(ev, KEY_SEMICOLON):
+	if _tus_mu(ev, KEY_P):
 		_kaydet_editor_cikti()
 		return
 	if _tus_mu(ev, KEY_1):
@@ -420,33 +421,111 @@ func _id_uret(index: int) -> String:
 	return char(65 + ana) + char(65 + alt)
 
 
+func _nokta_puan_degeri(id: String) -> int:
+	return 3 if id == "C" else 1
+
+
+func _nokta_altin_degeri(id: String) -> int:
+	return 6 if id == "C" else 3
+
+
+func _yol_patika_points(yol: Dictionary) -> Array:
+	var a_nokta := _nokta_id_ile_bul(str(yol.get("a", "")))
+	var b_nokta := _nokta_id_ile_bul(str(yol.get("b", "")))
+	if a_nokta.is_empty() or b_nokta.is_empty():
+		return []
+	var pts: Array = []
+	var a_konum: Vector2 = a_nokta["konum"]
+	pts.append([int(round(a_konum.x)), int(round(a_konum.y))])
+	var ara_raw: Variant = yol.get("ara", [])
+	if typeof(ara_raw) == TYPE_ARRAY:
+		for v in ara_raw as Array:
+			if v is Vector2:
+				pts.append([int(round(v.x)), int(round(v.y))])
+	var b_konum: Vector2 = b_nokta["konum"]
+	pts.append([int(round(b_konum.x)), int(round(b_konum.y))])
+	return pts
+
+
+func _nokta_id_konumdan_bul(konum: Vector2, tolerans: float = 1.5) -> String:
+	for nokta in noktalar:
+		var k: Vector2 = nokta["konum"]
+		if k.distance_to(konum) <= tolerans:
+			return str(nokta.get("id", ""))
+	return ""
+
+
+func _patika_to_yol(patika: Dictionary) -> Dictionary:
+	var ham_pts: Variant = patika.get("points", [])
+	if typeof(ham_pts) != TYPE_ARRAY or (ham_pts as Array).size() < 2:
+		return {}
+	var points: Array = ham_pts
+	var ilk: Array = points[0]
+	var son: Array = points[points.size() - 1]
+	var a_id := _nokta_id_konumdan_bul(Vector2(float(ilk[0]), float(ilk[1])))
+	var b_id := _nokta_id_konumdan_bul(Vector2(float(son[0]), float(son[1])))
+	if a_id == "" or b_id == "" or a_id == b_id:
+		return {}
+	var ara_list: Array = []
+	for i in range(1, points.size() - 1):
+		var pt: Array = points[i]
+		if pt.size() >= 2:
+			ara_list.append(Vector2(float(pt[0]), float(pt[1])))
+	return {"a": a_id, "b": b_id, "ara": ara_list}
+
+
 func _kaydet_editor_cikti() -> void:
+	var c_var := false
+	for nokta in noktalar:
+		if str(nokta.get("id", "")) == "C":
+			c_var = true
+			break
+	if not c_var:
+		_durum_mesaji = "HATA: Haritada 'C' noktasi yok. Oyun cokebilir. Bir noktayi C yapin."
+		_durum_sure = 4.0
+		queue_redraw()
+		return
+
+	var json_noktalar: Dictionary = {}
+	var json_puan: Dictionary = {}
+	var json_altin: Dictionary = {}
+	for nokta in noktalar:
+		var id := str(nokta.get("id", ""))
+		if id == "":
+			continue
+		var konum: Vector2 = nokta["konum"]
+		json_noktalar[id] = [int(round(konum.x)), int(round(konum.y))]
+		json_puan[id] = _nokta_puan_degeri(id)
+		json_altin[id] = _nokta_altin_degeri(id)
+
+	var patikalar: Array = []
+	for yol in yollar:
+		var pts := _yol_patika_points(yol)
+		if pts.size() < 2:
+			continue
+		patikalar.append({"tip": "ana", "points": pts})
+
 	var json_data := {
 		"id": "editor_cikti",
 		"isim": "Editor Haritasi",
-		"sinir": {"min_x": 0, "max_x": 5000, "min_y": 0, "max_y": 3000},
-		"noktalar": {},
-		"usler": [],
-		"yollar_basit": [],
+		"sinir": {
+			"min_x": int(HARITA_SINIR["min_x"]),
+			"max_x": int(HARITA_SINIR["max_x"]),
+			"min_y": int(HARITA_SINIR["min_y"]),
+			"max_y": int(HARITA_SINIR["max_y"]),
+		},
+		"noktalar": json_noktalar,
+		"nokta_puan": json_puan,
+		"nokta_altin": json_altin,
+		"patikalar": patikalar,
+		"araziler": [],
+		"yollar": [],
+		"nehir_hatlari": [],
+		"gorsel_lekeler": [],
+		"dere_yataklari": [],
+		"cevre_dekor": [],
+		"bolge_etiketleri": [],
 	}
-	for nokta in noktalar:
-		var id := str(nokta.get("id", ""))
-		var konum: Vector2 = nokta["konum"]
-		json_data["noktalar"][id] = [int(round(konum.x)), int(round(konum.y))]
-		if str(nokta.get("tip", "nokta")) == "us":
-			json_data["usler"].append(id)
-	for yol in yollar:
-		var ara_json: Array = []
-		var ara_raw: Variant = yol.get("ara", [])
-		if typeof(ara_raw) == TYPE_ARRAY:
-			for v in ara_raw as Array:
-				if v is Vector2:
-					ara_json.append([int(round(v.x)), int(round(v.y))])
-		json_data["yollar_basit"].append({
-			"a": str(yol.get("a", "")),
-			"b": str(yol.get("b", "")),
-			"ara": ara_json,
-		})
 
 	var klasor := "res://data/maps"
 	var klasor_abs := ProjectSettings.globalize_path(klasor)
@@ -462,9 +541,8 @@ func _kaydet_editor_cikti() -> void:
 		return
 	dosya.store_string(JSON.stringify(json_data, "\t"))
 	dosya.close()
-	var hedef_abs := ProjectSettings.globalize_path(hedef_yol)
-	print("Kaydedildi: %s" % hedef_abs)
-	_durum_mesaji = "Kaydedildi: %s" % hedef_abs
+	print("Kaydedildi: editor_cikti.json (oyun formati)")
+	_durum_mesaji = "Kaydedildi: editor_cikti.json (oyun formati)"
 	_durum_sure = 3.0
 	queue_redraw()
 
@@ -512,26 +590,40 @@ func _yukle_editor_cikti() -> void:
 				var tip: String = "us" if us_set.has(id_str) else "nokta"
 				yeni_noktalar.append({"tip": tip, "konum": Vector2(x, y), "id": id_str})
 	var yeni_yollar: Array[Dictionary] = []
-	var ham_yollar: Variant = kayit.get("yollar_basit", [])
-	if typeof(ham_yollar) == TYPE_ARRAY:
-		for y in ham_yollar as Array:
-			if typeof(y) != TYPE_DICTIONARY:
+	var ham_patikalar: Variant = kayit.get("patikalar", [])
+	if typeof(ham_patikalar) == TYPE_ARRAY and (ham_patikalar as Array).size() > 0:
+		for p in ham_patikalar as Array:
+			if typeof(p) != TYPE_DICTIONARY:
 				continue
-			var yol: Dictionary = y
-			var a := str(yol.get("a", ""))
-			var b := str(yol.get("b", ""))
-			if a == "" or b == "" or a == b:
+			var yol_dict := _patika_to_yol(p)
+			if yol_dict.is_empty():
 				continue
-			if _yol_listesinde_var(yeni_yollar, a, b):
+			var ya := str(yol_dict.get("a", ""))
+			var yb := str(yol_dict.get("b", ""))
+			if _yol_listesinde_var(yeni_yollar, ya, yb):
 				continue
-			var ara_list: Array = []
-			var ham_ara: Variant = yol.get("ara", [])
-			if typeof(ham_ara) == TYPE_ARRAY:
-				for pt in ham_ara as Array:
-					if typeof(pt) == TYPE_ARRAY and (pt as Array).size() >= 2:
-						var parr: Array = pt
-						ara_list.append(Vector2(float(parr[0]), float(parr[1])))
-			yeni_yollar.append({"a": a, "b": b, "ara": ara_list})
+			yeni_yollar.append(yol_dict)
+	else:
+		var ham_yollar: Variant = kayit.get("yollar_basit", [])
+		if typeof(ham_yollar) == TYPE_ARRAY:
+			for y in ham_yollar as Array:
+				if typeof(y) != TYPE_DICTIONARY:
+					continue
+				var yol: Dictionary = y
+				var a := str(yol.get("a", ""))
+				var b := str(yol.get("b", ""))
+				if a == "" or b == "" or a == b:
+					continue
+				if _yol_listesinde_var(yeni_yollar, a, b):
+					continue
+				var ara_list: Array = []
+				var ham_ara: Variant = yol.get("ara", [])
+				if typeof(ham_ara) == TYPE_ARRAY:
+					for pt in ham_ara as Array:
+						if typeof(pt) == TYPE_ARRAY and (pt as Array).size() >= 2:
+							var parr: Array = pt
+							ara_list.append(Vector2(float(parr[0]), float(parr[1])))
+				yeni_yollar.append({"a": a, "b": b, "ara": ara_list})
 	noktalar = yeni_noktalar
 	yollar = yeni_yollar
 	_islem_gecmisi.clear()
