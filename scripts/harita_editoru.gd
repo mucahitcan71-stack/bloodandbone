@@ -9,7 +9,9 @@ const ZOOM_MIN := 0.3
 const ZOOM_MAX := 2.5
 const SECIM_YARICAP := 22.0
 const YOL_SEG_ESIK := 50.0
+const PATIKA_NOKTA_ESIK := 30.0
 const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
+const _ACILISTA_YUKLE := true
 
 enum EditorMod { US, NOKTA, YOL, KIVIR }
 
@@ -25,13 +27,15 @@ var _surukleme_ara: Dictionary = {}
 var _surukleme_eski_konum := Vector2.ZERO
 var _durum_mesaji := ""
 var _durum_sure := 0.0
+var _sonraki_nokta_index := 0
 
 
 func _ready() -> void:
 	_kamera = $Camera2D
 	_kamera.position = _harita_merkez_logical()
 	_kamera.zoom = Vector2.ONE
-	_yukle_editor_cikti()
+	if _ACILISTA_YUKLE:
+		_yukle_editor_cikti(true)
 	queue_redraw()
 
 
@@ -149,7 +153,7 @@ func _draw() -> void:
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
 	var durum_y := 70.0
-	draw_string(font, Vector2(18, 48), "Kaydet: P", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
+	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	if mod == EditorMod.YOL:
 		draw_string(
 			font,
@@ -232,7 +236,7 @@ func _handle_key_input(ev: InputEventKey) -> void:
 	elif _tus_mu(ev, KEY_C) or _tus_mu(ev, KEY_DELETE):
 			_tumunu_temizle()
 	elif _tus_mu(ev, KEY_L):
-		_yukle_editor_cikti()
+		_yukle_editor_cikti(false)
 		queue_redraw()
 
 
@@ -248,7 +252,8 @@ func _handle_left_click(mouse_dunya: Vector2) -> void:
 		_kivir_modu_tikla(mouse_dunya)
 		return
 	var logical := IsoProjection.iso_to_logical(mouse_dunya - merkez_logical_iso_offseti(HARITA_SINIR))
-	var yeni_id := _id_uret(noktalar.size())
+	var yeni_id := _id_uret(_sonraki_nokta_index)
+	_sonraki_nokta_index += 1
 	var tip := "us" if mod == EditorMod.US else "nokta"
 	var kayit := {"tip": tip, "konum": logical, "id": yeni_id}
 	noktalar.append(kayit)
@@ -478,6 +483,36 @@ func _ara_nokta_surukle(mouse_dunya: Vector2) -> void:
 	ara_arr[ai] = logical
 
 
+func _id_index_from_string(id: String) -> int:
+	if id.is_empty():
+		return -1
+	if id.length() == 1:
+		return id.unicode_at(0) - 65
+	if id.length() == 2:
+		var ana := id.unicode_at(0) - 65
+		var alt := id.unicode_at(1) - 65
+		return (ana + 1) * 26 + alt
+	return -1
+
+
+func _sonraki_nokta_indexini_guncelle() -> void:
+	var max_idx := -1
+	for nokta in noktalar:
+		var idx := _id_index_from_string(str(nokta.get("id", "")))
+		if idx > max_idx:
+			max_idx = idx
+	_sonraki_nokta_index = max_idx + 1
+
+
+func _editor_durumunu_temizle() -> void:
+	noktalar.clear()
+	yollar.clear()
+	_islem_gecmisi.clear()
+	_yol_cizim_iptal()
+	_surukleme_ara = {}
+	_sonraki_nokta_index = 0
+
+
 func _id_uret(index: int) -> String:
 	if index < 26:
 		return char(65 + index)
@@ -512,12 +547,22 @@ func _yol_patika_points(yol: Dictionary) -> Array:
 	return pts
 
 
-func _nokta_id_konumdan_bul(konum: Vector2, tolerans: float = 1.5) -> String:
+func _nokta_konumdan_en_yakin_id(konum: Vector2, tolerans: float) -> String:
+	var en_yakin := ""
+	var min_d := INF
 	for nokta in noktalar:
 		var k: Vector2 = nokta["konum"]
-		if k.distance_to(konum) <= tolerans:
-			return str(nokta.get("id", ""))
+		var d := k.distance_to(konum)
+		if d < min_d:
+			min_d = d
+			en_yakin = str(nokta.get("id", ""))
+	if min_d <= tolerans:
+		return en_yakin
 	return ""
+
+
+func _nokta_id_konumdan_bul(konum: Vector2, tolerans: float = 1.5) -> String:
+	return _nokta_konumdan_en_yakin_id(konum, tolerans)
 
 
 func _patika_to_yol(patika: Dictionary) -> Dictionary:
@@ -527,8 +572,10 @@ func _patika_to_yol(patika: Dictionary) -> Dictionary:
 	var points: Array = ham_pts
 	var ilk: Array = points[0]
 	var son: Array = points[points.size() - 1]
-	var a_id := _nokta_id_konumdan_bul(Vector2(float(ilk[0]), float(ilk[1])))
-	var b_id := _nokta_id_konumdan_bul(Vector2(float(son[0]), float(son[1])))
+	if ilk.size() < 2 or son.size() < 2:
+		return {}
+	var a_id := _nokta_konumdan_en_yakin_id(Vector2(float(ilk[0]), float(ilk[1])), PATIKA_NOKTA_ESIK)
+	var b_id := _nokta_konumdan_en_yakin_id(Vector2(float(son[0]), float(son[1])), PATIKA_NOKTA_ESIK)
 	if a_id == "" or b_id == "" or a_id == b_id:
 		return {}
 	var ara_list: Array = []
@@ -612,15 +659,17 @@ func _kaydet_editor_cikti() -> void:
 	queue_redraw()
 
 
-func _yukle_editor_cikti() -> void:
+func _yukle_editor_cikti(sessiz: bool = false) -> void:
 	if not FileAccess.file_exists(CIKTI_DOSYA):
-		_durum_mesaji = "Kayit bulunamadi: editor_cikti.json"
-		_durum_sure = 1.5
+		if not sessiz:
+			_durum_mesaji = "Yuklenecek harita yok"
+			_durum_sure = 2.0
 		return
 	var dosya := FileAccess.open(CIKTI_DOSYA, FileAccess.READ)
 	if dosya == null:
-		_durum_mesaji = "Kayit acilamadi"
-		_durum_sure = 2.0
+		if not sessiz:
+			_durum_mesaji = "Kayit acilamadi"
+			_durum_sure = 2.0
 		return
 	var metin := dosya.get_as_text()
 	dosya.close()
@@ -636,12 +685,8 @@ func _yukle_editor_cikti() -> void:
 		_durum_sure = 2.0
 		return
 	var kayit: Dictionary = data
+	_editor_durumunu_temizle()
 	var yeni_noktalar: Array[Dictionary] = []
-	var us_set: Dictionary = {}
-	var usler: Variant = kayit.get("usler", [])
-	if typeof(usler) == TYPE_ARRAY:
-		for uid in usler as Array:
-			us_set[str(uid)] = true
 	var ham_noktalar: Variant = kayit.get("noktalar", {})
 	if typeof(ham_noktalar) == TYPE_DICTIONARY:
 		var nokta_sozluk: Dictionary = ham_noktalar
@@ -652,16 +697,19 @@ func _yukle_editor_cikti() -> void:
 				var arr: Array = ham
 				var x: float = float(arr[0])
 				var y: float = float(arr[1])
-				var tip: String = "us" if us_set.has(id_str) else "nokta"
-				yeni_noktalar.append({"tip": tip, "konum": Vector2(x, y), "id": id_str})
+				yeni_noktalar.append({"tip": "nokta", "konum": Vector2(x, y), "id": id_str})
+	noktalar = yeni_noktalar
+	_sonraki_nokta_indexini_guncelle()
 	var yeni_yollar: Array[Dictionary] = []
 	var ham_patikalar: Variant = kayit.get("patikalar", [])
 	if typeof(ham_patikalar) == TYPE_ARRAY and (ham_patikalar as Array).size() > 0:
-		for p in ham_patikalar as Array:
+		for pi in range((ham_patikalar as Array).size()):
+			var p = (ham_patikalar as Array)[pi]
 			if typeof(p) != TYPE_DICTIONARY:
 				continue
 			var yol_dict := _patika_to_yol(p)
 			if yol_dict.is_empty():
+				print("patika eslestirilemedi (index %d)" % pi)
 				continue
 			var ya := str(yol_dict.get("a", ""))
 			var yb := str(yol_dict.get("b", ""))
@@ -689,16 +737,11 @@ func _yukle_editor_cikti() -> void:
 							var parr: Array = pt
 							ara_list.append(Vector2(float(parr[0]), float(parr[1])))
 				yeni_yollar.append({"a": a, "b": b, "ara": ara_list})
-	noktalar = yeni_noktalar
 	yollar = yeni_yollar
-	_islem_gecmisi.clear()
-	_secili_yol_kaynak_id = ""
-	_yol_cizim_ara.clear()
-	_surukleme_ara = {}
-	var abs := ProjectSettings.globalize_path(CIKTI_DOSYA)
-	print("Yuklendi: %s" % abs)
-	_durum_mesaji = "Yuklendi: %s" % abs
+	print("Yuklendi: %s (%d nokta, %d yol)" % [CIKTI_DOSYA, noktalar.size(), yollar.size()])
+	_durum_mesaji = "Yuklendi: %d nokta, %d yol" % [noktalar.size(), yollar.size()]
 	_durum_sure = 3.0
+	queue_redraw()
 
 
 func _yol_listesinde_var(liste: Array[Dictionary], a: String, b: String) -> bool:
@@ -756,11 +799,7 @@ func _geri_al() -> void:
 
 
 func _tumunu_temizle() -> void:
-	noktalar.clear()
-	yollar.clear()
-	_islem_gecmisi.clear()
-	_yol_cizim_iptal()
-	_surukleme_ara = {}
+	_editor_durumunu_temizle()
 	_durum_mesaji = "Temizlendi"
 	_durum_sure = 1.5
 	queue_redraw()
