@@ -601,6 +601,7 @@ func _kaydet_editor_cikti() -> void:
 	var json_noktalar: Dictionary = {}
 	var json_puan: Dictionary = {}
 	var json_altin: Dictionary = {}
+	var json_usler: Array = []
 	for nokta in noktalar:
 		var id := str(nokta.get("id", ""))
 		if id == "":
@@ -609,6 +610,8 @@ func _kaydet_editor_cikti() -> void:
 		json_noktalar[id] = [int(round(konum.x)), int(round(konum.y))]
 		json_puan[id] = _nokta_puan_degeri(id)
 		json_altin[id] = _nokta_altin_degeri(id)
+		if str(nokta.get("tip", "nokta")) == "us":
+			json_usler.append(id)
 
 	var patikalar: Array = []
 	for yol in yollar:
@@ -629,6 +632,7 @@ func _kaydet_editor_cikti() -> void:
 		"noktalar": json_noktalar,
 		"nokta_puan": json_puan,
 		"nokta_altin": json_altin,
+		"usler": json_usler,
 		"patikalar": patikalar,
 		"araziler": [],
 		"yollar": [],
@@ -687,6 +691,11 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 	var kayit: Dictionary = data
 	_editor_durumunu_temizle()
 	var yeni_noktalar: Array[Dictionary] = []
+	var us_set: Dictionary = {}
+	var ham_usler: Variant = kayit.get("usler", [])
+	if typeof(ham_usler) == TYPE_ARRAY:
+		for uid in ham_usler as Array:
+			us_set[str(uid)] = true
 	var ham_noktalar: Variant = kayit.get("noktalar", {})
 	if typeof(ham_noktalar) == TYPE_DICTIONARY:
 		var nokta_sozluk: Dictionary = ham_noktalar
@@ -697,7 +706,8 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 				var arr: Array = ham
 				var x: float = float(arr[0])
 				var y: float = float(arr[1])
-				yeni_noktalar.append({"tip": "nokta", "konum": Vector2(x, y), "id": id_str})
+				var tip: String = "us" if us_set.has(id_str) else "nokta"
+				yeni_noktalar.append({"tip": tip, "konum": Vector2(x, y), "id": id_str})
 	noktalar = yeni_noktalar
 	_sonraki_nokta_indexini_guncelle()
 	var yeni_yollar: Array[Dictionary] = []

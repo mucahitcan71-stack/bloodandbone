@@ -36,6 +36,7 @@ var nehir_hatlari: Array = []
 var cevre_dekor: Array = []
 var nokta_duzen: Dictionary = {}
 var nokta_slotlari: Dictionary = {}
+var us_idleri: Array = []
 var _map_layout_kaynak: Dictionary = {}
 var _sabit_nokta_konumlari: Dictionary = {}
 var _sabit_nokta_puan: Dictionary = {}
@@ -220,6 +221,7 @@ func harita_uygula(map_id: String) -> void:
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
+	us_idleri = map_data.get("usler", []).duplicate()
 	_map_layout_kaynak = map_data.duplicate(true)
 	orman_bolgeleri = []
 	for bolge in arazi_bolgeleri:

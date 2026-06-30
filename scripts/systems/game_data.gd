@@ -166,6 +166,14 @@ static func parse_map(data: Dictionary) -> Dictionary:
 	var cevre_dekor: Array = _parse_cevre_dekor(data.get("cevre_dekor", []))
 	var nokta_duzen: Dictionary = _parse_nokta_duzen(data.get("nokta_duzen", {}))
 	var nokta_slotlari: Dictionary = _parse_nokta_slotlari(data.get("nokta_slotlari", {}))
+	var usler: Array = []
+	var raw_usler = data.get("usler", [])
+	if typeof(raw_usler) == TYPE_ARRAY:
+		for uid in raw_usler:
+			var id_str := str(uid)
+			if nokta_konumlari.has(id_str):
+				usler.append(id_str)
+	print("[US] yuklenen usler=", usler)
 
 	return {
 		"id": str(data.get("id", "")),
@@ -184,6 +192,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"cevre_dekor": cevre_dekor,
 		"nokta_duzen": nokta_duzen,
 		"nokta_slotlari": nokta_slotlari,
+		"usler": usler,
 		"arkaplan": str(data.get("arkaplan", "")),
 	}
 
