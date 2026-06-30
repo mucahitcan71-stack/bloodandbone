@@ -26,6 +26,8 @@ const PointEconomySystem = preload("res://scripts/systems/point_economy_system.g
 const ContextMenus = preload("res://scripts/ui/context_menus.gd")
 const UnitStatsSystem = preload("res://scripts/systems/unit_stats_system.gd")
 
+const _EDITOR_HARITASI_TEST := true  # true = editor_cikti.json; false = normal kampanya
+
 var world_system: WorldSystem
 var fog_system: FogSystem
 var ui_system: UISystem
@@ -489,6 +491,9 @@ func nokta_gorunurluklerini_guncelle() -> void:
 	fog_system.update_point_visibility()
 
 func kampanya_haritasini_yukle() -> void:
+	if _EDITOR_HARITASI_TEST:
+		harita_uygula("editor_cikti")
+		return
 	if kampanya_harita_idleri.is_empty():
 		return
 	kampanya_index = clampi(kampanya_index, 0, kampanya_harita_idleri.size() - 1)
