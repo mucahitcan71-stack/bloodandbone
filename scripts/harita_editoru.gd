@@ -11,6 +11,7 @@ const ZOOM_MIN := 0.3
 const ZOOM_MAX := 2.5
 const SECIM_YARICAP := 22.0
 const YOL_SEG_ESIK := 50.0
+const YOL_UZER_ESIK := 28.0
 const PATIKA_NOKTA_ESIK := 30.0
 const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
 const _ACILISTA_YUKLE := true
@@ -30,6 +31,8 @@ var _surukleme_eski_konum := Vector2.ZERO
 var _durum_mesaji := ""
 var _durum_sure := 0.0
 var _sonraki_nokta_index := 0
+var _sonraki_kavsak_index := 0
+var _yol_cizim_olusturulan_kavsaklar: Array[String] = []
 var _secili_yol_tipi := "ana"
 
 
@@ -130,8 +133,19 @@ func _draw() -> void:
 		var logical: Vector2 = nokta["konum"]
 		var iso := IsoProjection.logical_to_iso(logical) + off
 		var tip := str(nokta.get("tip", "nokta"))
-		var renk := Color(0.3, 0.55, 0.9, 0.95) if tip == "us" else Color(0.75, 0.75, 0.75, 0.95)
-		draw_circle(iso, 8.0, renk)
+		var renk: Color
+		var yaricap: float
+		match tip:
+			"us":
+				renk = Color(0.3, 0.55, 0.9, 0.95)
+				yaricap = 8.0
+			"kavsak":
+				renk = Color(0.15, 0.82, 0.82, 0.98)
+				yaricap = 5.5
+			_:
+				renk = Color(0.75, 0.75, 0.75, 0.95)
+				yaricap = 8.0
+		draw_circle(iso, yaricap, renk)
 		var id := str(nokta.get("id", ""))
 		if id == _secili_yol_kaynak_id:
 			draw_arc(iso, 14.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.25, 0.95), 2.0)
@@ -169,7 +183,7 @@ func _draw() -> void:
 		draw_string(
 			font,
 			Vector2(18, 92),
-			"Noktadan basla -> serbest tikla -> bitis noktasi | Sag tik/Backspace geri | Esc iptal",
+			"Baslangic/bitis: nokta VEYA yol uzeri (kavsak) | Ara: serbest | Sag/Backspace geri | Esc iptal",
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
@@ -282,6 +296,9 @@ func _handle_left_click(mouse_dunya: Vector2) -> void:
 
 
 func _yol_cizim_iptal() -> void:
+	for kid in _yol_cizim_olusturulan_kavsaklar:
+		_nokta_sil_id(kid)
+	_yol_cizim_olusturulan_kavsaklar.clear()
 	_secili_yol_kaynak_id = ""
 	_yol_cizim_ara.clear()
 
@@ -292,23 +309,26 @@ func _yol_cizim_ara_son_geri() -> void:
 
 
 func _yol_modu_tikla(mouse_dunya: Vector2) -> void:
-	var hedef_nokta := _ekrana_en_yakin_nokta(mouse_dunya)
 	var off := merkez_logical_iso_offseti(HARITA_SINIR)
 	var logical := IsoProjection.iso_to_logical(mouse_dunya - off)
 
 	if _secili_yol_kaynak_id == "":
-		if hedef_nokta.is_empty():
-			_durum_mesaji = "Yol bir noktadan baslamali"
+		var bas_uc := _yol_ucu_coz(mouse_dunya)
+		if bas_uc.is_empty():
+			_durum_mesaji = "Yol bir noktadan veya yoldan baslamali"
 			_durum_sure = 2.0
 			queue_redraw()
 			return
-		_secili_yol_kaynak_id = str(hedef_nokta.get("id", ""))
+		_secili_yol_kaynak_id = str(bas_uc.get("id", ""))
+		if bas_uc.get("olusturuldu", false):
+			_yol_cizim_olusturulan_kavsaklar.append(_secili_yol_kaynak_id)
 		_yol_cizim_ara.clear()
 		queue_redraw()
 		return
 
-	if not hedef_nokta.is_empty():
-		var bitis_id := str(hedef_nokta.get("id", ""))
+	var bitis_uc := _yol_ucu_coz(mouse_dunya)
+	if not bitis_uc.is_empty():
+		var bitis_id := str(bitis_uc.get("id", ""))
 		if bitis_id == _secili_yol_kaynak_id:
 			return
 		if _yol_var_mi(_secili_yol_kaynak_id, bitis_id):
@@ -316,19 +336,86 @@ func _yol_modu_tikla(mouse_dunya: Vector2) -> void:
 			_durum_sure = 2.0
 			queue_redraw()
 			return
+		if bitis_uc.get("olusturuldu", false):
+			_yol_cizim_olusturulan_kavsaklar.append(bitis_id)
 		var ara_kopya: Array = []
 		for v in _yol_cizim_ara:
 			if v is Vector2:
 				ara_kopya.append(v)
 		var yol := {"a": _secili_yol_kaynak_id, "b": bitis_id, "ara": ara_kopya, "tip": _secili_yol_tipi}
 		yollar.append(yol)
-		_islem_gecmisi.append({"tip": "yol", "a": _secili_yol_kaynak_id, "b": bitis_id})
-		_yol_cizim_iptal()
+		var kavsak_kayit: Array = []
+		for kid in _yol_cizim_olusturulan_kavsaklar:
+			kavsak_kayit.append(kid)
+		_islem_gecmisi.append({
+			"tip": "yol",
+			"a": _secili_yol_kaynak_id,
+			"b": bitis_id,
+			"kavsaklar": kavsak_kayit,
+		})
+		_yol_cizim_olusturulan_kavsaklar.clear()
+		_secili_yol_kaynak_id = ""
+		_yol_cizim_ara.clear()
 		queue_redraw()
 		return
 
 	_yol_cizim_ara.append(logical)
 	queue_redraw()
+
+
+func _yol_ucu_coz(mouse_dunya: Vector2) -> Dictionary:
+	var hedef_nokta := _ekrana_en_yakin_nokta(mouse_dunya)
+	if not hedef_nokta.is_empty():
+		return {"id": str(hedef_nokta.get("id", "")), "olusturuldu": false}
+	var yol_hit := _en_yakin_yol_uzeri(mouse_dunya)
+	if yol_hit.is_empty():
+		return {}
+	var konum: Vector2 = yol_hit["konum"]
+	var kid := _kavsak_olustur(konum)
+	return {"id": kid, "olusturuldu": true}
+
+
+func _kavsak_olustur(konum: Vector2) -> String:
+	_sonraki_kavsak_index += 1
+	var kid := "K%d" % _sonraki_kavsak_index
+	noktalar.append({"tip": "kavsak", "konum": konum, "id": kid})
+	return kid
+
+
+func _nokta_sil_id(id: String) -> void:
+	for i in range(noktalar.size() - 1, -1, -1):
+		if str(noktalar[i].get("id", "")) == id:
+			noktalar.remove_at(i)
+			break
+
+
+func _en_yakin_yol_uzeri(mouse_dunya: Vector2) -> Dictionary:
+	var off := merkez_logical_iso_offseti(HARITA_SINIR)
+	var min_d := INF
+	var en_yakin_iso := Vector2.ZERO
+	for yol in yollar:
+		var iso_poly := _yol_iso_polyline(yol, off)
+		if iso_poly.size() < 2:
+			continue
+		for i in range(iso_poly.size() - 1):
+			var hit := _segment_en_yakin_nokta(mouse_dunya, iso_poly[i], iso_poly[i + 1])
+			var d: float = hit["mesafe"]
+			if d < min_d:
+				min_d = d
+				en_yakin_iso = hit["nokta"]
+	if min_d > YOL_UZER_ESIK:
+		return {}
+	return {"konum": IsoProjection.iso_to_logical(en_yakin_iso - off)}
+
+
+func _segment_en_yakin_nokta(p: Vector2, a: Vector2, b: Vector2) -> Dictionary:
+	var ab := b - a
+	var len_sq := ab.length_squared()
+	if len_sq < 0.0001:
+		return {"mesafe": p.distance_to(a), "nokta": a}
+	var t := clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	var nokta := a + ab * t
+	return {"mesafe": p.distance_to(nokta), "nokta": nokta}
 
 
 func _ekrana_en_yakin_nokta(mouse_dunya: Vector2) -> Dictionary:
@@ -609,6 +696,7 @@ func _editor_durumunu_temizle() -> void:
 	_yol_cizim_iptal()
 	_surukleme_ara = {}
 	_sonraki_nokta_index = 0
+	_sonraki_kavsak_index = 0
 
 
 func _id_uret(index: int) -> String:
@@ -619,12 +707,38 @@ func _id_uret(index: int) -> String:
 	return char(65 + ana) + char(65 + alt)
 
 
-func _nokta_puan_degeri(id: String) -> int:
+func _nokta_puan_degeri(id: String, nokta_tip: String = "") -> int:
+	if nokta_tip == "kavsak":
+		return 0
 	return 3 if id == "C" else 1
 
 
-func _nokta_altin_degeri(id: String) -> int:
+func _nokta_altin_degeri(id: String, nokta_tip: String = "") -> int:
+	if nokta_tip == "kavsak":
+		return 0
 	return 6 if id == "C" else 3
+
+
+func _sonraki_kavsak_indexini_guncelle() -> void:
+	var max_k := 0
+	for nokta in noktalar:
+		if str(nokta.get("tip", "")) != "kavsak":
+			continue
+		var id := str(nokta.get("id", ""))
+		if id.begins_with("K") and id.length() > 1:
+			var sayi_str := id.trim_prefix("K")
+			if sayi_str.is_valid_int():
+				var sayi := int(sayi_str)
+				if sayi > max_k:
+					max_k = sayi
+	_sonraki_kavsak_index = max_k
+
+
+func _kavsak_baska_yolda_kullaniliyor(kid: String) -> bool:
+	for yol in yollar:
+		if str(yol.get("a", "")) == kid or str(yol.get("b", "")) == kid:
+			return true
+	return false
 
 
 func _yol_patika_points(yol: Dictionary) -> Array:
@@ -700,15 +814,20 @@ func _kaydet_editor_cikti() -> void:
 	var json_puan: Dictionary = {}
 	var json_altin: Dictionary = {}
 	var json_usler: Array = []
+	var json_kavsaklar: Dictionary = {}
 	for nokta in noktalar:
 		var id := str(nokta.get("id", ""))
 		if id == "":
 			continue
+		var ntip := str(nokta.get("tip", "nokta"))
 		var konum: Vector2 = nokta["konum"]
+		if ntip == "kavsak":
+			json_kavsaklar[id] = [int(round(konum.x)), int(round(konum.y))]
+			continue
 		json_noktalar[id] = [int(round(konum.x)), int(round(konum.y))]
-		json_puan[id] = _nokta_puan_degeri(id)
-		json_altin[id] = _nokta_altin_degeri(id)
-		if str(nokta.get("tip", "nokta")) == "us":
+		json_puan[id] = _nokta_puan_degeri(id, ntip)
+		json_altin[id] = _nokta_altin_degeri(id, ntip)
+		if ntip == "us":
 			json_usler.append(id)
 
 	var patikalar: Array = []
@@ -731,6 +850,7 @@ func _kaydet_editor_cikti() -> void:
 		"nokta_puan": json_puan,
 		"nokta_altin": json_altin,
 		"usler": json_usler,
+		"kavsaklar": json_kavsaklar,
 		"patikalar": patikalar,
 		"araziler": [],
 		"yollar": [],
@@ -790,15 +910,36 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 	_editor_durumunu_temizle()
 	var yeni_noktalar: Array[Dictionary] = []
 	var us_set: Dictionary = {}
+	var kavsak_konumlar: Dictionary = {}
 	var ham_usler: Variant = kayit.get("usler", [])
 	if typeof(ham_usler) == TYPE_ARRAY:
 		for uid in ham_usler as Array:
 			us_set[str(uid)] = true
+	var ham_kavsaklar: Variant = kayit.get("kavsaklar", {})
+	if typeof(ham_kavsaklar) == TYPE_DICTIONARY:
+		for kid_key in ham_kavsaklar:
+			var kid_str := str(kid_key)
+			var ham_k: Variant = ham_kavsaklar[kid_key]
+			if typeof(ham_k) == TYPE_ARRAY and (ham_k as Array).size() >= 2:
+				var karr: Array = ham_k
+				kavsak_konumlar[kid_str] = Vector2(float(karr[0]), float(karr[1]))
+	elif typeof(ham_kavsaklar) == TYPE_ARRAY:
+		var ham_noktalar_eski: Variant = kayit.get("noktalar", {})
+		if typeof(ham_noktalar_eski) == TYPE_DICTIONARY:
+			for kid_v in ham_kavsaklar as Array:
+				var kid_str := str(kid_v)
+				if ham_noktalar_eski.has(kid_str):
+					var ham: Variant = ham_noktalar_eski[kid_str]
+					if typeof(ham) == TYPE_ARRAY and (ham as Array).size() >= 2:
+						var arr: Array = ham
+						kavsak_konumlar[kid_str] = Vector2(float(arr[0]), float(arr[1]))
 	var ham_noktalar: Variant = kayit.get("noktalar", {})
 	if typeof(ham_noktalar) == TYPE_DICTIONARY:
 		var nokta_sozluk: Dictionary = ham_noktalar
 		for id_key in nokta_sozluk:
 			var id_str: String = str(id_key)
+			if kavsak_konumlar.has(id_str):
+				continue
 			var ham: Variant = nokta_sozluk[id_key]
 			if typeof(ham) == TYPE_ARRAY and (ham as Array).size() >= 2:
 				var arr: Array = ham
@@ -806,8 +947,11 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 				var y: float = float(arr[1])
 				var tip: String = "us" if us_set.has(id_str) else "nokta"
 				yeni_noktalar.append({"tip": tip, "konum": Vector2(x, y), "id": id_str})
+	for kid in kavsak_konumlar:
+		yeni_noktalar.append({"tip": "kavsak", "konum": kavsak_konumlar[kid], "id": kid})
 	noktalar = yeni_noktalar
 	_sonraki_nokta_indexini_guncelle()
+	_sonraki_kavsak_indexini_guncelle()
 	var yeni_yollar: Array[Dictionary] = []
 	var ham_patikalar: Variant = kayit.get("patikalar", [])
 	if typeof(ham_patikalar) == TYPE_ARRAY and (ham_patikalar as Array).size() > 0:
@@ -876,6 +1020,12 @@ func _geri_al() -> void:
 			if (ya == a and yb == b) or (ya == b and yb == a):
 				yollar.remove_at(i)
 				break
+		var kavsaklar: Variant = son.get("kavsaklar", [])
+		if typeof(kavsaklar) == TYPE_ARRAY:
+			for kid_v in kavsaklar as Array:
+				var kid := str(kid_v)
+				if not _kavsak_baska_yolda_kullaniliyor(kid):
+					_nokta_sil_id(kid)
 	elif tip == "nokta":
 		var id := str(son.get("id", ""))
 		for i in range(yollar.size() - 1, -1, -1):
@@ -902,6 +1052,7 @@ func _geri_al() -> void:
 		(yollar[yi_t]["ara"] as Array)[ai_t] = eski
 	_secili_yol_kaynak_id = ""
 	_yol_cizim_ara.clear()
+	_yol_cizim_olusturulan_kavsaklar.clear()
 	_surukleme_ara = {}
 	queue_redraw()
 

@@ -25,6 +25,7 @@ var _on_map_visuals_extra: Callable
 var aktif_harita_id = "trakya"
 var harita_sinir = {"min_x": 20.0, "max_x": 980.0, "min_y": 80.0, "max_y": 440.0}
 var nokta_konumlari = {}
+var kavsak_konumlari = {}
 var nokta_puan = {}
 var nokta_altin = {}
 var arazi_bolgeleri: Array = []
@@ -211,6 +212,7 @@ func harita_uygula(map_id: String) -> void:
 	_sabit_nokta_puan = map_data["nokta_puan"].duplicate()
 	_sabit_nokta_altin = map_data["nokta_altin"].duplicate()
 	nokta_konumlari = _sabit_nokta_konumlari.duplicate()
+	kavsak_konumlari = map_data.get("kavsaklar", {}).duplicate()
 	nokta_puan = _sabit_nokta_puan.duplicate()
 	nokta_altin = _sabit_nokta_altin.duplicate()
 	harita_sinir = map_data["sinir"].duplicate()
@@ -367,6 +369,8 @@ func nesne_katmani_olustur() -> void:
 func build_control_points(capture_barlar: Dictionary) -> void:
 	nesne_katmani_olustur()
 	for nokta in nokta_konumlari:
+		if kavsak_konumlari.has(nokta):
+			continue
 		var anchor = _nokta_gorsel_anchor(nokta)
 		var foot = _nokta_y_sort_foot(nokta)
 		var rel = anchor - foot

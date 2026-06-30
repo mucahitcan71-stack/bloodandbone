@@ -91,6 +91,16 @@ static func parse_map(data: Dictionary) -> Dictionary:
 			if typeof(pos) == TYPE_ARRAY and pos.size() >= 2:
 				nokta_konumlari[nokta] = Vector2(float(pos[0]), float(pos[1]))
 
+	var kavsak_konumlari: Dictionary = _parse_kavsaklar(data.get("kavsaklar", {}), nokta_konumlari)
+	for kid in kavsak_konumlari:
+		nokta_konumlari.erase(kid)
+
+	var nokta_puan: Dictionary = data.get("nokta_puan", {"A": 1, "B": 1, "C": 3, "D": 1, "E": 1}).duplicate()
+	var nokta_altin: Dictionary = data.get("nokta_altin", {"A": 3, "B": 3, "C": 6, "D": 3, "E": 3}).duplicate()
+	for kid in kavsak_konumlari:
+		nokta_puan.erase(kid)
+		nokta_altin.erase(kid)
+
 	var sinir = data.get("sinir", {})
 	var bounds = {
 		"min_x": float(sinir.get("min_x", 20.0)),
@@ -179,8 +189,9 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"id": str(data.get("id", "")),
 		"isim": str(data.get("isim", data.get("id", "Harita"))),
 		"nokta_konumlari": nokta_konumlari,
-		"nokta_puan": data.get("nokta_puan", {"A": 1, "B": 1, "C": 3, "D": 1, "E": 1}).duplicate(),
-		"nokta_altin": data.get("nokta_altin", {"A": 3, "B": 3, "C": 6, "D": 3, "E": 3}).duplicate(),
+		"kavsaklar": kavsak_konumlari,
+		"nokta_puan": nokta_puan,
+		"nokta_altin": nokta_altin,
 		"sinir": bounds,
 		"arazi_bolgeleri": arazi_bolgeleri,
 		"bolge_etiketleri": bolge_etiketleri,
@@ -205,6 +216,20 @@ static func campaign_region_names(map_ids: Array) -> Array:
 		else:
 			names.append(str(map_data.get("isim", map_id)))
 	return names
+
+static func _parse_kavsaklar(raw: Variant, nokta_fallback: Dictionary) -> Dictionary:
+	var kavsaklar: Dictionary = {}
+	if typeof(raw) == TYPE_DICTIONARY:
+		for kid in raw:
+			var pos = raw[kid]
+			if typeof(pos) == TYPE_ARRAY and pos.size() >= 2:
+				kavsaklar[str(kid)] = Vector2(float(pos[0]), float(pos[1]))
+	elif typeof(raw) == TYPE_ARRAY:
+		for kid_v in raw:
+			var kid := str(kid_v)
+			if nokta_fallback.has(kid):
+				kavsaklar[kid] = nokta_fallback[kid]
+	return kavsaklar
 
 static func _parse_gorsel_yollar(raw: Variant) -> Array:
 	var yollar: Array = []
