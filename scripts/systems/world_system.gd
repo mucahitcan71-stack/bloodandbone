@@ -40,6 +40,7 @@ var _sabit_nokta_puan: Dictionary = {}
 var _sabit_nokta_altin: Dictionary = {}
 var arazi_katmani: Node2D = null
 var cimen_katmani: Node2D = null
+var _cimen_tilemap: TileMapLayer = null
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -594,24 +595,63 @@ func _cimen_karo_yukle() -> Texture2D:
 	return null
 
 
+func _cimen_tilemap_olustur() -> void:
+	if not is_instance_valid(cimen_katmani):
+		return
+	if is_instance_valid(_cimen_tilemap):
+		return
+	_cimen_tilemap = TileMapLayer.new()
+	_cimen_tilemap.name = "CimenTileMap"
+	_cimen_tilemap.tile_set = load("res://assets/zemin/cimen_tileset.tres")
+	_cimen_tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_cimen_tilemap.z_index = -1
+	_cimen_tilemap.position = Vector2.ZERO
+	cimen_katmani.add_child(_cimen_tilemap)
+
+
 func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 	cimen_katmani_olustur()
 	if not is_instance_valid(cimen_katmani):
 		return
 	for c in cimen_katmani.get_children():
 		c.queue_free()
+	_cimen_tilemap = null
 	var cimen_tex := _cimen_karo_yukle()
 	if cimen_tex == null:
 		push_warning("WorldSystem: cimen karo bulunamadi, izo taban kullaniliyor.")
 		_izo_taban_ekle(sinir)
 		return
+	_cimen_tilemap_olustur()
 	var off := _izo_cizim_offseti(sinir)
 	var min_x := float(sinir["min_x"])
 	var max_x := float(sinir["max_x"])
 	var min_y := float(sinir["min_y"])
 	var max_y := float(sinir["max_y"])
 	var k := _CIMEN_GRID_K
+	var hedef0 := IsoProj.logical_to_iso(Vector2(min_x, min_y)) + off
+	if is_instance_valid(_cimen_tilemap):
+		_cimen_tilemap.clear()
+		_cimen_tilemap.position = Vector2.ZERO
+		var yazilan_hucreler: Dictionary = {}
+		var tx := min_x
+		while tx <= max_x:
+			var ty := min_y
+			while ty <= max_y:
+				var dunya_pos := IsoProj.logical_to_iso(Vector2(tx, ty)) + off
+				var hucre := _cimen_tilemap.local_to_map(dunya_pos - _cimen_tilemap.position)
+				if not yazilan_hucreler.has(hucre):
+					_cimen_tilemap.set_cell(hucre, 0, Vector2i(0, 0))
+					yazilan_hucreler[hucre] = true
+				ty += k
+			tx += k
+		var hedef_hucre := _cimen_tilemap.local_to_map(hedef0 - _cimen_tilemap.position)
+		var simdiki0 := _cimen_tilemap.map_to_local(hedef_hucre)
+		var parent_pos := Vector2.ZERO
+		if is_instance_valid(_cimen_tilemap.get_parent()) and _cimen_tilemap.get_parent() is CanvasItem:
+			parent_pos = (_cimen_tilemap.get_parent() as CanvasItem).position
+		print("[TILE-HIZA] hedef0=", hedef0, " map_to_local(hedef_hucre)=", simdiki0, " hedef_hucre=", hedef_hucre, " tilemap.position=", _cimen_tilemap.position, " parent.position=", parent_pos)
 	var x := min_x
+	var ilk_sprite: Sprite2D = null
 	while x <= max_x:
 		var y := min_y
 		while y <= max_y:
@@ -622,8 +662,12 @@ func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 			s.position = IsoProj.logical_to_iso(Vector2(x, y)) + off
 			s.z_index = 0
 			cimen_katmani.add_child(s)
+			if ilk_sprite == null:
+				ilk_sprite = s
 			y += k
 		x += k
+	if is_instance_valid(ilk_sprite):
+		print("[TILE-HIZA] eski_ilk_sprite=", ilk_sprite.global_position)
 
 
 func _izo_taban_ekle(sinir: Dictionary) -> void:
