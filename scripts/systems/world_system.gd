@@ -424,12 +424,13 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		parent.add_child(bar)
 		capture_barlar[nokta] = bar
 
-		var puan_l = Label.new()
-		puan_l.name = "Label_Puan_" + nokta
-		puan_l.text = "+" + str(nokta_puan[nokta])
-		puan_l.position = rel + Vector2(30, -20)
-		puan_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
-		parent.add_child(puan_l)
+		if not us_idleri.has(nokta):
+			var puan_l = Label.new()
+			puan_l.name = "Label_Puan_" + nokta
+			puan_l.text = "+" + str(nokta_puan[nokta])
+			puan_l.position = rel + Vector2(30, -20)
+			puan_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
+			parent.add_child(puan_l)
 
 func birimin_arazisini_bul(konum: Vector2) -> Dictionary:
 	for nokta in nokta_konumlari:
@@ -519,7 +520,7 @@ func _nokta_gorsel_konumla(nokta: String, _logical_pos: Vector2) -> void:
 		if not _ISO_ARAZI_CIZIMI:
 			isim.z_index = _nokta_gorsel_z(2)
 	var puan = find_map_node("Label_Puan_" + nokta) as Label
-	if puan:
+	if puan and not us_idleri.has(nokta):
 		puan.position = rel + Vector2(30, -20)
 		puan.text = "+" + str(nokta_puan.get(nokta, 1))
 		if not _ISO_ARAZI_CIZIMI:

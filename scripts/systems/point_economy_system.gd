@@ -64,12 +64,24 @@ func time_gold_amount() -> int:
 	var dakika_bonus = int(_host.oyun_suresi / 60.0)
 	return _host.sure_altin_taban + dakika_bonus
 
+func _us_set() -> Dictionary:
+	var us_set: Dictionary = {}
+	if _host != null and _host.world_system != null:
+		for uid in _host.world_system.us_idleri:
+			us_set[str(uid)] = true
+	else:
+		push_warning("PointEconomySystem: world_system.us_idleri erisilemedi")
+	return us_set
+
 func generate_score() -> void:
+	var us_set := _us_set()
 	var sure_altin = time_gold_amount()
 	_host.altin_ekle("osmanli", sure_altin)
 	_host.altin_ekle("dogu_roma", sure_altin)
 
 	for nokta in _host.nokta_sahipleri:
+		if us_set.has(nokta):
+			continue
 		var sahip = _host.nokta_sahibi_getir(nokta)
 		if sahip == "osmanli":
 			_host.puan_ekle("osmanli", _host.nokta_puan[nokta])
@@ -82,7 +94,11 @@ func generate_score() -> void:
 
 	var osmanli_nokta = 0
 	var dogu_roma_nokta = 0
+	var skorlu_nokta_sayisi := 0
 	for nokta in _host.nokta_sahipleri:
+		if us_set.has(nokta):
+			continue
+		skorlu_nokta_sayisi += 1
 		var sahip2 = _host.nokta_sahibi_getir(nokta)
 		if sahip2 == "osmanli":
 			osmanli_nokta += 1
@@ -93,7 +109,7 @@ func generate_score() -> void:
 		_host.puan_ekle("osmanli", 1)
 		_host.altin_ekle("osmanli", 5)
 		_host.gelisim_altini_ekle("osmanli", 5)
-		if osmanli_nokta == _host.nokta_sahipleri.size():
+		if osmanli_nokta == skorlu_nokta_sayisi and skorlu_nokta_sayisi > 0:
 			_host.puan_ekle("osmanli", 2)
 			_host.altin_ekle("osmanli", 10)
 			_host.gelisim_altini_ekle("osmanli", 10)
@@ -101,7 +117,7 @@ func generate_score() -> void:
 		_host.puan_ekle("dogu_roma", 1)
 		_host.altin_ekle("dogu_roma", 5)
 		_host.gelisim_altini_ekle("dogu_roma", 5)
-		if dogu_roma_nokta == _host.nokta_sahipleri.size():
+		if dogu_roma_nokta == skorlu_nokta_sayisi and skorlu_nokta_sayisi > 0:
 			_host.puan_ekle("dogu_roma", 2)
 			_host.altin_ekle("dogu_roma", 10)
 			_host.gelisim_altini_ekle("dogu_roma", 10)
@@ -117,7 +133,10 @@ func tick_hold_stats(delta: float) -> void:
 	var hiz = ult_hiz.get(_host.zorluk, ult_hiz["orta"])
 	var oyuncu_ult_hiz = float(hiz["oyuncu"])
 	var ai_ult_hiz = float(hiz["ai"])
+	var us_set := _us_set()
 	for nokta in _host.nokta_sahipleri:
+		if us_set.has(nokta):
+			continue
 		var sahip = _host.nokta_sahibi_getir(nokta)
 		if sahip == "osmanli":
 			_host.mac_istatistik["osmanli"]["nokta_sure"] += delta
