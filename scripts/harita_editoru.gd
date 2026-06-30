@@ -17,6 +17,7 @@ var mod: EditorMod = EditorMod.NOKTA
 var noktalar: Array[Dictionary] = []
 var yollar: Array[Dictionary] = []
 var _secili_yol_kaynak_id := ""
+var _yol_cizim_ara: Array = []
 var _islem_gecmisi: Array[Dictionary] = []
 var _kamera: Camera2D
 var _orta_tik_surukleme := false
@@ -70,6 +71,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		if not _surukleme_ara.is_empty():
 			_ara_nokta_surukle(get_global_mouse_position())
+			queue_redraw()
+		elif mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 			queue_redraw()
 		elif _orta_tik_surukleme:
 			var mm := event as InputEventMouseMotion
@@ -128,11 +131,37 @@ func _draw() -> void:
 		var etiket := "%s (%d, %d)" % [id, int(round(logical.x)), int(round(logical.y))]
 		draw_string(font, iso + Vector2(10, -8), etiket, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, 0.95))
 
+	if mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
+		var bas_n := _nokta_id_ile_bul(_secili_yol_kaynak_id)
+		if not bas_n.is_empty():
+			var onizleme := PackedVector2Array()
+			onizleme.append(IsoProjection.logical_to_iso(bas_n["konum"]) + off)
+			for v in _yol_cizim_ara:
+				if v is Vector2:
+					onizleme.append(IsoProjection.logical_to_iso(v) + off)
+					draw_circle(IsoProjection.logical_to_iso(v) + off, 4.0, Color(1.0, 0.65, 0.15, 0.85))
+			if onizleme.size() >= 1:
+				draw_polyline(onizleme, Color(0.8, 0.6, 0.35, 0.65), 5.0, true)
+				var fare_logical := IsoProjection.iso_to_logical(get_global_mouse_position() - off)
+				var fare_iso := IsoProjection.logical_to_iso(fare_logical) + off
+				draw_line(onizleme[onizleme.size() - 1], fare_iso, Color(0.9, 0.7, 0.4, 0.45), 4.0, true)
+
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
 	var durum_y := 70.0
 	draw_string(font, Vector2(18, 48), "Kaydet: P", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
-	if mod == EditorMod.KIVIR:
+	if mod == EditorMod.YOL:
+		draw_string(
+			font,
+			Vector2(18, 70),
+			"Noktadan basla -> serbest tikla -> bitis noktasi | Sag tik/Backspace geri | Esc iptal",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(0.9, 0.85, 0.65, 1.0)
+		)
+		durum_y = 92.0
+	elif mod == EditorMod.KIVIR:
 		draw_string(
 			font,
 			Vector2(18, 70),
@@ -175,20 +204,28 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		return
 	if _tus_mu(ev, KEY_1):
 			mod = EditorMod.US
-			_secili_yol_kaynak_id = ""
+			_yol_cizim_iptal()
 			queue_redraw()
 	elif _tus_mu(ev, KEY_2):
 			mod = EditorMod.NOKTA
-			_secili_yol_kaynak_id = ""
+			_yol_cizim_iptal()
 			queue_redraw()
 	elif _tus_mu(ev, KEY_Y):
 			mod = EditorMod.YOL
-			_secili_yol_kaynak_id = ""
+			_yol_cizim_iptal()
 			queue_redraw()
 	elif _tus_mu(ev, KEY_K):
 			mod = EditorMod.KIVIR
-			_secili_yol_kaynak_id = ""
+			_yol_cizim_iptal()
 			_surukleme_ara = {}
+			queue_redraw()
+	elif _tus_mu(ev, KEY_ESCAPE) and mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
+			_yol_cizim_iptal()
+			_durum_mesaji = "Yol cizimi iptal"
+			_durum_sure = 1.5
+			queue_redraw()
+	elif _tus_mu(ev, KEY_BACKSPACE) and mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
+			_yol_cizim_ara_son_geri()
 			queue_redraw()
 	elif _tus_mu(ev, KEY_Z):
 			_geri_al()
@@ -219,29 +256,53 @@ func _handle_left_click(mouse_dunya: Vector2) -> void:
 	queue_redraw()
 
 
+func _yol_cizim_iptal() -> void:
+	_secili_yol_kaynak_id = ""
+	_yol_cizim_ara.clear()
+
+
+func _yol_cizim_ara_son_geri() -> void:
+	if not _yol_cizim_ara.is_empty():
+		_yol_cizim_ara.pop_back()
+
+
 func _yol_modu_tikla(mouse_dunya: Vector2) -> void:
 	var hedef_nokta := _ekrana_en_yakin_nokta(mouse_dunya)
-	if hedef_nokta.is_empty():
-		return
-	var id := str(hedef_nokta.get("id", ""))
-	if id == "":
-		return
+	var off := merkez_logical_iso_offseti(HARITA_SINIR)
+	var logical := IsoProjection.iso_to_logical(mouse_dunya - off)
+
 	if _secili_yol_kaynak_id == "":
-		_secili_yol_kaynak_id = id
+		if hedef_nokta.is_empty():
+			_durum_mesaji = "Yol bir noktadan baslamali"
+			_durum_sure = 2.0
+			queue_redraw()
+			return
+		_secili_yol_kaynak_id = str(hedef_nokta.get("id", ""))
+		_yol_cizim_ara.clear()
 		queue_redraw()
 		return
-	if _secili_yol_kaynak_id == id:
-		_secili_yol_kaynak_id = ""
+
+	if not hedef_nokta.is_empty():
+		var bitis_id := str(hedef_nokta.get("id", ""))
+		if bitis_id == _secili_yol_kaynak_id:
+			return
+		if _yol_var_mi(_secili_yol_kaynak_id, bitis_id):
+			_durum_mesaji = "Bu yol zaten var"
+			_durum_sure = 2.0
+			queue_redraw()
+			return
+		var ara_kopya: Array = []
+		for v in _yol_cizim_ara:
+			if v is Vector2:
+				ara_kopya.append(v)
+		var yol := {"a": _secili_yol_kaynak_id, "b": bitis_id, "ara": ara_kopya}
+		yollar.append(yol)
+		_islem_gecmisi.append({"tip": "yol", "a": _secili_yol_kaynak_id, "b": bitis_id})
+		_yol_cizim_iptal()
 		queue_redraw()
 		return
-	if _yol_var_mi(_secili_yol_kaynak_id, id):
-		_secili_yol_kaynak_id = id
-		queue_redraw()
-		return
-	var yol := {"a": _secili_yol_kaynak_id, "b": id, "ara": []}
-	yollar.append(yol)
-	_islem_gecmisi.append({"tip": "yol", "a": _secili_yol_kaynak_id, "b": id})
-	_secili_yol_kaynak_id = ""
+
+	_yol_cizim_ara.append(logical)
 	queue_redraw()
 
 
@@ -388,6 +449,10 @@ func _handle_left_release() -> void:
 
 
 func _handle_right_click(mouse_dunya: Vector2) -> void:
+	if mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
+		_yol_cizim_ara_son_geri()
+		queue_redraw()
+		return
 	if mod != EditorMod.KIVIR:
 		return
 	var hit := _en_yakin_ara_nokta(mouse_dunya)
@@ -628,6 +693,7 @@ func _yukle_editor_cikti() -> void:
 	yollar = yeni_yollar
 	_islem_gecmisi.clear()
 	_secili_yol_kaynak_id = ""
+	_yol_cizim_ara.clear()
 	_surukleme_ara = {}
 	var abs := ProjectSettings.globalize_path(CIKTI_DOSYA)
 	print("Yuklendi: %s" % abs)
@@ -684,6 +750,7 @@ func _geri_al() -> void:
 		var eski: Vector2 = son["eski_konum"]
 		(yollar[yi_t]["ara"] as Array)[ai_t] = eski
 	_secili_yol_kaynak_id = ""
+	_yol_cizim_ara.clear()
 	_surukleme_ara = {}
 	queue_redraw()
 
@@ -692,7 +759,7 @@ func _tumunu_temizle() -> void:
 	noktalar.clear()
 	yollar.clear()
 	_islem_gecmisi.clear()
-	_secili_yol_kaynak_id = ""
+	_yol_cizim_iptal()
 	_surukleme_ara = {}
 	_durum_mesaji = "Temizlendi"
 	_durum_sure = 1.5
