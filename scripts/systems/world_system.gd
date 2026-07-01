@@ -8,10 +8,20 @@ const PathSpline = preload("res://scripts/path_spline.gd")
 const _YOL_SPLINE_ADIM := 10
 
 const _ISO_ARAZI_CIZIMI := true
+const _ZEMIN_DOKU := "zengin"  # "cim" | "zengin" | "pixel"
 const _PIXEL_CIMEN_ZEMIN := false
 const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
 const _CIMEN_GRID_K := 64.0
+const _CIMEN_GERCEK_YOL := "res://assets/zemin/cimen_gercek.jpg"
+const _CIMEN_ZENGIN_YOLLARI := [
+	"res://assets/zemin/cimen_zengin.png",
+	"res://assets/zemin/cimen_zemin.png",
+]
+const _CIMEN_PIXEL_TILESET_YOL := "res://assets/zemin/cimen_tileset.tres"
+const _CIMEN_KARO_TEX_PX := 64
+const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
+const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
@@ -48,6 +58,8 @@ var _sabit_nokta_altin: Dictionary = {}
 var arazi_katmani: Node2D = null
 var cimen_katmani: Node2D = null
 var _cimen_tilemap: TileMapLayer = null
+var _doku_tabanli_tileset_onbellek: Dictionary = {}
+var _pixel_cimen_tileset_hazir: TileSet = null
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -579,11 +591,11 @@ func arazi_gorsellerini_guncelle() -> void:
 		_arazi_leke_katmani_ekle(sinir)
 		_gorsel_lekeler_ekle()
 	# --- YENI IZOMETRIK CIZIM (aktif) ---
-	if _PIXEL_CIMEN_ZEMIN:
-		_pixel_cimen_zemin_ekle(sinir)
-	elif _ISO_ARAZI_CIZIMI:
-		_izo_taban_ekle(sinir)
-	if is_instance_valid(cimen_katmani) and not _PIXEL_CIMEN_ZEMIN:
+	if _ISO_ARAZI_CIZIMI:
+		_cimen_zemin_ekle(sinir)
+	elif _PIXEL_CIMEN_ZEMIN:
+		_cimen_zemin_ekle(sinir)
+	if is_instance_valid(cimen_katmani) and not _ISO_ARAZI_CIZIMI and not _PIXEL_CIMEN_ZEMIN:
 		for c in cimen_katmani.get_children():
 			c.queue_free()
 	for i in range(arazi_bolgeleri.size()):
@@ -630,6 +642,31 @@ func _cimen_karo_yukle() -> Texture2D:
 	return null
 
 
+func _zemin_doku_pixel_mi() -> bool:
+	return _ZEMIN_DOKU == "pixel"
+
+
+func _aktif_doku_yolu() -> String:
+	match _ZEMIN_DOKU:
+		"cim":
+			return _CIMEN_GERCEK_YOL
+		"zengin":
+			return _zengin_doku_yolu_bul()
+		"pixel":
+			return ""
+		_:
+			push_warning("WorldSystem: bilinmeyen _ZEMIN_DOKU='%s', cim kullaniliyor." % _ZEMIN_DOKU)
+			return _CIMEN_GERCEK_YOL
+
+
+func _zengin_doku_yolu_bul() -> String:
+	for yol in _CIMEN_ZENGIN_YOLLARI:
+		if ResourceLoader.exists(yol):
+			return yol
+	push_warning("WorldSystem: zengin zemin dokusu yok (cimen_zengin.png / cimen_zemin.png).")
+	return _CIMEN_ZENGIN_YOLLARI[0]
+
+
 func _cimen_tilemap_olustur() -> void:
 	if not is_instance_valid(cimen_katmani):
 		return
@@ -637,14 +674,129 @@ func _cimen_tilemap_olustur() -> void:
 		return
 	_cimen_tilemap = TileMapLayer.new()
 	_cimen_tilemap.name = "CimenTileMap"
-	_cimen_tilemap.tile_set = load("res://assets/zemin/cimen_tileset.tres")
-	_cimen_tilemap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var tileset := _cimen_tileset_al()
+	if tileset == null:
+		_cimen_tilemap.queue_free()
+		_cimen_tilemap = null
+		push_warning("WorldSystem: cimen tileset yuklenemedi, izo taban kullaniliyor.")
+		return
+	_cimen_tilemap.tile_set = tileset
+	_cimen_tilemap.texture_filter = (
+		CanvasItem.TEXTURE_FILTER_NEAREST if _zemin_doku_pixel_mi()
+		else CanvasItem.TEXTURE_FILTER_LINEAR
+	)
 	_cimen_tilemap.z_index = 0
 	_cimen_tilemap.position = Vector2.ZERO
 	cimen_katmani.add_child(_cimen_tilemap)
 
 
-func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
+func _cimen_tileset_al() -> TileSet:
+	if _zemin_doku_pixel_mi():
+		return _pixel_cimen_tileset_al()
+	return _doku_tabanli_tileset_al(_aktif_doku_yolu())
+
+
+func _doku_tabanli_tileset_al(yol: String) -> TileSet:
+	if yol == "":
+		return null
+	if _doku_tabanli_tileset_onbellek.has(yol):
+		return _doku_tabanli_tileset_onbellek[yol]
+	if not ResourceLoader.exists(yol):
+		push_warning("WorldSystem: zemin dokusu bulunamadi: " + yol)
+		return null
+	var tex := load(yol) as Texture2D
+	if tex == null:
+		push_warning("WorldSystem: zemin dokusu yuklenemedi: " + yol)
+		return null
+	var region_px := _gercekci_cimen_region_boyutu(tex)
+	var atlas := TileSetAtlasSource.new()
+	atlas.texture = tex
+	atlas.texture_region_size = region_px
+	atlas.create_tile(Vector2i(0, 0))
+	_cimen_atlas_flip_alternatifleri(atlas, Vector2i(0, 0))
+	var tileset := TileSet.new()
+	tileset.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
+	tileset.tile_layout = TileSet.TILE_LAYOUT_STACKED
+	tileset.tile_size = Vector2i(64, 32)
+	tileset.add_source(atlas, 0)
+	_doku_tabanli_tileset_onbellek[yol] = tileset
+	return tileset
+
+
+func _gercekci_cimen_region_boyutu(tex: Texture2D) -> Vector2i:
+	var olcek := maxf(_CIM_DOKU_OLCEK, 0.05)
+	var px := maxi(8, int(float(_CIMEN_KARO_TEX_PX) / olcek))
+	var tex_max := int(minf(tex.get_width(), tex.get_height()))
+	px = mini(px, tex_max)
+	return Vector2i(px, px)
+
+
+func _pixel_cimen_tileset_al() -> TileSet:
+	if _pixel_cimen_tileset_hazir != null:
+		return _pixel_cimen_tileset_hazir
+	if not ResourceLoader.exists(_CIMEN_PIXEL_TILESET_YOL):
+		push_warning("WorldSystem: pixel cimen tileset bulunamadi: " + _CIMEN_PIXEL_TILESET_YOL)
+		return null
+	var ham := load(_CIMEN_PIXEL_TILESET_YOL) as TileSet
+	if ham == null:
+		return null
+	var tileset := ham.duplicate(true) as TileSet
+	for i in range(tileset.get_source_count()):
+		var src_id := tileset.get_source_id(i)
+		var atlas := tileset.get_source(src_id) as TileSetAtlasSource
+		if atlas != null:
+			_cimen_atlas_flip_alternatifleri(atlas, Vector2i(0, 0))
+	_pixel_cimen_tileset_hazir = tileset
+	return tileset
+
+
+func _cimen_atlas_flip_alternatifleri(atlas: TileSetAtlasSource, coords: Vector2i) -> void:
+	if not atlas.has_tile(coords):
+		atlas.create_tile(coords)
+	for alt in range(4):
+		if alt > 0 and not atlas.has_alternative_tile(coords, alt):
+			atlas.create_alternative_tile(coords, alt)
+		var td := atlas.get_tile_data(coords, alt)
+		if td != null:
+			td.flip_h = (alt & 1) != 0
+			td.flip_v = (alt & 2) != 0
+
+
+func _cimen_doseme_sinirleri_genislet(sinir: Dictionary) -> Dictionary:
+	var min_x := float(sinir["min_x"])
+	var max_x := float(sinir["max_x"])
+	var min_y := float(sinir["min_y"])
+	var max_y := float(sinir["max_y"])
+	var w := max_x - min_x
+	var h := max_y - min_y
+	var pay := maxf(_CIMEN_DIS_PAY, maxf(w, h) * 0.5)
+	return {
+		"min_x": min_x - pay,
+		"max_x": max_x + pay,
+		"min_y": min_y - pay,
+		"max_y": max_y + pay,
+	}
+
+
+func _cimen_hucre_araligi(doseme: Dictionary, off: Vector2) -> Dictionary:
+	var koseler: Array[Vector2] = [
+		Vector2(doseme["min_x"], doseme["min_y"]),
+		Vector2(doseme["max_x"], doseme["min_y"]),
+		Vector2(doseme["max_x"], doseme["max_y"]),
+		Vector2(doseme["min_x"], doseme["max_y"]),
+	]
+	var hucre_min := Vector2i(2147483647, 2147483647)
+	var hucre_max := Vector2i(-2147483648, -2147483648)
+	for k in koseler:
+		var hucre := _cimen_tilemap.local_to_map(IsoProj.logical_to_iso(k) + off)
+		hucre_min.x = mini(hucre_min.x, hucre.x)
+		hucre_min.y = mini(hucre_min.y, hucre.y)
+		hucre_max.x = maxi(hucre_max.x, hucre.x)
+		hucre_max.y = maxi(hucre_max.y, hucre.y)
+	return {"min": hucre_min, "max": hucre_max}
+
+
+func _cimen_zemin_ekle(sinir: Dictionary) -> void:
 	cimen_katmani_olustur()
 	if not is_instance_valid(cimen_katmani):
 		return
@@ -652,35 +804,39 @@ func _pixel_cimen_zemin_ekle(sinir: Dictionary) -> void:
 		c.queue_free()
 	_cimen_tilemap = null
 	_cimen_tilemap_olustur()
+	if not is_instance_valid(_cimen_tilemap):
+		_izo_taban_ekle(sinir)
+		return
 	var off := _izo_cizim_offseti(sinir)
-	var min_x := float(sinir["min_x"])
-	var max_x := float(sinir["max_x"])
-	var min_y := float(sinir["min_y"])
-	var max_y := float(sinir["max_y"])
+	var doseme := _cimen_doseme_sinirleri_genislet(sinir)
+	var min_x := float(doseme["min_x"])
+	var max_x := float(doseme["max_x"])
+	var min_y := float(doseme["min_y"])
+	var max_y := float(doseme["max_y"])
 	var k := _CIMEN_GRID_K
-	var hedef0 := IsoProj.logical_to_iso(Vector2(min_x, min_y)) + off
-	if is_instance_valid(_cimen_tilemap):
-		_cimen_tilemap.clear()
-		_cimen_tilemap.position = Vector2.ZERO
-		var yazilan_hucreler: Dictionary = {}
-		var tx := min_x
-		while tx <= max_x:
-			var ty := min_y
-			while ty <= max_y:
-				var dunya_pos := IsoProj.logical_to_iso(Vector2(tx, ty)) + off
-				var hucre := _cimen_tilemap.local_to_map(dunya_pos - _cimen_tilemap.position)
-				if not yazilan_hucreler.has(hucre):
-					_cimen_tilemap.set_cell(hucre, 0, Vector2i(0, 0), 0)
-					yazilan_hucreler[hucre] = true
-				ty += k
-			tx += k
-		var hedef_hucre := _cimen_tilemap.local_to_map(hedef0 - _cimen_tilemap.position)
-		var simdiki0 := _cimen_tilemap.map_to_local(hedef_hucre)
-		var parent_pos := Vector2.ZERO
-		if is_instance_valid(_cimen_tilemap.get_parent()) and _cimen_tilemap.get_parent() is CanvasItem:
-			parent_pos = (_cimen_tilemap.get_parent() as CanvasItem).position
-		print("[TILE-HIZA] hedef0=", hedef0, " map_to_local(hedef_hucre)=", simdiki0, " hedef_hucre=", hedef_hucre, " tilemap.position=", _cimen_tilemap.position, " parent.position=", parent_pos)
-	if _ESKI_SPRITE_ZEMIN:
+	var hedef0 := IsoProj.logical_to_iso(Vector2(float(sinir["min_x"]), float(sinir["min_y"]))) + off
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(aktif_harita_id + "cimen_flip")
+	var pixel := _zemin_doku_pixel_mi()
+	var kaynak_sayisi := 1 if not pixel else mini(3, _cimen_tilemap.tile_set.get_source_count())
+	_cimen_tilemap.clear()
+	_cimen_tilemap.position = Vector2.ZERO
+	var aralik := _cimen_hucre_araligi(doseme, off)
+	var hucre_min: Vector2i = aralik["min"]
+	var hucre_max: Vector2i = aralik["max"]
+	for cx in range(hucre_min.x, hucre_max.x + 1):
+		for cy in range(hucre_min.y, hucre_max.y + 1):
+			var hucre := Vector2i(cx, cy)
+			var kaynak := rng.randi_range(0, kaynak_sayisi - 1) if kaynak_sayisi > 1 else 0
+			var alt := rng.randi_range(0, 3)
+			_cimen_tilemap.set_cell(hucre, kaynak, Vector2i(0, 0), alt)
+	var hedef_hucre := _cimen_tilemap.local_to_map(hedef0 - _cimen_tilemap.position)
+	var simdiki0 := _cimen_tilemap.map_to_local(hedef_hucre)
+	var parent_pos := Vector2.ZERO
+	if is_instance_valid(_cimen_tilemap.get_parent()) and _cimen_tilemap.get_parent() is CanvasItem:
+		parent_pos = (_cimen_tilemap.get_parent() as CanvasItem).position
+	print("[TILE-HIZA] hedef0=", hedef0, " map_to_local(hedef_hucre)=", simdiki0, " hedef_hucre=", hedef_hucre, " tilemap.position=", _cimen_tilemap.position, " parent.position=", parent_pos)
+	if _ESKI_SPRITE_ZEMIN and pixel:
 		var cimen_tex := _cimen_karo_yukle()
 		if cimen_tex == null:
 			push_warning("WorldSystem: cimen karo bulunamadi, izo taban kullaniliyor.")
