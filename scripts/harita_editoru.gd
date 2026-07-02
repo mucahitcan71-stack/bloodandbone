@@ -20,6 +20,10 @@ const FIRCA_YARICAP_MAX := 480.0
 const FIRCA_YARICAP_BASLANGIC := 100.0
 const FIRCA_MIN_MESAFE := 36.0
 const FIRCA_SURUKLEME_ADIM := 20.0
+const FIRCA_YOGUNLUK_MIN := 0.3
+const FIRCA_YOGUNLUK_MAX := 3.0
+const FIRCA_YOGUNLUK_BASLANGIC := 2.0
+const FIRCA_SERPISTIRME_TABAN := 10
 const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
 const _ACILISTA_YUKLE := true
 
@@ -44,6 +48,8 @@ var _yol_cizim_olusturulan_kavsaklar: Array[String] = []
 var _secili_yol_tipi := "ana"
 var _secili_prop_id := ""
 var _firca_yaricap := FIRCA_YARICAP_BASLANGIC
+var _firca_yogunluk := FIRCA_YOGUNLUK_BASLANGIC
+var _prop_gizli := false
 var _prop_sol_basili := false
 var _son_firca_surukleme := Vector2.ZERO
 var _prop_paleti: PanelContainer
@@ -180,15 +186,9 @@ func _draw() -> void:
 		var etiket := "%s (%d, %d)" % [id, int(round(logical.x)), int(round(logical.y))]
 		draw_string(font, iso + Vector2(10, -8), etiket, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, 0.95))
 
-	for prop in proplar:
-		var plogical: Vector2 = prop["konum"]
-		var piso := IsoProjection.logical_to_iso(plogical) + off
-		var pkat := PropKatalog.kategori(str(prop.get("id", "")))
-		var p_renk := _prop_kategori_renk(pkat)
-		draw_circle(piso, 7.0, p_renk)
-		draw_arc(piso, 7.0, 0.0, TAU, 16, p_renk.darkened(0.35), 1.5)
-		var pis := PropKatalog.isim(str(prop.get("id", "")))
-		draw_string(font, piso + Vector2(9, -6), pis, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs - 1, Color(0.85, 1.0, 0.85, 0.95))
+	if not _prop_gizli:
+		for prop in _prop_sirali_cizim_listesi():
+			_ciz_prop_isaret(prop, off, font, fs)
 
 	if mod == EditorMod.PROP:
 		var fare_iso := get_global_mouse_position()
@@ -214,7 +214,10 @@ func _draw() -> void:
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	if mod == EditorMod.PROP:
-		mod_yazi = "MOD: PROP - secili: %s" % PropKatalog.isim(_secili_prop_id)
+		mod_yazi = "MOD: PROP - secili: %s (%s)" % [
+			PropKatalog.isim(_secili_prop_id),
+			PropKatalog.KATEGORI_SEKME.get(PropKatalog.kategori(_secili_prop_id), ""),
+		]
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
 	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	draw_string(
@@ -253,11 +256,22 @@ func _draw() -> void:
 		draw_string(
 			font,
 			Vector2(18, 92),
-			"Sol tik=tek | surukle=serp | sag tik=sil | Firca: %.0f ([ / ])" % _firca_yaricap,
+			"Sol tik/surukle | sag sil | Firca: %.0f ([/]) | Yogunluk: x%.1f (,/.) | H gizle" % [_firca_yaricap, _firca_yogunluk],
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
 			Color(0.75, 0.95, 0.7, 1.0)
+		)
+		durum_y = 114.0
+	elif _prop_gizli:
+		draw_string(
+			font,
+			Vector2(18, 92),
+			"Prop isaretleri GIZLI (H ile goster) | %d prop" % proplar.size(),
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(0.75, 0.8, 0.7, 1.0)
 		)
 		durum_y = 114.0
 	if _durum_sure > 0.0 and _durum_mesaji != "":
@@ -331,6 +345,17 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		queue_redraw()
 	elif _tus_mu(ev, KEY_BRACKETRIGHT):
 		_firca_yaricap = clampf(_firca_yaricap + 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
+		queue_redraw()
+	elif _tus_mu(ev, KEY_COMMA):
+		_firca_yogunluk = clampf(_firca_yogunluk - 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+		queue_redraw()
+	elif _tus_mu(ev, KEY_PERIOD):
+		_firca_yogunluk = clampf(_firca_yogunluk + 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+		queue_redraw()
+	elif _tus_mu(ev, KEY_H):
+		_prop_gizli = not _prop_gizli
+		_durum_mesaji = "Prop isaretleri %s" % ("gizlendi" if _prop_gizli else "gosteriliyor")
+		_durum_sure = 1.8
 		queue_redraw()
 	elif _tus_mu(ev, KEY_ESCAPE) and mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 			_yol_cizim_iptal()
@@ -1324,20 +1349,64 @@ func _prop_yakin_var(logical: Vector2, mesafe: float) -> bool:
 	return false
 
 
+func _firca_etkin_min_mesafe() -> float:
+	var y := clampf(_firca_yogunluk, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+	return maxf(10.0, FIRCA_MIN_MESAFE / y)
+
+
+func _firca_etkin_serp_adim() -> float:
+	var y := clampf(_firca_yogunluk, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+	return maxf(6.0, FIRCA_SURUKLEME_ADIM / sqrt(y))
+
+
+func _firca_etkin_deneme() -> int:
+	return clampi(int(FIRCA_SERPISTIRME_TABAN * _firca_yogunluk), 4, 24)
+
+
+func _prop_sirali_cizim_listesi() -> Array:
+	var kopya: Array = proplar.duplicate()
+	kopya.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ya: Vector2 = a["konum"]
+		var yb: Vector2 = b["konum"]
+		if absf(ya.y - yb.y) > 0.01:
+			return ya.y < yb.y
+		return ya.x < yb.x
+	)
+	return kopya
+
+
+func _ciz_prop_isaret(prop: Dictionary, off: Vector2, font: Font, fs: int) -> void:
+	var plogical: Vector2 = prop["konum"]
+	var piso := IsoProjection.logical_to_iso(plogical) + off
+	var pid := str(prop.get("id", ""))
+	var pkat := PropKatalog.kategori(pid)
+	var p_renk := _prop_kategori_renk(pkat)
+	var secili := pid == _secili_prop_id and mod == EditorMod.PROP
+	var yaricap := 10.0 if secili else 9.0
+	draw_circle(piso, yaricap, p_renk)
+	draw_arc(piso, yaricap, 0.0, TAU, 20, Color(0.05, 0.05, 0.05, 0.85), 2.0)
+	if secili:
+		draw_arc(piso, yaricap + 3.0, 0.0, TAU, 24, Color(1.0, 0.92, 0.35, 0.95), 2.0)
+	var kisaltma := PropKatalog.isim(pid).substr(0, 3)
+	draw_string(font, piso + Vector2(11, -7), kisaltma, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, 0.92))
+
+
 func _prop_firca_surukle(mouse_dunya: Vector2) -> void:
 	var logical := _mouse_to_logical(mouse_dunya)
 	if not _harita_icinde_mi(logical):
 		return
-	if logical.distance_to(_son_firca_surukleme) < FIRCA_SURUKLEME_ADIM:
+	var serp_adim := _firca_etkin_serp_adim()
+	if logical.distance_to(_son_firca_surukleme) < serp_adim:
 		return
 	_son_firca_surukleme = logical
-	for _i in range(7):
+	var min_mesafe := _firca_etkin_min_mesafe()
+	for _i in range(_firca_etkin_deneme()):
 		var ang := randf() * TAU
 		var r := sqrt(randf()) * _firca_yaricap
 		var pos := logical + Vector2(cos(ang), sin(ang)) * r
 		if not _harita_icinde_mi(pos):
 			continue
-		if _prop_yakin_var(pos, FIRCA_MIN_MESAFE):
+		if _prop_yakin_var(pos, min_mesafe):
 			continue
 		_prop_ekle(pos, _secili_prop_id)
 	queue_redraw()
