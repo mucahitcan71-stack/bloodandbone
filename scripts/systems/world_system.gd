@@ -22,12 +22,31 @@ const _CIMEN_PIXEL_TILESET_YOL := "res://assets/zemin/cimen_tileset.tres"
 const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
-const _ZEMIN3D_COZUNURLUK := 0.5  # viewport render olcegi (1.0 = tam, dusuk = az VRAM)
-const _ZEMIN3D_VP_MAX := 8192.0  # viewport tek kenar ust siniri (VRAM/GPU guvenligi)
+const _ZEMIN3D_PPD := 1.4  # gorunen bolge basina piksel/iso birim (yuksek = net)
+const _ZEMIN3D_VP_MAX := 4096.0  # bolge basina viewport ust siniri
+const _ZEMIN3D_ZOOM_REF := 0.5
+const _ZEMIN3D_BOLGE_ESIK := 40.0  # kamera kaydirma esigi (ekran px)
+const _ZEMIN3D_PPD_ESIK := 0.05
 const _ZEMIN3D_DOKU_TEKRAR := 256.0  # kac logical birimde bir doku tekrari
 const _ZEMIN3D_DIS_PAY := 640.0  # 3d zeminde harita disi pay (viewport boyutunu sinirlar)
 const _KAMERA_LIMIT_PAY := 4200.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
 const _ZEMIN3D_SHADER_YOL := "res://assets/zemin/zemin3d_teren.gdshader"
+const _ZEMIN_PBR := false  # true = PBR cim (color+normal+roughness+AO)
+const _ZEMIN_HARMAN := true  # true = noise harman (cim+toprak+tas) — aktif varsayilan
+const _CIM_UV_TEKRAR := Vector2(40.0, 24.0)  # 15000x9000 haritada tekrar sayisi (buyuk = sik/net)
+const _DOKU_PBR_COLOR := "res://assets/zemin/Grass004_2K-JPG_Color.jpg"
+const _DOKU_PBR_NORMAL := "res://assets/zemin/Grass004_2K-JPG_NormalGL.jpg"
+const _DOKU_PBR_ROUGH := "res://assets/zemin/Grass004_2K-JPG_Roughness.jpg"
+const _DOKU_PBR_AO := "res://assets/zemin/Grass004_2K-JPG_AmbientOcclusion.jpg"
+const _DOKU_CIM := "res://assets/zemin/Grass004_2K-JPG_Color.jpg"
+const _DOKU_CIM2 := "res://assets/zemin/Ground037_2K-JPG_Color.jpg"
+const _DOKU_TOPRAK := "res://assets/zemin/Ground067_2K-JPG_Color.jpg"
+const _DOKU_TAS := "res://assets/zemin/Ground028_2K-JPG_Color.jpg"
+const _DOKU_SIS := "res://assets/zemin/sis.jpg"
+const _AGAC_TEST_AKTIF := true  # tek agac kaniti (gecici test)
+const _AGAC_TEST_YOL := "res://assets/proplar/doga/CommonTree_1.gltf"
+const _AGAC_TEST_OLCEK := 8.0
+const _AGAC_TEST_KONUM := Vector2(7500, 4500)  # logical
 const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
@@ -69,6 +88,11 @@ var _doku_tabanli_tileset_onbellek: Dictionary = {}
 var _pixel_cimen_tileset_hazir: TileSet = null
 var _zemin3d_viewport: SubViewport = null
 var _zemin3d_sprite: Sprite2D = null
+var _zemin3d_kam3d: Camera3D = null
+var _zemin3d_off := Vector2.ZERO
+var _zemin3d_kam_mesafe := 0.0
+var _zemin3d_etkin_ppd := 0.0
+var _zemin3d_son_iso_merkez := Vector2.ZERO
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -892,22 +916,14 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	var gw := (max_x - min_x) + pay * 2.0
 	var gh := (max_y - min_y) + pay * 2.0
 	var merkez := Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
+	var off := _izo_cizim_offseti(sinir)
+	_zemin3d_off = off
 
-	# Genisletilmis alanin iso bbox boyutu (2:1 izometri)
-	var iso_w := (gw + gh) * 0.5
-	var iso_h := (gw + gh) * 0.25
-
-	var etkin_olcek := _ZEMIN3D_COZUNURLUK
-	if iso_w * etkin_olcek > _ZEMIN3D_VP_MAX:
-		etkin_olcek = _ZEMIN3D_VP_MAX / iso_w
 	var vp := SubViewport.new()
 	vp.name = "Zemin3DViewport"
 	vp.own_world_3d = true
 	vp.transparent_bg = true
-	vp.size = Vector2i(
-		maxi(16, int(iso_w * etkin_olcek)),
-		maxi(16, int(iso_h * etkin_olcek))
-	)
+	vp.size = Vector2i(512, 384)
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	cimen_katmani.add_child(vp)
 
@@ -915,15 +931,18 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	kok3d.name = "Zemin3DKok"
 	vp.add_child(kok3d)
 
+	# Plane, kamera frustumunun tamamini kaplayacak kadar genis:
+	# viewport dikdortgeninin kose bolgeleri de (elmas disi) dokulu gorunur
+	var plane_kenar := (gw + gh) * 1.6
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(gw, gh)
+	plane.size = Vector2(plane_kenar, plane_kenar)
 	plane.subdivide_width = _ZEMIN3D_SUBDIV
 	plane.subdivide_depth = _ZEMIN3D_SUBDIV
 	var mi := MeshInstance3D.new()
 	mi.name = "ZeminMesh"
 	mi.mesh = plane
 	mi.position = Vector3(merkez.x, 0.0, merkez.y)
-	mi.material_override = _zemin3d_materyal(gw, gh)
+	mi.material_override = _zemin3d_materyal(plane_kenar, plane_kenar)
 	kok3d.add_child(mi)
 
 	var isik := DirectionalLight3D.new()
@@ -936,48 +955,193 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	# rotation (-30, 45, 0) + size = iso_h * sqrt(2) => logical_to_iso ile birebir
 	var kam := Camera3D.new()
 	kam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	kam.size = iso_h * sqrt(2.0)
+	kam.size = (gw + gh) * 0.25 * sqrt(2.0)
 	kam.rotation_degrees = Vector3(-30.0, 45.0, 0.0)
 	var geri := Vector3(sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0)))
 	var mesafe := (gw + gh) * 0.31 + 200.0
+	_zemin3d_kam_mesafe = mesafe
 	kam.position = Vector3(merkez.x, 0.0, merkez.y) + geri * mesafe
 	kam.near = 1.0
 	kam.far = mesafe * 2.0 + 400.0
+	var env := Environment.new()
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(1.0, 1.0, 1.0)
+	env.ambient_light_energy = 0.35
+	kam.environment = env
 	kok3d.add_child(kam)
 	kam.current = true
+	_zemin3d_kam3d = kam
 
-	var off := _izo_cizim_offseti(sinir)
+	if _AGAC_TEST_AKTIF:
+		_zemin3d_test_agac_ekle(kok3d)
+
 	var spr := Sprite2D.new()
 	spr.name = "Zemin3DSprite"
 	spr.texture = vp.get_texture()
 	spr.centered = true
-	spr.position = IsoProj.logical_to_iso(merkez) + off
-	spr.scale = Vector2.ONE / etkin_olcek
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.z_index = 0
 	cimen_katmani.add_child(spr)
 	_zemin3d_viewport = vp
 	_zemin3d_sprite = spr
+	_zemin3d_bolge_guncelle(true)
+
+
+func _zemin3d_gorunen_bolge() -> Dictionary:
+	if kamera == null:
+		return {}
+	var root_vp := kamera.get_viewport()
+	if root_vp == null:
+		return {}
+	var ekran: Vector2 = root_vp.get_visible_rect().size
+	var z := maxf(kamera.zoom.x, 0.01)
+	var half := ekran / (2.0 * z)
+	var cam := kamera.position
+	var off := _zemin3d_off
+	var kose_iso: Array[Vector2] = [
+		cam + Vector2(-half.x, -half.y),
+		cam + Vector2(half.x, -half.y),
+		cam + Vector2(half.x, half.y),
+		cam + Vector2(-half.x, half.y),
+	]
+	var min_l := Vector2(INF, INF)
+	var max_l := Vector2(-INF, -INF)
+	for p in kose_iso:
+		var logical := IsoProj.iso_to_logical(p - off)
+		min_l.x = minf(min_l.x, logical.x)
+		min_l.y = minf(min_l.y, logical.y)
+		max_l.x = maxf(max_l.x, logical.x)
+		max_l.y = maxf(max_l.y, logical.y)
+	var pay := maxf(180.0 / z, (max_l.x - min_l.x) * 0.08)
+	min_l -= Vector2(pay, pay)
+	max_l += Vector2(pay, pay)
+	var iso_pts: Array[Vector2] = []
+	for lx in [min_l.x, max_l.x]:
+		for ly in [min_l.y, max_l.y]:
+			iso_pts.append(IsoProj.logical_to_iso(Vector2(lx, ly)) + off)
+	var min_i := iso_pts[0]
+	var max_i := iso_pts[0]
+	for p in iso_pts:
+		min_i = min_i.min(p)
+		max_i = max_i.max(p)
+	return {
+		"logical_center": (min_l + max_l) * 0.5,
+		"iso_center": (min_i + max_i) * 0.5,
+		"iso_w": maxf(max_i.x - min_i.x, 64.0),
+		"iso_h": maxf(max_i.y - min_i.y, 32.0),
+	}
+
+
+func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
+	if not is_instance_valid(_zemin3d_viewport) or not is_instance_valid(_zemin3d_sprite):
+		return
+	var bolge := _zemin3d_gorunen_bolge()
+	if bolge.is_empty():
+		return
+	var z := kamera.zoom.x
+	var ppd := _ZEMIN3D_PPD * clampf(z / _ZEMIN3D_ZOOM_REF, 1.0, 5.5)
+	var iso_w: float = bolge["iso_w"]
+	var iso_h: float = bolge["iso_h"]
+	var iso_center: Vector2 = bolge["iso_center"]
+	var logical_center: Vector2 = bolge["logical_center"]
+	if not zorla:
+		if absf(ppd - _zemin3d_etkin_ppd) < _ZEMIN3D_PPD_ESIK:
+			if iso_center.distance_to(_zemin3d_son_iso_merkez) < _ZEMIN3D_BOLGE_ESIK / maxf(z, 0.01):
+				return
+	_zemin3d_etkin_ppd = ppd
+	_zemin3d_son_iso_merkez = iso_center
+	_zemin3d_viewport.size = Vector2i(
+		clampi(int(iso_w * ppd), 256, int(_ZEMIN3D_VP_MAX)),
+		clampi(int(iso_h * ppd), 192, int(_ZEMIN3D_VP_MAX))
+	)
+	_zemin3d_sprite.position = iso_center
+	_zemin3d_sprite.scale = Vector2.ONE / ppd
+	if is_instance_valid(_zemin3d_kam3d):
+		_zemin3d_kam3d.size = iso_h * sqrt(2.0)
+		var geri := Vector3(
+			sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0))
+		)
+		_zemin3d_kam3d.position = Vector3(logical_center.x, 0.0, logical_center.y) + geri * _zemin3d_kam_mesafe
+	_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+func zemin3d_kalite_tick() -> void:
+	if _ZEMIN_DOKU != "3d" or kamera == null:
+		return
+	_zemin3d_bolge_guncelle(false)
+
+
+func _zemin3d_test_agac_ekle(kok3d: Node3D) -> void:
+	if not ResourceLoader.exists(_AGAC_TEST_YOL):
+		push_warning("WorldSystem: test agaci bulunamadi: " + _AGAC_TEST_YOL)
+		return
+	var sahne := load(_AGAC_TEST_YOL) as PackedScene
+	if sahne == null:
+		push_warning("WorldSystem: test agaci yuklenemedi: " + _AGAC_TEST_YOL)
+		return
+	var agac := sahne.instantiate() as Node3D
+	if agac == null:
+		return
+	agac.name = "TestAgac"
+	# Zemin plane'i ile ayni donusum: logical (x,y) -> 3D (x, 0, y), zemin y=0
+	agac.position = Vector3(_AGAC_TEST_KONUM.x, 0.0, _AGAC_TEST_KONUM.y)
+	agac.scale = Vector3.ONE * _AGAC_TEST_OLCEK
+	kok3d.add_child(agac)
 
 
 func _zemin3d_materyal(gw: float, gh: float) -> Material:
-	var teren := _zemin3d_teren_materyal(gw, gh)
-	if teren != null:
-		return teren
-	# Yedek: tek doku standart materyal
+	if _ZEMIN_PBR:
+		var pbr := _zemin3d_pbr_materyal(gw, gh)
+		if pbr != null:
+			return pbr
+	if _ZEMIN_HARMAN:
+		var teren := _zemin3d_teren_materyal(gw, gh)
+		if teren != null:
+			return teren
+	# Duz tek doku cim (varsayilan)
 	var mat := StandardMaterial3D.new()
 	mat.roughness = 1.0
 	mat.metallic = 0.0
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var yol := _zengin_doku_yolu_bul()
-	var tex: Texture2D = null
-	if ResourceLoader.exists(yol):
-		tex = load(yol) as Texture2D
+	var tex := _doku_yukle_veya_null(_CIMEN_GERCEK_YOL)
+	if tex == null:
+		tex = _doku_yukle_veya_null(_zengin_doku_yolu_bul())
 	if tex != null:
 		mat.albedo_texture = tex
 		mat.uv1_scale = Vector3(gw / _ZEMIN3D_DOKU_TEKRAR, gh / _ZEMIN3D_DOKU_TEKRAR, 1.0)
 	else:
 		mat.albedo_color = Color(0.16, 0.21, 0.13)
+	return mat
+
+
+func _zemin3d_pbr_materyal(gw: float, gh: float) -> StandardMaterial3D:
+	var color := _doku_yukle_veya_null(_DOKU_PBR_COLOR)
+	if color == null:
+		push_warning("WorldSystem: PBR cim color dokusu yok: " + _DOKU_PBR_COLOR)
+		return null
+	var mat := StandardMaterial3D.new()
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	mat.albedo_texture = color
+	var normal := _doku_yukle_veya_null(_DOKU_PBR_NORMAL)
+	if normal != null:
+		mat.normal_enabled = true
+		mat.normal_texture = normal
+		mat.normal_scale = 1.0
+	var rough := _doku_yukle_veya_null(_DOKU_PBR_ROUGH)
+	if rough != null:
+		mat.roughness_texture = rough
+	mat.roughness = 1.0
+	mat.metallic = 0.0
+	mat.metallic_specular = 0.0  # ortografik goruste beyaz parlama olusmasin
+	var ao := _doku_yukle_veya_null(_DOKU_PBR_AO)
+	if ao != null:
+		mat.ao_enabled = true
+		mat.ao_texture = ao
+	# UV tekrar: _CIM_UV_TEKRAR referansi 15000x9000 harita; plane boyutuna oranla
+	# (dunya biriminde ayni siklik korunur, plane kare/buyuk olsa da)
+	var tekrar_per_birim_x := _CIM_UV_TEKRAR.x / 15000.0
+	var tekrar_per_birim_y := _CIM_UV_TEKRAR.y / 9000.0
+	mat.uv1_scale = Vector3(gw * tekrar_per_birim_x, gh * tekrar_per_birim_y, 1.0)
 	return mat
 
 
@@ -987,16 +1151,24 @@ func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
 	var shader := load(_ZEMIN3D_SHADER_YOL) as Shader
 	if shader == null:
 		return null
-	var cim := _doku_yukle_veya_null(_zengin_doku_yolu_bul())
+	var cim := _doku_yukle_veya_null(_DOKU_CIM)
 	if cim == null:
 		cim = _doku_yukle_veya_null(_CIMEN_GERCEK_YOL)
-	var toprak := _doku_yukle_veya_null("res://assets/zemin/toprak.jpg")
-	var tas := _doku_yukle_veya_null("res://assets/zemin/tas.jpg")
+	var cim2 := _doku_yukle_veya_null(_DOKU_CIM2)
+	if cim2 == null:
+		cim2 = cim
+	var toprak := _doku_yukle_veya_null(_DOKU_TOPRAK)
+	if toprak == null:
+		toprak = _doku_yukle_veya_null("res://assets/zemin/toprak.jpg")
+	var tas := _doku_yukle_veya_null(_DOKU_TAS)
+	if tas == null:
+		tas = _doku_yukle_veya_null("res://assets/zemin/tas.jpg")
 	if cim == null or toprak == null or tas == null:
 		return null
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	mat.set_shader_parameter("cim_tex", cim)
+	mat.set_shader_parameter("cim2_tex", cim2)
 	mat.set_shader_parameter("toprak_tex", toprak)
 	mat.set_shader_parameter("tas_tex", tas)
 	mat.set_shader_parameter("noise_tex", _zemin3d_noise_doku())
@@ -1007,8 +1179,18 @@ func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
 	# Noise/tepe olcekleri harita boyutuyla orantili: leke ve tepe boyutu
 	# dunya biriminde sabit kalsin (referans genislik 6280 = eski 5000'lik harita)
 	var oran := gw / 6280.0
-	mat.set_shader_parameter("noise_olcek", 4.0 * oran)
+	mat.set_shader_parameter("noise_olcek", 1.5 * oran)
 	mat.set_shader_parameter("tepe_olcek", 1.6 * oran)
+	var sis := _doku_yukle_veya_null(_DOKU_SIS)
+	if sis != null:
+		mat.set_shader_parameter("sis_tex", sis)
+		mat.set_shader_parameter("sis_aktif", true)
+		mat.set_shader_parameter("harita_min", Vector2(
+			float(harita_sinir["min_x"]), float(harita_sinir["min_y"])
+		))
+		mat.set_shader_parameter("harita_max", Vector2(
+			float(harita_sinir["max_x"]), float(harita_sinir["max_y"])
+		))
 	return mat
 
 
