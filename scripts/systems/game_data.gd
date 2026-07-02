@@ -2,6 +2,7 @@ extends RefCounted
 class_name GameData
 
 const UNITS_OSMANLI_PATH = "res://data/units/osmanli.json"
+const PropKatalog = preload("res://scripts/prop_katalog.gd")
 const UNITS_DOGU_ROMA_PATH = "res://data/units/dogu_roma.json"
 const USTUNLUK_PATH = "res://data/combat/ustunluk.json"
 const CAMPAIGN_PATH = "res://data/campaign.json"
@@ -185,6 +186,8 @@ static func parse_map(data: Dictionary) -> Dictionary:
 				usler.append(id_str)
 	print("[US] yuklenen usler=", usler)
 
+	var proplar: Array = _parse_proplar(data.get("proplar", []))
+
 	return {
 		"id": str(data.get("id", "")),
 		"isim": str(data.get("isim", data.get("id", "Harita"))),
@@ -204,6 +207,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"nokta_duzen": nokta_duzen,
 		"nokta_slotlari": nokta_slotlari,
 		"usler": usler,
+		"proplar": proplar,
 		"arkaplan": str(data.get("arkaplan", "")),
 	}
 
@@ -230,6 +234,30 @@ static func _parse_kavsaklar(raw: Variant, nokta_fallback: Dictionary) -> Dictio
 			if nokta_fallback.has(kid):
 				kavsaklar[kid] = nokta_fallback[kid]
 	return kavsaklar
+
+static func _parse_proplar(raw: Variant) -> Array:
+	var sonuc: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return sonuc
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = entry
+		var pid := str(d.get("id", ""))
+		if pid == "":
+			continue
+		var kat := PropKatalog.bul_id(pid)
+		var baz := float(kat.get("olcek", 8.0)) if not kat.is_empty() else 8.0
+		var ham_olcek := float(d.get("olcek", baz))
+		sonuc.append({
+			"id": pid,
+			"x": float(d.get("x", 0)),
+			"y": float(d.get("y", 0)),
+			"konum": Vector2(float(d.get("x", 0)), float(d.get("y", 0))),
+			"olcek": PropKatalog.olcek_normalize(ham_olcek, baz),
+			"rot": float(d.get("rot", 0.0)),
+		})
+	return sonuc
 
 static func _parse_gorsel_yollar(raw: Variant) -> Array:
 	var yollar: Array = []

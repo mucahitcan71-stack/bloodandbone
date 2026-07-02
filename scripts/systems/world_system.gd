@@ -5,6 +5,7 @@ const GameData = preload("res://scripts/systems/game_data.gd")
 const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
 const IsoProj = preload("res://scripts/iso_projection.gd")
 const PathSpline = preload("res://scripts/path_spline.gd")
+const PropKatalog = preload("res://scripts/prop_katalog.gd")
 const _YOL_SPLINE_ADIM := 10
 
 const _ISO_ARAZI_CIZIMI := true
@@ -43,7 +44,7 @@ const _DOKU_CIM2 := "res://assets/zemin/Ground037_2K-JPG_Color.jpg"
 const _DOKU_TOPRAK := "res://assets/zemin/Ground067_2K-JPG_Color.jpg"
 const _DOKU_TAS := "res://assets/zemin/Ground028_2K-JPG_Color.jpg"
 const _DOKU_SIS := "res://assets/zemin/sis.jpg"
-const _AGAC_TEST_AKTIF := true  # tek agac kaniti (gecici test)
+const _AGAC_TEST_AKTIF := false  # proplar JSON'dan; test agaci kapali
 const _AGAC_TEST_YOL := "res://assets/proplar/doga/CommonTree_1.gltf"
 const _AGAC_TEST_OLCEK := 8.0
 const _AGAC_TEST_KONUM := Vector2(7500, 4500)  # logical
@@ -73,6 +74,7 @@ var gorsel_lekeler: Array = []
 var dere_yataklari: Array = []
 var nehir_hatlari: Array = []
 var cevre_dekor: Array = []
+var harita_proplari: Array = []
 var nokta_duzen: Dictionary = {}
 var nokta_slotlari: Dictionary = {}
 var us_idleri: Array = []
@@ -269,6 +271,7 @@ func harita_uygula(map_id: String) -> void:
 	dere_yataklari = map_data.get("dere_yataklari", []).duplicate(true)
 	nehir_hatlari = map_data.get("nehir_hatlari", []).duplicate(true)
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
+	harita_proplari = map_data.get("proplar", []).duplicate(true)
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
 	us_idleri = map_data.get("usler", []).duplicate()
@@ -974,6 +977,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 
 	if _AGAC_TEST_AKTIF:
 		_zemin3d_test_agac_ekle(kok3d)
+	_zemin3d_proplari_ekle(kok3d)
 
 	var spr := Sprite2D.new()
 	spr.name = "Zemin3DSprite"
@@ -1087,6 +1091,53 @@ func _zemin3d_test_agac_ekle(kok3d: Node3D) -> void:
 	agac.position = Vector3(_AGAC_TEST_KONUM.x, 0.0, _AGAC_TEST_KONUM.y)
 	agac.scale = Vector3.ONE * _AGAC_TEST_OLCEK
 	kok3d.add_child(agac)
+
+
+func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
+	# Cok sayida ayni modelde yavaslama olursa MultiMesh'e gecilebilir.
+	if harita_proplari.is_empty():
+		return
+	var kok := Node3D.new()
+	kok.name = "HaritaProplari"
+	kok3d.add_child(kok)
+	var model_onbellek: Dictionary = {}
+	for raw in harita_proplari:
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = raw
+		var pid := str(d.get("id", ""))
+		var kat := PropKatalog.bul_id(pid)
+		if kat.is_empty():
+			push_warning("WorldSystem: bilinmeyen prop id: " + pid)
+			continue
+		var model_yol := str(kat.get("model", ""))
+		if model_yol == "":
+			continue
+		var sahne: PackedScene = model_onbellek.get(model_yol, null)
+		if sahne == null:
+			if not ResourceLoader.exists(model_yol):
+				push_warning("WorldSystem: prop modeli yok: " + model_yol)
+				continue
+			sahne = load(model_yol) as PackedScene
+			if sahne == null:
+				continue
+			model_onbellek[model_yol] = sahne
+		var inst := sahne.instantiate() as Node3D
+		if inst == null:
+			continue
+		var konum := Vector2(float(d.get("x", 0)), float(d.get("y", 0)))
+		if d.has("konum") and d["konum"] is Vector2:
+			konum = d["konum"]
+		var olcek := PropKatalog.olcek_normalize(
+			float(d.get("olcek", kat.get("olcek", 8.0))),
+			float(kat.get("olcek", 8.0))
+		)
+		var rot := float(d.get("rot", 0.0))
+		inst.name = "Prop_%s" % pid
+		inst.position = Vector3(konum.x, 0.0, konum.y)
+		inst.rotation_degrees = Vector3(0.0, rot, 0.0)
+		inst.scale = Vector3.ONE * olcek
+		kok.add_child(inst)
 
 
 func _zemin3d_materyal(gw: float, gh: float) -> Material:
