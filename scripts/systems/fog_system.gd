@@ -4,7 +4,7 @@ class_name FogSystem
 var _root: Node2D = null
 var _world: WorldSystem = null
 
-var gorus_hucre_boyutu = 40.0
+var gorus_hucre_boyutu = 120.0  # 3x harita ile orantili (eski 40 @ 5000x3000)
 var gorus_hucreleri = {}
 var gorus_hucre_katmani: Control = null
 var kesfedilen_alanlar = {}
@@ -117,21 +117,20 @@ func update_point_visibility() -> void:
 		return
 	for nokta in _root.nokta_konumlari:
 		var kesfedildi = is_point_discovered(nokta)
-		var kare = _root.map_gorsel_node("Nokta_" + nokta)
-		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta)
+		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta) as Label
 		var puan_l = _root.map_gorsel_node("Label_Puan_" + nokta)
 		var bg = _root.map_gorsel_node("CaptureBg_" + nokta)
 		var bar = _root.capture_barlar.get(nokta, null)
 		if not kesfedildi:
-			if kare: kare.visible = false
 			if isim_l: isim_l.visible = false
 			if puan_l: puan_l.visible = false
 			if bg: bg.visible = false
 			if bar: bar.visible = false
 			continue
 
-		if kare: kare.visible = true
-		if isim_l: isim_l.visible = true
+		if isim_l:
+			isim_l.visible = true
+			isim_l.add_theme_color_override("font_color", _point_owner_color(_root.nokta_sahipleri[nokta]))
 		if puan_l:
 			puan_l.visible = true
 			puan_l.modulate = Color(1, 1, 1, 1)
@@ -139,9 +138,6 @@ func update_point_visibility() -> void:
 			"sahip": _root.nokta_sahipleri[nokta],
 			"capture": _root.nokta_capture[nokta]
 		}
-		if kare:
-			kare.color = _point_owner_color(_root.nokta_sahipleri[nokta])
-			kare.modulate = Color(1, 1, 1, 1)
 		if bg: bg.visible = true
 		if bar:
 			bar.visible = true
@@ -379,17 +375,13 @@ func _update_ghost_icons() -> void:
 
 func _tum_noktalari_goster() -> void:
 	for nokta in _root.nokta_konumlari:
-		var kare = _root.map_gorsel_node("Nokta_" + nokta)
-		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta)
+		var isim_l = _root.map_gorsel_node("Label_Nokta_" + nokta) as Label
 		var puan_l = _root.map_gorsel_node("Label_Puan_" + nokta)
 		var bg = _root.map_gorsel_node("CaptureBg_" + nokta)
 		var bar = _root.capture_barlar.get(nokta, null)
-		if kare:
-			kare.visible = true
-			kare.color = _point_owner_color(_root.nokta_sahipleri[nokta])
-			kare.modulate = Color(1, 1, 1, 1)
 		if isim_l:
 			isim_l.visible = true
+			isim_l.add_theme_color_override("font_color", _point_owner_color(_root.nokta_sahipleri[nokta]))
 		if puan_l:
 			puan_l.visible = true
 			puan_l.modulate = Color(1, 1, 1, 1)

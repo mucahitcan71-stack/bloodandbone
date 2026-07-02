@@ -49,6 +49,12 @@ const _AGAC_TEST_YOL := "res://assets/proplar/doga/CommonTree_1.gltf"
 const _AGAC_TEST_OLCEK := 8.0
 const _AGAC_TEST_KONUM := Vector2(7500, 4500)  # logical
 const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
+const _NOKTA_KALE_YOL := "res://assets/proplar/yapilar/blood_and_bone_control_point_v2.glb"
+const _NOKTA_KALE_OLCEK := 80.0
+const _KALE_YOL_KENAR_PAYI := 16.0
+const _KALE_YOL_UC_TOLERANS := 65.0
+const _NOKTA_ETIKET_ISIM_OFSET := Vector2(40, -110)
+const _NOKTA_ETIKET_PUAN_OFSET := Vector2(40, -130)
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
@@ -98,6 +104,7 @@ var _zemin3d_son_iso_merkez := Vector2.ZERO
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
+var _kale_yol_yaricapi_onbellek := -1.0
 
 func configure(root: Node2D) -> void:
 	_root = root
@@ -122,6 +129,28 @@ func get_point_scores() -> Dictionary:
 
 func get_point_gold_values() -> Dictionary:
 	return nokta_altin
+
+func get_gorsel_patikalar() -> Array:
+	return gorsel_patikalar
+
+func get_kavsak_konumlari() -> Dictionary:
+	return kavsak_konumlari
+
+func get_kale_yol_yaricapi() -> float:
+	return _kale_yol_yaricapi()
+
+func get_kontrol_nokta_ids() -> Array:
+	var ids: Array = []
+	for nokta in nokta_konumlari:
+		if _kontrol_noktasi_mi(nokta):
+			ids.append(nokta)
+	return ids
+
+func kontrol_nokta_yakin(pos: Vector2) -> String:
+	return _patika_ucu_kontrol_noktasi_mi(pos)
+
+func kale_kapi_konumu(nokta_id: String, dis_taraftan: Vector2) -> Vector2:
+	return _yol_ucunu_kale_bosluga_cek(Vector2.ZERO, dis_taraftan, nokta_id)
 
 func get_terrain_regions() -> Array:
 	return arazi_bolgeleri
@@ -272,6 +301,7 @@ func harita_uygula(map_id: String) -> void:
 	nehir_hatlari = map_data.get("nehir_hatlari", []).duplicate(true)
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
 	harita_proplari = map_data.get("proplar", []).duplicate(true)
+	_kale_yol_yaricapi_onbellek = -1.0
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
 	us_idleri = map_data.get("usler", []).duplicate()
@@ -432,56 +462,13 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 			nesne_katmani.add_child(kok)
 			parent = kok
 
-		var zemin = ColorRect.new()
-		zemin.color = Color(0.34, 0.3, 0.22, 0.5)
-		zemin.size = Vector2(132, 132)
-		zemin.position = rel - Vector2(26, 26)
-		zemin.name = "NoktaZemin_" + nokta
-		zemin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		zemin.z_index = _nokta_gorsel_z(-3) if not _ISO_ARAZI_CIZIMI else -3
-		parent.add_child(zemin)
-
-		var tas_leke = ColorRect.new()
-		tas_leke.color = Color(0.42, 0.38, 0.3, 0.35)
-		tas_leke.size = Vector2(96, 96)
-		tas_leke.position = rel - Vector2(8, 8)
-		tas_leke.name = "NoktaTas_" + nokta
-		tas_leke.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tas_leke.z_index = _nokta_gorsel_z(-2) if not _ISO_ARAZI_CIZIMI else -2
-		parent.add_child(tas_leke)
-
-		var halka = ColorRect.new()
-		halka.color = Color(0.5, 0.44, 0.32, 0.45)
-		halka.size = Vector2(104, 104)
-		halka.position = rel - Vector2(12, 12)
-		halka.name = "NoktaHalka_" + nokta
-		halka.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		halka.z_index = _nokta_gorsel_z(-1) if not _ISO_ARAZI_CIZIMI else -1
-		parent.add_child(halka)
-
-		var cerceve = ColorRect.new()
-		cerceve.color = Color(0.1, 0.1, 0.12, 0.65)
-		cerceve.size = Vector2(84, 84)
-		cerceve.position = rel - Vector2(2, 2)
-		cerceve.name = "NoktaCerceve_" + nokta
-		cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cerceve.z_index = _nokta_gorsel_z(0) if not _ISO_ARAZI_CIZIMI else 0
-		parent.add_child(cerceve)
-
-		var kare = ColorRect.new()
-		kare.color = Color(0.44, 0.4, 0.34, 0.94)
-		kare.size = Vector2(80, 80)
-		kare.position = rel
-		kare.name = "Nokta_" + nokta
-		kare.z_index = _nokta_gorsel_z(1) if not _ISO_ARAZI_CIZIMI else 1
-		parent.add_child(kare)
-
+		# 3D kale zemin viewport'ta; burada sadece etiket + capture UI
 		var isim_l = Label.new()
 		isim_l.name = "Label_Nokta_" + nokta
 		isim_l.text = nokta
 		isim_l.add_theme_font_size_override("font_size", 14)
 		isim_l.add_theme_color_override("font_color", Color(0.95, 0.92, 0.85))
-		isim_l.position = rel + Vector2(30, 30)
+		isim_l.position = rel + _NOKTA_ETIKET_ISIM_OFSET
 		isim_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
 		parent.add_child(isim_l)
 
@@ -489,14 +476,14 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 		bar_bg.name = "CaptureBg_" + nokta
 		bar_bg.color = Color(0.15, 0.15, 0.18, 0.9)
 		bar_bg.size = Vector2(80, 8)
-		bar_bg.position = rel + Vector2(0, 85)
+		bar_bg.position = rel + Vector2(12, 18)
 		bar_bg.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
 		parent.add_child(bar_bg)
 
 		var bar = ColorRect.new()
 		bar.color = Color(0.85, 0.72, 0.2, 1.0)
 		bar.size = Vector2(40, 8)
-		bar.position = rel + Vector2(0, 85)
+		bar.position = rel + Vector2(12, 18)
 		bar.name = "CaptureBar_" + nokta
 		bar.z_index = _nokta_gorsel_z(3) if not _ISO_ARAZI_CIZIMI else 3
 		parent.add_child(bar)
@@ -506,7 +493,7 @@ func build_control_points(capture_barlar: Dictionary) -> void:
 			var puan_l = Label.new()
 			puan_l.name = "Label_Puan_" + nokta
 			puan_l.text = "+" + str(nokta_puan[nokta])
-			puan_l.position = rel + Vector2(30, -20)
+			puan_l.position = rel + _NOKTA_ETIKET_PUAN_OFSET
 			puan_l.z_index = _nokta_gorsel_z(2) if not _ISO_ARAZI_CIZIMI else 2
 			parent.add_child(puan_l)
 
@@ -567,50 +554,25 @@ func _nokta_gorsel_konumla(nokta: String, _logical_pos: Vector2) -> void:
 		var kok = find_map_node("NoktaKok_" + nokta) as Node2D
 		if kok:
 			kok.position = foot
-	var zemin = find_map_node("NoktaZemin_" + nokta) as ColorRect
-	if zemin:
-		zemin.position = rel - Vector2(26, 26)
-		if not _ISO_ARAZI_CIZIMI:
-			zemin.z_index = _nokta_gorsel_z(-3)
-	var tas = find_map_node("NoktaTas_" + nokta) as ColorRect
-	if tas:
-		tas.position = rel - Vector2(8, 8)
-		if not _ISO_ARAZI_CIZIMI:
-			tas.z_index = _nokta_gorsel_z(-2)
-	var halka = find_map_node("NoktaHalka_" + nokta) as ColorRect
-	if halka:
-		halka.position = rel - Vector2(12, 12)
-		if not _ISO_ARAZI_CIZIMI:
-			halka.z_index = _nokta_gorsel_z(-1)
-	var cerceve = find_map_node("NoktaCerceve_" + nokta) as ColorRect
-	if cerceve:
-		cerceve.position = rel - Vector2(2, 2)
-		if not _ISO_ARAZI_CIZIMI:
-			cerceve.z_index = _nokta_gorsel_z(0)
-	var kare = find_map_node("Nokta_" + nokta) as ColorRect
-	if kare:
-		kare.position = rel
-		if not _ISO_ARAZI_CIZIMI:
-			kare.z_index = _nokta_gorsel_z(1)
 	var isim = find_map_node("Label_Nokta_" + nokta) as Label
 	if isim:
-		isim.position = rel + Vector2(30, 30)
+		isim.position = rel + _NOKTA_ETIKET_ISIM_OFSET
 		if not _ISO_ARAZI_CIZIMI:
 			isim.z_index = _nokta_gorsel_z(2)
 	var puan = find_map_node("Label_Puan_" + nokta) as Label
 	if puan and not us_idleri.has(nokta):
-		puan.position = rel + Vector2(30, -20)
+		puan.position = rel + _NOKTA_ETIKET_PUAN_OFSET
 		puan.text = "+" + str(nokta_puan.get(nokta, 1))
 		if not _ISO_ARAZI_CIZIMI:
 			puan.z_index = _nokta_gorsel_z(2)
 	var bar_bg = find_map_node("CaptureBg_" + nokta) as ColorRect
 	if bar_bg:
-		bar_bg.position = rel + Vector2(0, 85)
+		bar_bg.position = rel + Vector2(12, 18)
 		if not _ISO_ARAZI_CIZIMI:
 			bar_bg.z_index = _nokta_gorsel_z(2)
 	var bar = find_map_node("CaptureBar_" + nokta) as ColorRect
 	if bar:
-		bar.position = rel + Vector2(0, 85)
+		bar.position = rel + Vector2(12, 18)
 		if not _ISO_ARAZI_CIZIMI:
 			bar.z_index = _nokta_gorsel_z(3)
 
@@ -978,6 +940,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	if _AGAC_TEST_AKTIF:
 		_zemin3d_test_agac_ekle(kok3d)
 	_zemin3d_proplari_ekle(kok3d)
+	_zemin3d_nokta_yapilari_ekle(kok3d)
 
 	var spr := Sprite2D.new()
 	spr.name = "Zemin3DSprite"
@@ -1137,6 +1100,54 @@ func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
 		inst.position = Vector3(konum.x, 0.0, konum.y)
 		inst.rotation_degrees = Vector3(0.0, rot, 0.0)
 		inst.scale = Vector3.ONE * olcek
+		kok.add_child(inst)
+
+
+func _zemin3d_model_aabb_yerel(kok: Node3D) -> AABB:
+	var aabb: AABB
+	var var_mi := false
+	for node in kok.find_children("*", "MeshInstance3D", true, false):
+		if node is MeshInstance3D:
+			var mi := node as MeshInstance3D
+			var kutu := kok.transform * mi.transform * mi.get_aabb()
+			if not var_mi:
+				aabb = kutu
+				var_mi = true
+			else:
+				aabb = aabb.merge(kutu)
+	if not var_mi:
+		return AABB(Vector3.ZERO, Vector3.ONE)
+	return aabb
+
+
+func _zemin3d_model_taban_y_ofs(inst: Node3D) -> float:
+	return -_zemin3d_model_aabb_yerel(inst).position.y
+
+
+func _zemin3d_nokta_yapilari_ekle(kok3d: Node3D) -> void:
+	if _ZEMIN_DOKU != "3d" or nokta_konumlari.is_empty():
+		return
+	if not ResourceLoader.exists(_NOKTA_KALE_YOL):
+		push_warning("WorldSystem: kontrol noktasi kale modeli yok: " + _NOKTA_KALE_YOL)
+		return
+	var sahne := load(_NOKTA_KALE_YOL) as PackedScene
+	if sahne == null:
+		push_warning("WorldSystem: kontrol noktasi kale modeli yuklenemedi: " + _NOKTA_KALE_YOL)
+		return
+	var kok := Node3D.new()
+	kok.name = "NoktaYapilari"
+	kok3d.add_child(kok)
+	for nokta in nokta_konumlari:
+		if kavsak_konumlari.has(nokta):
+			continue
+		var merkez := get_point_center(nokta)
+		var inst := sahne.instantiate() as Node3D
+		if inst == null:
+			continue
+		inst.name = "NoktaYapi_" + str(nokta)
+		inst.scale = Vector3.ONE * _NOKTA_KALE_OLCEK
+		var taban_y := _zemin3d_model_taban_y_ofs(inst)
+		inst.position = Vector3(merkez.x, taban_y, merkez.y)
 		kok.add_child(inst)
 
 
@@ -1530,6 +1541,10 @@ func _gorsel_yollar_ekle() -> void:
 		var tip = str(baglanti.get("tip", "normal"))
 		var bas = get_point_center(a_id)
 		var bit = get_point_center(b_id)
+		if _kontrol_noktasi_mi(b_id):
+			bit = _yol_ucunu_kale_bosluga_cek(bit, bas, b_id)
+		if _kontrol_noktasi_mi(a_id):
+			bas = _yol_ucunu_kale_bosluga_cek(bas, bit, a_id)
 		_yol_cizgisi_ekle(bas, bit, tip, hash(a_id + b_id + aktif_harita_id + tip))
 
 func _gorsel_patikalar_ekle() -> void:
@@ -1542,6 +1557,7 @@ func _gorsel_patikalar_ekle() -> void:
 		var packed = PackedVector2Array()
 		for j in range(pts.size()):
 			packed.append(pts[j] as Vector2)
+		packed = _yol_patika_uc_kale_bosluk(packed)
 		var genis = _patika_noktalari_genislet(packed, hash("patika" + aktif_harita_id + str(i)), float(_yol_stili(tip).get("wobble", 22.0)))
 		_yol_cizgisi_noktalari_ekle(genis, tip)
 
@@ -1610,32 +1626,173 @@ func _yol_cizgisi_ekle(baslangic: Vector2, bitis: Vector2, tip: String, seed_val
 	_yol_cizgisi_noktalari_ekle(noktalar, tip)
 
 func _yol_cizgisi_noktalari_ekle(noktalar: PackedVector2Array, tip: String) -> void:
-	var cizim_noktalari := _izo_nokta_dizisi(noktalar)
 	var stil = _yol_stili(tip)
-	if bool(stil.get("kesik", false)):
-		_yol_kesik_hat_ekle(cizim_noktalari, stil)
-		return
-	var kenar = Line2D.new()
-	kenar.points = cizim_noktalari
-	kenar.width = float(stil.get("kenar", 24.0)) * _YOL_KALINLIK_OLCEK
-	kenar.default_color = stil.get("kenar_c", Color(0.28, 0.22, 0.14, 0.55))
-	kenar.antialiased = true
-	kenar.z_index = _decor_z(-2)
-	decor_katmani.add_child(kenar)
-	var yol = Line2D.new()
-	yol.points = cizim_noktalari
-	yol.width = float(stil.get("yol", 16.0)) * _YOL_KALINLIK_OLCEK
-	yol.default_color = stil.get("yol_c", Color(0.5, 0.42, 0.28, 0.82))
-	yol.antialiased = true
-	yol.z_index = _decor_z(-1)
-	decor_katmani.add_child(yol)
-	var orta = Line2D.new()
-	orta.points = cizim_noktalari
-	orta.width = float(stil.get("orta", 5.0)) * _YOL_KALINLIK_OLCEK
-	orta.default_color = stil.get("orta_c", Color(0.62, 0.54, 0.36, 0.45))
-	orta.antialiased = true
-	orta.z_index = _decor_z(0)
-	decor_katmani.add_child(orta)
+	for parca in _yol_noktalari_kale_kes(noktalar):
+		if parca.size() < 2:
+			continue
+		var cizim_noktalari := _izo_nokta_dizisi(parca)
+		if bool(stil.get("kesik", false)):
+			_yol_kesik_hat_ekle(cizim_noktalari, stil)
+			continue
+		var kenar = Line2D.new()
+		kenar.points = cizim_noktalari
+		kenar.width = float(stil.get("kenar", 24.0)) * _YOL_KALINLIK_OLCEK
+		kenar.default_color = stil.get("kenar_c", Color(0.28, 0.22, 0.14, 0.55))
+		kenar.antialiased = true
+		kenar.z_index = _decor_z(-2)
+		decor_katmani.add_child(kenar)
+		var yol = Line2D.new()
+		yol.points = cizim_noktalari
+		yol.width = float(stil.get("yol", 16.0)) * _YOL_KALINLIK_OLCEK
+		yol.default_color = stil.get("yol_c", Color(0.5, 0.42, 0.28, 0.82))
+		yol.antialiased = true
+		yol.z_index = _decor_z(-1)
+		decor_katmani.add_child(yol)
+		var orta = Line2D.new()
+		orta.points = cizim_noktalari
+		orta.width = float(stil.get("orta", 5.0)) * _YOL_KALINLIK_OLCEK
+		orta.default_color = stil.get("orta_c", Color(0.62, 0.54, 0.36, 0.45))
+		orta.antialiased = true
+		orta.z_index = _decor_z(0)
+		decor_katmani.add_child(orta)
+
+func _kale_yol_bosluk() -> float:
+	return _kale_yol_yaricapi()
+
+func _kale_yol_yaricapi() -> float:
+	if _kale_yol_yaricapi_onbellek < 0.0:
+		_kale_yol_yaricapi_onbellek = _kale_yol_yaricapi_hesapla()
+	return _kale_yol_yaricapi_onbellek
+
+func _kale_yol_yaricapi_hesapla() -> float:
+	if not ResourceLoader.exists(_NOKTA_KALE_YOL):
+		return _NOKTA_KALE_OLCEK * 0.85 + _KALE_YOL_KENAR_PAYI
+	var sahne := load(_NOKTA_KALE_YOL) as PackedScene
+	if sahne == null:
+		return _NOKTA_KALE_OLCEK * 0.85 + _KALE_YOL_KENAR_PAYI
+	var inst := sahne.instantiate() as Node3D
+	if inst == null:
+		return _NOKTA_KALE_OLCEK * 0.85 + _KALE_YOL_KENAR_PAYI
+	inst.scale = Vector3.ONE * _NOKTA_KALE_OLCEK
+	var aabb := _zemin3d_model_aabb_yerel(inst)
+	inst.free()
+	var hx := aabb.size.x * 0.5
+	var hz := aabb.size.z * 0.5
+	return sqrt(hx * hx + hz * hz) + _KALE_YOL_KENAR_PAYI
+
+func _kontrol_noktasi_mi(nokta_id: String) -> bool:
+	return nokta_konumlari.has(nokta_id) and not kavsak_konumlari.has(nokta_id)
+
+func _patika_ucu_kontrol_noktasi_mi(p: Vector2) -> String:
+	for nokta in nokta_konumlari:
+		if kavsak_konumlari.has(nokta):
+			continue
+		var merkez := get_point_center(nokta)
+		if p.distance_to(merkez) <= _KALE_YOL_UC_TOLERANS:
+			return nokta
+		if p.distance_to(nokta_konumlari[nokta]) <= _KALE_YOL_UC_TOLERANS:
+			return nokta
+	return ""
+
+func _yol_ucunu_kale_bosluga_cek(_uc: Vector2, komsu: Vector2, nokta_id: String) -> Vector2:
+	var merkez := get_point_center(nokta_id)
+	var bosluk := _kale_yol_bosluk()
+	var yon := merkez - komsu
+	if yon.length_squared() < 1.0:
+		return merkez - Vector2(bosluk, 0.0)
+	return merkez - yon.normalized() * bosluk
+
+func _yol_patika_uc_kale_bosluk(pts: PackedVector2Array) -> PackedVector2Array:
+	if pts.size() < 2:
+		return pts
+	var out := pts.duplicate()
+	var bas_id := _patika_ucu_kontrol_noktasi_mi(out[0])
+	if bas_id != "":
+		out[0] = _yol_ucunu_kale_bosluga_cek(out[0], out[1], bas_id)
+	var son := out.size() - 1
+	var bit_id := _patika_ucu_kontrol_noktasi_mi(out[son])
+	if bit_id != "":
+		out[son] = _yol_ucunu_kale_bosluga_cek(out[son], out[son - 1], bit_id)
+	return out
+
+func _yol_noktalari_kale_kes(pts: PackedVector2Array) -> Array:
+	if pts.size() < 2:
+		return []
+	var parcalar: Array = []
+	var aktif := PackedVector2Array()
+	for i in range(pts.size() - 1):
+		for seg in _yol_segment_kale_kes(pts[i], pts[i + 1]):
+			var s: PackedVector2Array = seg
+			if s.size() < 2:
+				continue
+			if aktif.is_empty():
+				aktif = s.duplicate()
+			elif aktif[aktif.size() - 1].distance_squared_to(s[0]) < 4.0:
+				for j in range(1, s.size()):
+					aktif.append(s[j])
+			else:
+				if aktif.size() >= 2:
+					parcalar.append(aktif)
+				aktif = s.duplicate()
+	if aktif.size() >= 2:
+		parcalar.append(aktif)
+	return parcalar
+
+func _yol_segment_kale_kes(a: Vector2, b: Vector2) -> Array:
+	var parcalar: Array = [PackedVector2Array([a, b])]
+	for nokta in nokta_konumlari:
+		if kavsak_konumlari.has(nokta):
+			continue
+		var merkez := get_point_center(nokta)
+		var yaricap := _kale_yol_yaricapi()
+		var yeni: Array = []
+		for seg in parcalar:
+			var s: PackedVector2Array = seg
+			if s.size() < 2:
+				continue
+			yeni.append_array(_yol_segment_daire_disinda(s[0], s[1], merkez, yaricap))
+		parcalar = yeni
+	return parcalar
+
+func _yol_segment_daire_disinda(a: Vector2, b: Vector2, merkez: Vector2, yaricap: float) -> Array:
+	var t_vals: Array = _yol_segment_daire_kesisim_t(a, b, merkez, yaricap)
+	if t_vals.is_empty():
+		if a.lerp(b, 0.5).distance_to(merkez) < yaricap:
+			return []
+		return [PackedVector2Array([a, b])]
+	t_vals.sort()
+	var sinirlar: Array = [0.0]
+	for t in t_vals:
+		sinirlar.append(t)
+	sinirlar.append(1.0)
+	var sonuc: Array = []
+	for i in range(sinirlar.size() - 1):
+		var t0: float = sinirlar[i]
+		var t1: float = sinirlar[i + 1]
+		if a.lerp(b, (t0 + t1) * 0.5).distance_to(merkez) >= yaricap - 0.5:
+			var p0 := a.lerp(b, t0)
+			var p1 := a.lerp(b, t1)
+			if p0.distance_squared_to(p1) > 0.25:
+				sonuc.append(PackedVector2Array([p0, p1]))
+	return sonuc
+
+func _yol_segment_daire_kesisim_t(a: Vector2, b: Vector2, merkez: Vector2, yaricap: float) -> Array:
+	var d := b - a
+	var f := a - merkez
+	var aa := d.dot(d)
+	if aa < 0.0001:
+		return []
+	var bb := 2.0 * f.dot(d)
+	var cc := f.dot(f) - yaricap * yaricap
+	var disc := bb * bb - 4.0 * aa * cc
+	if disc < 0.0:
+		return []
+	disc = sqrt(disc)
+	var sonuc: Array = []
+	for t in [(-bb - disc) / (2.0 * aa), (-bb + disc) / (2.0 * aa)]:
+		if t > 0.001 and t < 0.999:
+			sonuc.append(t)
+	return sonuc
 
 func _yol_kesik_hat_ekle(pts: PackedVector2Array, stil: Dictionary) -> void:
 	if pts.size() < 2:

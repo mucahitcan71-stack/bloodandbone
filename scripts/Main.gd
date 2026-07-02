@@ -25,6 +25,7 @@ const AiSystem = preload("res://scripts/systems/ai_system.gd")
 const PointEconomySystem = preload("res://scripts/systems/point_economy_system.gd")
 const ContextMenus = preload("res://scripts/ui/context_menus.gd")
 const UnitStatsSystem = preload("res://scripts/systems/unit_stats_system.gd")
+const PathGraphSystem = preload("res://scripts/systems/path_graph_system.gd")
 
 const _EDITOR_HARITASI_TEST := true  # true = editor_cikti.json; false = normal kampanya
 
@@ -40,6 +41,7 @@ var point_economy: PointEconomySystem = PointEconomySystem.new()
 var prep_controller: PreparationController = PreparationController.new()
 var context_menus: ContextMenus = ContextMenus.new()
 var unit_stats: UnitStatsSystem = UnitStatsSystem.new()
+var path_graph: PathGraphSystem = PathGraphSystem.new()
 
 # === VERI (JSON'dan yuklenir) ===
 var ustunluk_tablosu = {}
@@ -291,6 +293,9 @@ func _world_system_hazirla() -> void:
 				capture_barlar[nokta].size.x = 80.0 * (nokta_capture.get(nokta, 50.0) / 100.0)
 	)
 
+func _path_graph_hazirla() -> void:
+	path_graph.configure(self, world_system)
+
 func _world_refs_sync() -> void:
 	aktif_harita_id = world_system.get_active_map_id()
 	harita_sinir = world_system.get_map_bounds()
@@ -399,6 +404,7 @@ func _command_status_line_uygula(result: Dictionary) -> void:
 func harita_uygula(map_id: String) -> void:
 	world_system.harita_uygula(map_id)
 	_world_refs_sync()
+	path_graph.rebuild()
 
 func kamera_hazirla() -> void:
 	world_system.kamera_hazirla()
@@ -505,6 +511,7 @@ func _ready() -> void:
 	if eski_rect != null:
 		eski_rect.visible = false
 	_world_system_hazirla()
+	_path_graph_hazirla()
 	_fog_system_hazirla()
 	_ui_system_hazirla()
 	_command_system_hazirla()
@@ -1105,8 +1112,9 @@ func nokta_sec(nokta: String) -> void:
 
 func nokta_vurgula() -> void:
 	for nokta in nokta_konumlari:
-		var kare = map_gorsel_node("Nokta_" + nokta)
-		kare.modulate = Color(1.5, 1.5, 1.5) if nokta == secili_nokta else Color(1, 1, 1)
+		var isim = map_gorsel_node("Label_Nokta_" + nokta)
+		if isim:
+			isim.modulate = Color(1.5, 1.5, 1.5) if nokta == secili_nokta else Color(1, 1, 1)
 
 func nokta_merkezi(nokta: String) -> Vector2:
 	return nokta_konumlari[nokta] + Vector2(40, 40)
@@ -1264,6 +1272,8 @@ func birim_pusu_kur() -> void:
 func _process(delta: float) -> void:
 	if oyun_bitti:
 		return
+
+	world_system.zemin3d_kalite_tick()
 
 	_command_state_push()
 

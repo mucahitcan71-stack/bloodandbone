@@ -170,14 +170,16 @@ func reset_point_colors() -> void:
 			_host.capture_barlar[nokta].size.x = 40.0
 
 func update_point_color(nokta: String) -> void:
-	var kare = _host.map_gorsel_node("Nokta_" + nokta)
+	var isim = _host.map_gorsel_node("Label_Nokta_" + nokta) as Label
+	if isim == null:
+		return
 	var sahip = _host.nokta_sahibi_getir(nokta)
 	if sahip == "osmanli":
-		kare.color = Color.GOLD
+		isim.add_theme_color_override("font_color", Color.GOLD)
 	elif sahip == "dogu_roma":
-		kare.color = Color.PURPLE
+		isim.add_theme_color_override("font_color", Color.PURPLE)
 	else:
-		kare.color = Color.GRAY
+		isim.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8))
 
 func capture_point(nokta: String, taraf: String) -> void:
 	var onceki = _host.nokta_sahibi_getir(nokta)
