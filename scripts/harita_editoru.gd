@@ -47,17 +47,22 @@ var _firca_yaricap := FIRCA_YARICAP_BASLANGIC
 var _prop_sol_basili := false
 var _son_firca_surukleme := Vector2.ZERO
 var _prop_paleti: PanelContainer
+var _prop_kategori_sekmeleri: HBoxContainer
 var _prop_palet_icerik: VBoxContainer
+var _prop_aktif_kategori := "agac"
 var _prop_butonlar: Dictionary = {}
+var _prop_kat_butonlar: Dictionary = {}
 
 
 func _ready() -> void:
 	_kamera = $Camera2D
 	_prop_paleti = $EditorUI/PropPaleti
+	_prop_kategori_sekmeleri = $EditorUI/PropPaleti/RootVBox/KategoriSekmeler
 	_prop_palet_icerik = $EditorUI/PropPaleti/RootVBox/Scroll/Icerik
 	_secili_prop_id = PropKatalog.varsayilan_id()
-	_prop_paletini_kur()
 	_prop_paleti_gorsel_kur()
+	_prop_kategori_sekmeleri_kur()
+	_prop_paletini_kur()
 	_prop_paleti.visible = false
 	_kamera.position = _harita_merkez_logical()
 	_kamera.zoom = Vector2.ONE
@@ -1177,36 +1182,63 @@ func _prop_paletini_kur() -> void:
 	for c in _prop_palet_icerik.get_children():
 		c.queue_free()
 	_prop_butonlar.clear()
-	for kat in PropKatalog.KATEGORI_SIRASI:
-		var grup := PropKatalog.katalog_kategori(kat)
-		if grup.is_empty():
+	var grup := PropKatalog.katalog_kategori(_prop_aktif_kategori)
+	for entry in grup:
+		var pid := str(entry.get("id", ""))
+		if pid == "":
 			continue
-		var baslik := Label.new()
-		baslik.text = str(PropKatalog.KATEGORI_BASLIK.get(kat, kat))
-		baslik.add_theme_color_override("font_color", _prop_kategori_renk(kat).lightened(0.25))
-		_prop_palet_icerik.add_child(baslik)
-		for entry in grup:
-			var pid := str(entry.get("id", ""))
-			if pid == "":
-				continue
-			var btn := Button.new()
-			btn.name = "PropBtn_%s" % pid
-			btn.text = str(entry.get("isim", pid))
-			btn.toggle_mode = true
-			btn.button_pressed = pid == _secili_prop_id
-			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-			btn.add_theme_color_override("font_color", _prop_kategori_renk(kat))
-			btn.pressed.connect(_prop_palet_sec.bind(pid))
-			_prop_palet_icerik.add_child(btn)
-			_prop_butonlar[pid] = btn
+		var btn := Button.new()
+		btn.name = "PropBtn_%s" % pid
+		btn.text = str(entry.get("isim", pid))
+		btn.toggle_mode = true
+		btn.button_pressed = pid == _secili_prop_id
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.add_theme_color_override("font_color", _prop_kategori_renk(_prop_aktif_kategori))
+		btn.pressed.connect(_prop_palet_sec.bind(pid))
+		_prop_palet_icerik.add_child(btn)
+		_prop_butonlar[pid] = btn
+
+
+func _prop_kategori_sekmeleri_kur() -> void:
+	if _prop_kategori_sekmeleri == null:
+		return
+	for c in _prop_kategori_sekmeleri.get_children():
+		c.queue_free()
+	_prop_kat_butonlar.clear()
+	for kat in PropKatalog.KATEGORI_SIRASI:
+		var btn := Button.new()
+		btn.name = "KatBtn_%s" % kat
+		btn.text = str(PropKatalog.KATEGORI_SEKME.get(kat, kat))
+		btn.toggle_mode = true
+		btn.button_pressed = kat == _prop_aktif_kategori
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.add_theme_color_override("font_color", _prop_kategori_renk(kat))
+		btn.pressed.connect(_prop_kategori_sec.bind(kat))
+		_prop_kategori_sekmeleri.add_child(btn)
+		_prop_kat_butonlar[kat] = btn
+
+
+func _prop_kategori_sec(kat: String) -> void:
+	_prop_aktif_kategori = kat
+	for k in _prop_kat_butonlar:
+		_prop_kat_butonlar[k].button_pressed = k == kat
+	_prop_paletini_kur()
+	queue_redraw()
+
+
+func _prop_kategori_sekmeleri_guncelle() -> void:
+	for k in _prop_kat_butonlar:
+		_prop_kat_butonlar[k].button_pressed = k == _prop_aktif_kategori
 
 
 func _prop_kategori_renk(kat: String) -> Color:
-	match kat:
-		"kaya":
+	match PropKatalog.kategori_normalize(kat):
+		"tas":
 			return Color(0.55, 0.52, 0.48, 0.95)
-		"cali":
+		"bitki":
 			return Color(0.45, 0.72, 0.28, 0.95)
+		"cicek":
+			return Color(0.82, 0.45, 0.62, 0.95)
 		_:
 			return Color(0.12, 0.58, 0.22, 0.95)
 
@@ -1220,6 +1252,11 @@ func _prop_palet_sec(pid: String) -> void:
 
 func _prop_paleti_ac() -> void:
 	if is_instance_valid(_prop_paleti):
+		var pk := PropKatalog.kategori(_secili_prop_id)
+		if pk != "":
+			_prop_aktif_kategori = pk
+		_prop_kategori_sekmeleri_guncelle()
+		_prop_paletini_kur()
 		_prop_paleti.visible = true
 		_prop_paleti.move_to_front()
 
