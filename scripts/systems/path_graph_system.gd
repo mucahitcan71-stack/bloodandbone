@@ -27,6 +27,7 @@ func configure(root: Node2D, world: WorldSystem) -> void:
 func rebuild() -> void:
 	_nodes.clear()
 	_edges.clear()
+	_adjacency.clear()
 	if _world == null:
 		_debug_temizle()
 		return
@@ -40,11 +41,22 @@ func rebuild() -> void:
 
 
 func find_path(from: Vector2, to: Vector2) -> PackedVector2Array:
-	# Faz 0–1: düz fallback — Faz 2'de A* buraya gelecek
-	var sonuc := PackedVector2Array()
-	sonuc.append(from)
-	sonuc.append(to)
-	return sonuc
+	if _nodes.is_empty() or _adjacency.is_empty():
+		return _duz_yol(from, to)
+	var start_nid := nearest_node_id(from)
+	var goal_nid := nearest_node_id(to)
+	if start_nid < 0 or goal_nid < 0:
+		return _duz_yol(from, to)
+	if from.distance_to(_nodes[start_nid]["pos"]) > _SNAP_TOLERANS:
+		return _duz_yol(from, to)
+	if to.distance_to(_nodes[goal_nid]["pos"]) > _SNAP_TOLERANS:
+		return _duz_yol(from, to)
+	if start_nid == goal_nid:
+		return _duz_yol(from, to)
+	var node_path := _astar(start_nid, goal_nid)
+	if node_path.is_empty():
+		return _duz_yol(from, to)
+	return _node_yolundan_waypoints(from, to, node_path)
 
 
 func path_to_control_point(from: Vector2, nokta_id: String) -> PackedVector2Array:
@@ -160,6 +172,92 @@ func _kenar_ekle(a: int, b: int) -> void:
 	var pa: Vector2 = _nodes[a]["pos"]
 	var pb: Vector2 = _nodes[b]["pos"]
 	_edges.append({"a": a, "b": b, "mesafe": pa.distance_to(pb)})
+
+
+func _adjacency_olustur() -> void:
+	_adjacency.clear()
+	_adjacency.resize(_nodes.size())
+	for i in range(_nodes.size()):
+		_adjacency[i] = []
+	for e in _edges:
+		var a: int = e["a"]
+		var b: int = e["b"]
+		var cost: float = e["mesafe"]
+		_adjacency[a].append({"n": b, "c": cost})
+		_adjacency[b].append({"n": a, "c": cost})
+
+
+func _duz_yol(from: Vector2, to: Vector2) -> PackedVector2Array:
+	var sonuc := PackedVector2Array()
+	sonuc.append(from)
+	sonuc.append(to)
+	return sonuc
+
+
+func _astar(start: int, goal: int) -> PackedInt32Array:
+	var g_score: Dictionary = {start: 0.0}
+	var f_score: Dictionary = {start: _heuristic(start, goal)}
+	var came_from: Dictionary = {}
+	var open_set: Array = [start]
+	while not open_set.is_empty():
+		var best_idx := 0
+		var current: int = open_set[0]
+		var best_f: float = f_score.get(current, INF)
+		for i in range(1, open_set.size()):
+			var nid: int = open_set[i]
+			var f: float = f_score.get(nid, INF)
+			if f < best_f:
+				best_f = f
+				current = nid
+				best_idx = i
+		open_set.remove_at(best_idx)
+		if current == goal:
+			return _reconstruct_path(came_from, current)
+		for nb in _adjacency[current]:
+			var komsu: int = nb["n"]
+			var tentative: float = g_score.get(current, INF) + float(nb["c"])
+			if tentative < g_score.get(komsu, INF):
+				came_from[komsu] = current
+				g_score[komsu] = tentative
+				f_score[komsu] = tentative + _heuristic(komsu, goal)
+				if not open_set.has(komsu):
+					open_set.append(komsu)
+	return PackedInt32Array()
+
+
+func _heuristic(a: int, b: int) -> float:
+	return _nodes[a]["pos"].distance_to(_nodes[b]["pos"])
+
+
+func _reconstruct_path(came_from: Dictionary, current: int) -> PackedInt32Array:
+	var yol: Array = [current]
+	while came_from.has(current):
+		current = came_from[current]
+		yol.push_front(current)
+	var sonuc := PackedInt32Array()
+	for nid in yol:
+		sonuc.append(int(nid))
+	return sonuc
+
+
+func _node_yolundan_waypoints(from: Vector2, to: Vector2, node_ids: PackedInt32Array) -> PackedVector2Array:
+	var sonuc := PackedVector2Array()
+	sonuc.append(from)
+	for i in range(node_ids.size()):
+		sonuc.append(_nodes[node_ids[i]]["pos"])
+	sonuc.append(to)
+	return _waypoint_temizle(sonuc)
+
+
+func _waypoint_temizle(pts: PackedVector2Array) -> PackedVector2Array:
+	if pts.size() < 2:
+		return pts
+	var sonuc := PackedVector2Array()
+	sonuc.append(pts[0])
+	for i in range(1, pts.size()):
+		if pts[i].distance_squared_to(sonuc[sonuc.size() - 1]) > 4.0:
+			sonuc.append(pts[i])
+	return sonuc
 
 
 func _debug_cizimi_guncelle() -> void:
