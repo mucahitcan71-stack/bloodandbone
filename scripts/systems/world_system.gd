@@ -26,6 +26,8 @@ const _ZEMIN3D_COZUNURLUK := 0.5  # viewport render olcegi (1.0 = tam, dusuk = a
 const _ZEMIN3D_DOKU_TEKRAR := 256.0  # kac logical birimde bir doku tekrari
 const _ZEMIN3D_DIS_PAY := 640.0  # 3d zeminde harita disi pay (viewport boyutunu sinirlar)
 const _KAMERA_LIMIT_PAY := 1600.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
+const _ZEMIN3D_SHADER_YOL := "res://assets/zemin/zemin3d_teren.gdshader"
+const _ZEMIN3D_SUBDIV := 160  # tepecik detayi icin plane bolunmesi
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
@@ -911,6 +913,8 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(gw, gh)
+	plane.subdivide_width = _ZEMIN3D_SUBDIV
+	plane.subdivide_depth = _ZEMIN3D_SUBDIV
 	var mi := MeshInstance3D.new()
 	mi.name = "ZeminMesh"
 	mi.mesh = plane
@@ -952,7 +956,11 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_sprite = spr
 
 
-func _zemin3d_materyal(gw: float, gh: float) -> StandardMaterial3D:
+func _zemin3d_materyal(gw: float, gh: float) -> Material:
+	var teren := _zemin3d_teren_materyal(gw, gh)
+	if teren != null:
+		return teren
+	# Yedek: tek doku standart materyal
 	var mat := StandardMaterial3D.new()
 	mat.roughness = 1.0
 	mat.metallic = 0.0
@@ -967,6 +975,49 @@ func _zemin3d_materyal(gw: float, gh: float) -> StandardMaterial3D:
 	else:
 		mat.albedo_color = Color(0.16, 0.21, 0.13)
 	return mat
+
+
+func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
+	if not ResourceLoader.exists(_ZEMIN3D_SHADER_YOL):
+		return null
+	var shader := load(_ZEMIN3D_SHADER_YOL) as Shader
+	if shader == null:
+		return null
+	var cim := _doku_yukle_veya_null(_zengin_doku_yolu_bul())
+	if cim == null:
+		cim = _doku_yukle_veya_null(_CIMEN_GERCEK_YOL)
+	var toprak := _doku_yukle_veya_null("res://assets/zemin/toprak.jpg")
+	var tas := _doku_yukle_veya_null("res://assets/zemin/tas.jpg")
+	if cim == null or toprak == null or tas == null:
+		return null
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("cim_tex", cim)
+	mat.set_shader_parameter("toprak_tex", toprak)
+	mat.set_shader_parameter("tas_tex", tas)
+	mat.set_shader_parameter("noise_tex", _zemin3d_noise_doku())
+	mat.set_shader_parameter("doku_tekrar", Vector2(
+		gw / _ZEMIN3D_DOKU_TEKRAR,
+		gh / _ZEMIN3D_DOKU_TEKRAR
+	))
+	return mat
+
+
+func _doku_yukle_veya_null(yol: String) -> Texture2D:
+	if yol == "" or not ResourceLoader.exists(yol):
+		return null
+	return load(yol) as Texture2D
+
+
+func _zemin3d_noise_doku() -> ImageTexture:
+	# Senkron uretim: UPDATE_ONCE viewport render'indan once hazir olmali
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.seed = hash(aktif_harita_id)
+	noise.frequency = 0.008
+	noise.fractal_octaves = 4
+	var img := noise.get_seamless_image(512, 512)
+	return ImageTexture.create_from_image(img)
 
 
 func _izo_taban_ekle(sinir: Dictionary) -> void:
