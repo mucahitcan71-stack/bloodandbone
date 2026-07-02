@@ -346,6 +346,15 @@ func _command_system_hazirla() -> void:
 		en_yakin_dost_nokta,
 		birimin_arazisini_bul
 	)
+	command_system.bind_path_helpers(
+		path_graph.plan_move,
+		path_graph.path_to_control_point,
+		_kontrol_noktasi_mi,
+		path_graph.yol_uzerinde_mi
+	)
+
+func _kontrol_noktasi_mi(nokta_id: String) -> bool:
+	return world_system.get_kontrol_nokta_ids().has(nokta_id)
 
 func _battle_flow_hazirla() -> void:
 	battle_flow.configure(self)
@@ -464,6 +473,12 @@ func birim_gorselini_uygula(birim: Dictionary) -> void:
 
 func gecis_engelli_mi(konum: Vector2) -> bool:
 	return world_system.gecis_engelli_mi(konum)
+
+func yol_uzerinde_mi(konum: Vector2) -> bool:
+	return path_graph.yol_uzerinde_mi(konum)
+
+func birim_yol_bul(from: Vector2, to: Vector2) -> PackedVector2Array:
+	return path_graph.plan_move(from, to)
 
 func _orman_bolge_index(pos: Vector2) -> int:
 	return world_system.orman_bolge_index(pos)
@@ -1117,7 +1132,7 @@ func nokta_vurgula() -> void:
 			isim.modulate = Color(1.5, 1.5, 1.5) if nokta == secili_nokta else Color(1, 1, 1)
 
 func nokta_merkezi(nokta: String) -> Vector2:
-	return nokta_konumlari[nokta] + Vector2(40, 40)
+	return nokta_konumlari[nokta]
 
 func harita_sinirla(pos: Vector2) -> Vector2:
 	return Vector2(

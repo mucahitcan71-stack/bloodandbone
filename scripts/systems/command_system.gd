@@ -1,6 +1,8 @@
 extends RefCounted
 class_name CommandSystem
 
+const _NOKTA_HEDEF_ESIGI := 100.0
+
 var _root: Node2D = null
 var secili_komut: String = "hareket"
 var secili_birim = null
@@ -10,6 +12,10 @@ var _en_yakin_nokta_bul: Callable
 var _nokta_merkezi: Callable
 var _en_yakin_dost_nokta: Callable
 var _birimin_arazisini_bul: Callable
+var _path_find: Callable
+var _path_to_control_point: Callable
+var _kontrol_noktasi_mi: Callable
+var _yol_uzerinde_mi: Callable
 
 func configure(root_node: Node2D) -> void:
 	_root = root_node
@@ -26,6 +32,17 @@ func bind_map_helpers(
 	_nokta_merkezi = point_center_fn
 	_en_yakin_dost_nokta = nearest_friendly_point_fn
 	_birimin_arazisini_bul = terrain_at_fn
+
+func bind_path_helpers(
+	find_path_fn: Callable,
+	path_to_control_point_fn: Callable,
+	is_control_point_fn: Callable,
+	on_road_fn: Callable = Callable()
+) -> void:
+	_path_find = find_path_fn
+	_path_to_control_point = path_to_control_point_fn
+	_kontrol_noktasi_mi = is_control_point_fn
+	_yol_uzerinde_mi = on_road_fn
 
 func reset_for_preparation() -> void:
 	secili_komut = "hareket"
@@ -103,9 +120,16 @@ func execute_move(hedef_pos: Vector2) -> Dictionary:
 	var birim = secili_birim
 	if _harita_sinirla.is_valid():
 		hedef_pos = _harita_sinirla.call(hedef_pos)
-	birim["hedef"] = hedef_pos
-	if _en_yakin_nokta_bul.is_valid():
-		birim["hedef_nokta"] = _en_yakin_nokta_bul.call(hedef_pos)
+	var nokta := ""
+	var kapi_yolu := false
+	if _en_yakin_nokta_bul.is_valid() and _nokta_merkezi.is_valid():
+		var yakin := str(_en_yakin_nokta_bul.call(hedef_pos))
+		if hedef_pos.distance_to(_nokta_merkezi.call(yakin)) <= _NOKTA_HEDEF_ESIGI:
+			nokta = yakin
+			kapi_yolu = _kontrol_noktasi_mi.is_valid() and _kontrol_noktasi_mi.call(nokta)
+	if not _yol_ata(birim, hedef_pos, nokta, kapi_yolu):
+		return {"status_line": "Yol aginda degil — yola yaklas veya patikaya tikla"}
+	birim["hedef_nokta"] = nokta
 	birim["savas_halinde"] = false
 	birim["geri_cekiliyor"] = false
 	birim["savunma_modunda"] = false
@@ -127,7 +151,10 @@ func execute_retreat(birim: Dictionary) -> Dictionary:
 	birim["pusu_arazi_gizli"] = false
 	birim["takip_edilen_dusman"] = -1
 	if _nokta_merkezi.is_valid():
-		birim["hedef"] = _nokta_merkezi.call(nokta)
+		var hedef_pos: Vector2 = _nokta_merkezi.call(nokta)
+		if not _yol_ata(birim, hedef_pos, nokta, true):
+			birim["geri_cekiliyor"] = false
+			return {"status_line": "Geri cekilme yolu yok — yol agina yakinlas"}
 	birim["hedef_nokta"] = nokta
 	_release_unit_after_command(birim)
 	secili_birim = null
@@ -144,6 +171,8 @@ func execute_defend_point(birim: Dictionary) -> Dictionary:
 	birim["pusu_modunda"] = false
 	birim["pusu_arazi_gizli"] = false
 	birim["hedef"] = birim["konum"]
+	birim["waypoints"] = PackedVector2Array()
+	birim["waypoint_idx"] = 0
 	birim["hedef_nokta"] = nokta
 	_release_unit_after_command(birim)
 	secili_birim = null
@@ -157,9 +186,10 @@ func execute_attack(birim: Dictionary, hedef_pos: Vector2, hedef_dusman_id: int 
 	birim["pusu_arazi_gizli"] = false
 	if _harita_sinirla.is_valid():
 		hedef_pos = _harita_sinirla.call(hedef_pos)
-	birim["hedef"] = hedef_pos
+	if not _yol_ata(birim, hedef_pos):
+		return {"status_line": "Hedefe yol yok — yol agi uzerinden yaklas"}
 	if _en_yakin_nokta_bul.is_valid():
-		birim["hedef_nokta"] = _en_yakin_nokta_bul.call(birim["hedef"])
+		birim["hedef_nokta"] = _en_yakin_nokta_bul.call(hedef_pos)
 	birim["takip_edilen_dusman"] = hedef_dusman_id
 	_release_unit_after_command(birim)
 	secili_birim = null
@@ -176,6 +206,8 @@ func execute_ambush() -> Dictionary:
 	if str(arazi.get("tip", "duz_arazi")) != "orman":
 		return {"status_line": "Pusu sadece ORMAN bolgesinde kurulabilir"}
 	birim["hedef"] = birim["konum"]
+	birim["waypoints"] = PackedVector2Array()
+	birim["waypoint_idx"] = 0
 	birim["pusu_modunda"] = true
 	birim["pusu_arazi_gizli"] = false
 	birim["pusu_ilk_saldiri_kullanildi"] = false
@@ -192,3 +224,31 @@ func _sync_from_main(komut: String, birim, menu_hedef) -> void:
 	secili_komut = komut
 	secili_birim = birim
 	menu_hedef_birim = menu_hedef
+
+func _yol_ata(birim: Dictionary, hedef_pos: Vector2, nokta_id: String = "", kapi_hedefi: bool = false) -> bool:
+	var from: Vector2 = birim["konum"]
+	var yol: PackedVector2Array
+	if kapi_hedefi and nokta_id != "" and _path_to_control_point.is_valid():
+		yol = _path_to_control_point.call(from, nokta_id)
+	elif _path_find.is_valid():
+		yol = _path_find.call(from, hedef_pos)
+	else:
+		yol = PackedVector2Array()
+	if yol.size() < 2:
+		birim["waypoints"] = PackedVector2Array()
+		birim["waypoint_idx"] = 0
+		birim["hedef"] = birim["konum"]
+		birim["yol_baglanti"] = false
+		birim["hareket_durdu"] = true
+		return false
+	birim["waypoints"] = yol
+	var idx := 0
+	while idx < yol.size() - 1 and yol[idx].distance_to(from) <= 14.0:
+		idx += 1
+	birim["waypoint_idx"] = idx
+	birim["hedef"] = yol[idx]
+	birim["yol_baglanti"] = not _yol_uzerinde_mi.is_valid() or (
+		not _yol_uzerinde_mi.call(from) and yol.size() >= 2
+	)
+	birim["hareket_durdu"] = false
+	return true

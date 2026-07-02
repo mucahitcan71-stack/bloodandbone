@@ -155,7 +155,7 @@ func kale_kapi_konumu(nokta_id: String, dis_taraftan: Vector2) -> Vector2:
 func kontrol_nokta_kale_bolgesinde(pos: Vector2) -> String:
 	var pay := 18.0
 	for nokta in get_kontrol_nokta_ids():
-		var merkez := get_point_center(str(nokta))
+		var merkez := get_kale_anchor(str(nokta))
 		if pos.distance_to(merkez) <= _kale_yol_yaricapi() + pay:
 			return str(nokta)
 	return ""
@@ -187,7 +187,10 @@ func find_map_node(node_name: String) -> Node:
 	return _root.find_child(node_name, true, false)
 
 func get_point_center(nokta: String) -> Vector2:
-	return nokta_konumlari[nokta] + Vector2(40, 40)
+	return nokta_konumlari[nokta]
+
+func get_kale_anchor(nokta: String) -> Vector2:
+	return nokta_konumlari[nokta]
 
 
 func nokta_gorsel_kok_pos(nokta: String) -> Vector2:
@@ -272,14 +275,14 @@ func _izo_nokta_dizisi(points: PackedVector2Array) -> PackedVector2Array:
 
 func _nokta_gorsel_anchor(nokta: String) -> Vector2:
 	if _ISO_ARAZI_CIZIMI:
-		return _izo(get_point_center(nokta)) - Vector2(40.0, 40.0)
+		return _izo(nokta_konumlari[nokta])
 	return nokta_konumlari[nokta]
 
 
 func _nokta_y_sort_foot(nokta: String) -> Vector2:
 	if _ISO_ARAZI_CIZIMI:
-		return _izo(get_point_center(nokta)) + Vector2(0.0, 40.0)
-	return nokta_konumlari[nokta] + Vector2(40.0, 80.0)
+		return _izo(nokta_konumlari[nokta]) + Vector2(0.0, 20.0)
+	return nokta_konumlari[nokta] + Vector2(0.0, 40.0)
 
 
 func _decor_z(topdown_z: int) -> int:
@@ -1151,7 +1154,7 @@ func _zemin3d_nokta_yapilari_ekle(kok3d: Node3D) -> void:
 	for nokta in nokta_konumlari:
 		if kavsak_konumlari.has(nokta):
 			continue
-		var merkez := get_point_center(nokta)
+		var merkez := get_kale_anchor(nokta)
 		var inst := sahne.instantiate() as Node3D
 		if inst == null:
 			continue
@@ -1698,7 +1701,7 @@ func _patika_ucu_kontrol_noktasi_mi(p: Vector2) -> String:
 	for nokta in nokta_konumlari:
 		if kavsak_konumlari.has(nokta):
 			continue
-		var merkez := get_point_center(nokta)
+		var merkez := get_kale_anchor(nokta)
 		if p.distance_to(merkez) <= _KALE_YOL_UC_TOLERANS:
 			return nokta
 		if p.distance_to(nokta_konumlari[nokta]) <= _KALE_YOL_UC_TOLERANS:
@@ -1706,7 +1709,7 @@ func _patika_ucu_kontrol_noktasi_mi(p: Vector2) -> String:
 	return ""
 
 func _yol_ucunu_kale_bosluga_cek(_uc: Vector2, komsu: Vector2, nokta_id: String) -> Vector2:
-	var merkez := get_point_center(nokta_id)
+	var merkez := get_kale_anchor(nokta_id)
 	var bosluk := _kale_yol_bosluk()
 	var yon := merkez - komsu
 	if yon.length_squared() < 1.0:
@@ -1754,7 +1757,7 @@ func _yol_segment_kale_kes(a: Vector2, b: Vector2) -> Array:
 	for nokta in nokta_konumlari:
 		if kavsak_konumlari.has(nokta):
 			continue
-		var merkez := get_point_center(nokta)
+		var merkez := get_kale_anchor(nokta)
 		var yaricap := _kale_yol_yaricapi()
 		var yeni: Array = []
 		for seg in parcalar:

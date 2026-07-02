@@ -3,12 +3,15 @@ class_name PathGraphSystem
 
 const PathSpline = preload("res://scripts/path_spline.gd")
 
-# Faz 0 test: graf dugum/kenarlarini goster. Yayin oncesi false yap.
+# Ileride yol uzeri pusu noktalari: graf dugum tipi "pusu_noktasi" + yola_snap ayni kenar agi.
 const PATH_DEBUG := true
 
 const _YOL_SPLINE_ADIM := 10
 const _MERGE_TOLERANS := 14.0
-const _SNAP_TOLERANS := 120.0
+const _YOL_USTU_TOLERANS := 95.0
+const _YOL_TIKLAMA_TOLERANS := 220.0
+const _YOLA_ULASIM_TOLERANS := 900.0
+const _YAY_ADIM := 5
 
 var _root: Node2D = null
 var _world: WorldSystem = null
@@ -33,6 +36,7 @@ func rebuild() -> void:
 		return
 	_graf_patikalardan_insaa()
 	_graf_kavsaklardan_insaa()
+	_graf_kale_kapi_yaylari_bagla()
 	_adjacency_olustur()
 	if PATH_DEBUG:
 		_debug_cizimi_guncelle()
@@ -42,21 +46,105 @@ func rebuild() -> void:
 
 func find_path(from: Vector2, to: Vector2) -> PackedVector2Array:
 	if _nodes.is_empty() or _adjacency.is_empty():
-		return _duz_yol(from, to)
-	var start_nid := nearest_node_id(from)
-	var goal_nid := nearest_node_id(to)
+		return PackedVector2Array()
+	var yakin_bit := _yola_en_yakin(to)
+	if yakin_bit["mesafe"] > _YOL_TIKLAMA_TOLERANS:
+		return PackedVector2Array()
+	var bit: Vector2 = yakin_bit["pos"]
+	var yakin_bas := _yola_en_yakin(from)
+	if yakin_bas["mesafe"] > _YOLA_ULASIM_TOLERANS:
+		return PackedVector2Array()
+	var bas: Vector2 = yakin_bas["pos"]
+	var baglanti := from.distance_to(bas) > _YOL_USTU_TOLERANS
+	var start_nid := nearest_node_id(bas)
+	var goal_nid := nearest_node_id(bit)
 	if start_nid < 0 or goal_nid < 0:
-		return _duz_yol(from, to)
-	if from.distance_to(_nodes[start_nid]["pos"]) > _SNAP_TOLERANS:
-		return _duz_yol(from, to)
-	if to.distance_to(_nodes[goal_nid]["pos"]) > _SNAP_TOLERANS:
-		return _duz_yol(from, to)
-	if start_nid == goal_nid:
-		return _duz_yol(from, to)
-	var node_path := _astar(start_nid, goal_nid)
+		return PackedVector2Array()
+	var v_start := _nodes.size()
+	var v_goal := _nodes.size() + 1
+	var start_link: float = bas.distance_to(_nodes[start_nid]["pos"])
+	var goal_link: float = bit.distance_to(_nodes[goal_nid]["pos"])
+	var adj := _adjacency_kopyala(v_goal + 1)
+	_adj_kenar_ekle(adj, v_start, start_nid, start_link)
+	_adj_kenar_ekle(adj, v_goal, goal_nid, goal_link)
+	var node_path := _astar_sanal(adj, v_start, v_goal, bas, bit, v_start, v_goal, v_goal + 1)
 	if node_path.is_empty():
-		return _duz_yol(from, to)
-	return _node_yolundan_waypoints(from, to, node_path)
+		return PackedVector2Array()
+	var yol := _sanal_yol_waypoints(bas, bit, node_path, v_start, v_goal)
+	if not baglanti:
+		return yol
+	var tam := PackedVector2Array()
+	tam.append(from)
+	if from.distance_squared_to(bas) > 4.0:
+		tam.append(bas)
+	for i in range(yol.size()):
+		var p: Vector2 = yol[i]
+		if tam.size() > 0 and p.distance_squared_to(tam[tam.size() - 1]) <= 4.0:
+			continue
+		tam.append(p)
+	return _waypoint_temizle(tam)
+
+
+func plan_move(from: Vector2, to: Vector2) -> PackedVector2Array:
+	var yol := find_path(from, to)
+	if yol.size() >= 2:
+		return yol
+	var hit_to := _yola_en_yakin(to)
+	if hit_to["mesafe"] <= _YOL_TIKLAMA_TOLERANS:
+		yol = find_path(from, hit_to["pos"])
+		if yol.size() >= 2:
+			return yol
+	return yola_yaklasim_yolu(from)
+
+
+func yola_yaklasim_yolu(from: Vector2) -> PackedVector2Array:
+	var hit := _yola_en_yakin(from)
+	if hit["mesafe"] > _YOLA_ULASIM_TOLERANS or hit["mesafe"] <= _YOL_USTU_TOLERANS:
+		return PackedVector2Array()
+	var sonuc := PackedVector2Array()
+	sonuc.append(from)
+	sonuc.append(hit["pos"])
+	return sonuc
+
+
+func yol_uzerinde_mi(pos: Vector2) -> bool:
+	return _yola_en_yakin(pos)["mesafe"] <= _YOL_USTU_TOLERANS
+
+
+func yola_ulasimda_mi(pos: Vector2) -> bool:
+	return _yola_en_yakin(pos)["mesafe"] <= _YOLA_ULASIM_TOLERANS
+
+
+func yola_snap(pos: Vector2) -> Dictionary:
+	var hit := _yola_en_yakin(pos)
+	return {
+		"ok": hit["mesafe"] <= _YOL_USTU_TOLERANS,
+		"pos": hit["pos"],
+		"mesafe": hit["mesafe"],
+	}
+
+
+func _yola_en_yakin(pos: Vector2) -> Dictionary:
+	var en_kisa := INF
+	var en_iyi := pos
+	for e in _edges:
+		var pa: Vector2 = _nodes[e["a"]]["pos"]
+		var pb: Vector2 = _nodes[e["b"]]["pos"]
+		var hit := _segment_en_yakin(pa, pb, pos)
+		if hit["dist"] < en_kisa:
+			en_kisa = hit["dist"]
+			en_iyi = hit["pos"]
+	return {"pos": en_iyi, "mesafe": en_kisa}
+
+
+func _segment_en_yakin(a: Vector2, b: Vector2, p: Vector2) -> Dictionary:
+	var ab := b - a
+	var len_sq := ab.length_squared()
+	if len_sq < 0.01:
+		return {"pos": a, "dist": p.distance_to(a)}
+	var t := clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	var nokta := a + ab * t
+	return {"pos": nokta, "dist": p.distance_to(nokta)}
 
 
 func path_to_control_point(from: Vector2, nokta_id: String) -> PackedVector2Array:
@@ -163,7 +251,7 @@ func _node_ekle_veya_bul(pos: Vector2, tip: String, meta: Dictionary = {}) -> in
 	return nid
 
 
-func _kenar_ekle(a: int, b: int) -> void:
+func _kenar_ekle(a: int, b: int, maliyet: float = -1.0) -> void:
 	if a == b:
 		return
 	for e in _edges:
@@ -171,7 +259,126 @@ func _kenar_ekle(a: int, b: int) -> void:
 			return
 	var pa: Vector2 = _nodes[a]["pos"]
 	var pb: Vector2 = _nodes[b]["pos"]
-	_edges.append({"a": a, "b": b, "mesafe": pa.distance_to(pb)})
+	var cost := maliyet if maliyet >= 0.0 else pa.distance_to(pb)
+	_edges.append({"a": a, "b": b, "mesafe": cost})
+
+
+func _graf_kale_kapi_yaylari_bagla() -> void:
+	for nokta_id in _world.get_kontrol_nokta_ids():
+		var kapilar: Array = []
+		for n in _nodes:
+			if n["tip"] == "kapi" and str(n["meta"].get("nokta_id", "")) == str(nokta_id):
+				kapilar.append(n)
+		if kapilar.size() < 2:
+			continue
+		var merkez: Vector2 = _world.get_kale_anchor(str(nokta_id))
+		kapilar.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			var aa: float = (a["pos"] - merkez).angle()
+			var ab: float = (b["pos"] - merkez).angle()
+			return aa < ab
+		)
+		for i in range(kapilar.size()):
+			var ga: Dictionary = kapilar[i]
+			var gb: Dictionary = kapilar[(i + 1) % kapilar.size()]
+			_kapi_yay_kenarlari(int(ga["id"]), int(gb["id"]), merkez)
+
+
+func _kapi_yay_kenarlari(a_id: int, b_id: int, merkez: Vector2) -> void:
+	var pa: Vector2 = _nodes[a_id]["pos"]
+	var pb: Vector2 = _nodes[b_id]["pos"]
+	var ang_a: float = (pa - merkez).angle()
+	var ang_b: float = (pb - merkez).angle()
+	var d_ang: float = posmod(ang_b - ang_a + TAU, TAU)
+	if d_ang < 0.05:
+		return
+	var yaricap: float = pa.distance_to(merkez)
+	var prev := a_id
+	for step in range(1, _YAY_ADIM):
+		var t: float = float(step) / float(_YAY_ADIM)
+		var ang: float = ang_a + d_ang * t
+		var pos := merkez + Vector2(cos(ang), sin(ang)) * yaricap
+		var nid := _node_ekle_veya_bul(pos, "patika", {"kale_yay": true})
+		var seg_cost: float = _nodes[prev]["pos"].distance_to(pos)
+		_kenar_ekle(prev, nid, seg_cost)
+		prev = nid
+	var son_cost: float = _nodes[prev]["pos"].distance_to(pb)
+	_kenar_ekle(prev, b_id, son_cost)
+
+
+func _adjacency_kopyala(boyut: int) -> Array:
+	var adj: Array = []
+	adj.resize(boyut)
+	for i in range(boyut):
+		adj[i] = []
+	for i in range(_adjacency.size()):
+		for nb in _adjacency[i]:
+			adj[i].append(nb.duplicate())
+	return adj
+
+
+func _adj_kenar_ekle(adj: Array, a: int, b: int, cost: float) -> void:
+	adj[a].append({"n": b, "c": cost})
+	adj[b].append({"n": a, "c": cost})
+
+
+func _astar_sanal(adj: Array, start: int, goal: int, from_pos: Vector2, to_pos: Vector2, v_start: int, v_goal: int, node_count: int) -> PackedInt32Array:
+	var g_score: Dictionary = {start: 0.0}
+	var f_score: Dictionary = {start: _heuristic_sanal(start, goal, from_pos, to_pos, v_start, v_goal)}
+	var came_from: Dictionary = {}
+	var open_set: Array = [start]
+	while not open_set.is_empty():
+		var best_idx := 0
+		var current: int = open_set[0]
+		var best_f: float = f_score.get(current, INF)
+		for i in range(1, open_set.size()):
+			var nid: int = open_set[i]
+			var f: float = f_score.get(nid, INF)
+			if f < best_f:
+				best_f = f
+				current = nid
+				best_idx = i
+		open_set.remove_at(best_idx)
+		if current == goal:
+			return _reconstruct_path(came_from, current)
+		if current >= adj.size():
+			continue
+		for nb in adj[current]:
+			var komsu: int = nb["n"]
+			if komsu >= node_count:
+				continue
+			var tentative: float = g_score.get(current, INF) + float(nb["c"])
+			if tentative < g_score.get(komsu, INF):
+				came_from[komsu] = current
+				g_score[komsu] = tentative
+				f_score[komsu] = tentative + _heuristic_sanal(komsu, goal, from_pos, to_pos, v_start, v_goal)
+				if not open_set.has(komsu):
+					open_set.append(komsu)
+	return PackedInt32Array()
+
+
+func _heuristic_sanal(a: int, b: int, from_pos: Vector2, to_pos: Vector2, v_start: int, v_goal: int) -> float:
+	return _sanal_node_pos(a, from_pos, to_pos, v_start, v_goal).distance_to(_sanal_node_pos(b, from_pos, to_pos, v_start, v_goal))
+
+
+func _sanal_node_pos(nid: int, from_pos: Vector2, to_pos: Vector2, v_start: int, v_goal: int) -> Vector2:
+	if nid == v_start:
+		return from_pos
+	if nid == v_goal:
+		return to_pos
+	return _nodes[nid]["pos"]
+
+
+func _sanal_yol_waypoints(from: Vector2, to: Vector2, node_ids: PackedInt32Array, v_start: int, v_goal: int) -> PackedVector2Array:
+	var sonuc := PackedVector2Array()
+	sonuc.append(from)
+	for i in range(node_ids.size()):
+		var nid := int(node_ids[i])
+		if nid == v_start or nid == v_goal:
+			continue
+		if nid < _nodes.size():
+			sonuc.append(_nodes[nid]["pos"])
+	sonuc.append(to)
+	return _waypoint_temizle(sonuc)
 
 
 func _adjacency_olustur() -> void:
@@ -185,13 +392,6 @@ func _adjacency_olustur() -> void:
 		var cost: float = e["mesafe"]
 		_adjacency[a].append({"n": b, "c": cost})
 		_adjacency[b].append({"n": a, "c": cost})
-
-
-func _duz_yol(from: Vector2, to: Vector2) -> PackedVector2Array:
-	var sonuc := PackedVector2Array()
-	sonuc.append(from)
-	sonuc.append(to)
-	return sonuc
 
 
 func _astar(start: int, goal: int) -> PackedInt32Array:

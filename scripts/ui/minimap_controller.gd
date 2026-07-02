@@ -137,7 +137,7 @@ func update(fog_system: Object, nokta_konumlari: Dictionary, nokta_sahipleri: Di
 		var isaret = minimap_nokta_isaretleri[nokta]
 		if not is_instance_valid(isaret) or not nokta_konumlari.has(nokta):
 			continue
-		var merkez = nokta_konumlari[nokta] + Vector2(40, 40)
+		var merkez = nokta_konumlari[nokta]
 		isaret.position = world_to_panel(merkez, harita_sinir) - Vector2(2, 2)
 		isaret.visible = kesfedilen_noktalar.get(nokta, false)
 		if nokta_sahipleri.get(nokta, "tarafsiz") == "osmanli":
