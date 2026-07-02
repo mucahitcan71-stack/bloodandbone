@@ -4,7 +4,7 @@ const IsoProjection = preload("res://scripts/iso_projection.gd")
 const PathSpline = preload("res://scripts/path_spline.gd")
 const _YOL_SPLINE_ADIM := 10
 
-const HARITA_SINIR := {"min_x": 0.0, "max_x": 5000.0, "min_y": 0.0, "max_y": 3000.0}
+const HARITA_SINIR := {"min_x": 0.0, "max_x": 15000.0, "min_y": 0.0, "max_y": 9000.0}
 const KAMERA_HIZ := 900.0
 const ZOOM_ADIM := 0.1
 const ZOOM_MIN := 0.3

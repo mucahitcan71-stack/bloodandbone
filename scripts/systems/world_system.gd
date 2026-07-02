@@ -23,11 +23,12 @@ const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
 const _ZEMIN3D_COZUNURLUK := 0.5  # viewport render olcegi (1.0 = tam, dusuk = az VRAM)
+const _ZEMIN3D_VP_MAX := 8192.0  # viewport tek kenar ust siniri (VRAM/GPU guvenligi)
 const _ZEMIN3D_DOKU_TEKRAR := 256.0  # kac logical birimde bir doku tekrari
 const _ZEMIN3D_DIS_PAY := 640.0  # 3d zeminde harita disi pay (viewport boyutunu sinirlar)
-const _KAMERA_LIMIT_PAY := 1600.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
+const _KAMERA_LIMIT_PAY := 4200.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
 const _ZEMIN3D_SHADER_YOL := "res://assets/zemin/zemin3d_teren.gdshader"
-const _ZEMIN3D_SUBDIV := 160  # tepecik detayi icin plane bolunmesi
+const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
@@ -896,13 +897,16 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	var iso_w := (gw + gh) * 0.5
 	var iso_h := (gw + gh) * 0.25
 
+	var etkin_olcek := _ZEMIN3D_COZUNURLUK
+	if iso_w * etkin_olcek > _ZEMIN3D_VP_MAX:
+		etkin_olcek = _ZEMIN3D_VP_MAX / iso_w
 	var vp := SubViewport.new()
 	vp.name = "Zemin3DViewport"
 	vp.own_world_3d = true
 	vp.transparent_bg = true
 	vp.size = Vector2i(
-		maxi(16, int(iso_w * _ZEMIN3D_COZUNURLUK)),
-		maxi(16, int(iso_h * _ZEMIN3D_COZUNURLUK))
+		maxi(16, int(iso_w * etkin_olcek)),
+		maxi(16, int(iso_h * etkin_olcek))
 	)
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	cimen_katmani.add_child(vp)
@@ -948,7 +952,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	spr.texture = vp.get_texture()
 	spr.centered = true
 	spr.position = IsoProj.logical_to_iso(merkez) + off
-	spr.scale = Vector2.ONE / _ZEMIN3D_COZUNURLUK
+	spr.scale = Vector2.ONE / etkin_olcek
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	spr.z_index = 0
 	cimen_katmani.add_child(spr)
@@ -1000,6 +1004,11 @@ func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
 		gw / _ZEMIN3D_DOKU_TEKRAR,
 		gh / _ZEMIN3D_DOKU_TEKRAR
 	))
+	# Noise/tepe olcekleri harita boyutuyla orantili: leke ve tepe boyutu
+	# dunya biriminde sabit kalsin (referans genislik 6280 = eski 5000'lik harita)
+	var oran := gw / 6280.0
+	mat.set_shader_parameter("noise_olcek", 4.0 * oran)
+	mat.set_shader_parameter("tepe_olcek", 1.6 * oran)
 	return mat
 
 
