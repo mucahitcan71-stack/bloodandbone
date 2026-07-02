@@ -8,6 +8,7 @@ const PATH_DEBUG := true
 
 const _YOL_SPLINE_ADIM := 10
 const _MERGE_TOLERANS := 14.0
+const _SNAP_TOLERANS := 120.0
 
 var _root: Node2D = null
 var _world: WorldSystem = null
@@ -15,6 +16,7 @@ var _debug_katmani: Node2D = null
 
 var _nodes: Array = []
 var _edges: Array = []
+var _adjacency: Array = []
 
 
 func configure(root: Node2D, world: WorldSystem) -> void:
@@ -30,7 +32,7 @@ func rebuild() -> void:
 		return
 	_graf_patikalardan_insaa()
 	_graf_kavsaklardan_insaa()
-	_graf_kale_kapilarina_bagla()
+	_adjacency_olustur()
 	if PATH_DEBUG:
 		_debug_cizimi_guncelle()
 	else:
@@ -46,9 +48,10 @@ func find_path(from: Vector2, to: Vector2) -> PackedVector2Array:
 
 
 func path_to_control_point(from: Vector2, nokta_id: String) -> PackedVector2Array:
-	var hedef := _en_yakin_kapi_konumu(nokta_id, from)
-	if hedef == null:
-		hedef = _world.get_point_center(nokta_id)
+	var hedef: Vector2 = _world.get_point_center(nokta_id)
+	var kapi: Variant = _en_yakin_kapi_konumu(nokta_id, from)
+	if kapi != null:
+		hedef = kapi
 	return find_path(from, hedef)
 
 
@@ -83,7 +86,10 @@ func _graf_patikalardan_insaa() -> void:
 			if typeof(raw) == TYPE_VECTOR2:
 				kontrol.append(raw)
 		var yumusak := PathSpline.yumusat_catmull(kontrol, _YOL_SPLINE_ADIM)
-		_polyline_graf_ekle(yumusak)
+		for parca in _world.polyline_kale_kes(yumusak):
+			var segment: PackedVector2Array = parca
+			if segment.size() >= 2:
+				_polyline_graf_ekle(segment)
 
 
 func _polyline_graf_ekle(pts: PackedVector2Array) -> void:
@@ -92,6 +98,9 @@ func _polyline_graf_ekle(pts: PackedVector2Array) -> void:
 	var onceki_id := -1
 	for i in range(pts.size()):
 		var nid := _patika_dugum_id(pts, i)
+		if nid < 0:
+			onceki_id = -1
+			continue
 		if onceki_id >= 0:
 			_kenar_ekle(onceki_id, nid)
 		onceki_id = nid
@@ -102,35 +111,17 @@ func _patika_dugum_id(pts: PackedVector2Array, idx: int) -> int:
 	if idx == 0 or idx == son:
 		var komsu_idx := 1 if idx == 0 else son - 1
 		var nokta_id := _world.kontrol_nokta_yakin(pts[idx])
+		if nokta_id == "":
+			nokta_id = _world.kontrol_nokta_kale_bolgesinde(pts[idx])
 		if nokta_id != "":
 			var kapi := _world.kale_kapi_konumu(nokta_id, pts[komsu_idx])
 			return _node_ekle_veya_bul(kapi, "kapi", {"nokta_id": nokta_id})
+	if _world.kontrol_nokta_kale_bolgesinde(pts[idx]) != "":
+		return -1
 	return _node_ekle_veya_bul(pts[idx], "patika")
 
 
-func _graf_kale_kapilarina_bagla() -> void:
-	for nokta_id in _world.get_kontrol_nokta_ids():
-		var kapi_ids: Array = []
-		for n in _nodes:
-			if n["tip"] == "kapi" and str(n["meta"].get("nokta_id", "")) == str(nokta_id):
-				kapi_ids.append(n["id"])
-		if kapi_ids.size() < 2:
-			continue
-		for i in range(kapi_ids.size()):
-			for j in range(i + 1, kapi_ids.size()):
-				var a: int = kapi_ids[i]
-				var b: int = kapi_ids[j]
-				var pa: Vector2 = _nodes[a]["pos"]
-				var pb: Vector2 = _nodes[b]["pos"]
-				var merkez := _world.get_point_center(str(nokta_id))
-				if pa.distance_to(merkez) > _world.get_kale_yol_yaricapi() * 1.35:
-					continue
-				if pb.distance_to(merkez) > _world.get_kale_yol_yaricapi() * 1.35:
-					continue
-				_kenar_ekle(a, b)
-
-
-func _en_yakin_kapi_konumu(nokta_id: String, from: Vector2):
+func _en_yakin_kapi_konumu(nokta_id: String, from: Vector2) -> Variant:
 	var en_kisa := INF
 	var sonuc = null
 	for n in _nodes:

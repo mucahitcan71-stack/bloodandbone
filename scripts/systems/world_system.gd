@@ -152,6 +152,17 @@ func kontrol_nokta_yakin(pos: Vector2) -> String:
 func kale_kapi_konumu(nokta_id: String, dis_taraftan: Vector2) -> Vector2:
 	return _yol_ucunu_kale_bosluga_cek(Vector2.ZERO, dis_taraftan, nokta_id)
 
+func kontrol_nokta_kale_bolgesinde(pos: Vector2) -> String:
+	var pay := 18.0
+	for nokta in get_kontrol_nokta_ids():
+		var merkez := get_point_center(str(nokta))
+		if pos.distance_to(merkez) <= _kale_yol_yaricapi() + pay:
+			return str(nokta)
+	return ""
+
+func polyline_kale_kes(pts: PackedVector2Array) -> Array:
+	return _yol_noktalari_kale_kes(pts)
+
 func get_terrain_regions() -> Array:
 	return arazi_bolgeleri
 
