@@ -3,7 +3,7 @@ class_name CameraController
 
 var speed := 800.0
 var edge_trigger_px := 35.0
-var zoom_min := 0.3
+var zoom_min := 0.15
 var zoom_max := 1.5
 var zoom_speed := 0.1
 

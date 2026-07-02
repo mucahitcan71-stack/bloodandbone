@@ -8,7 +8,7 @@ const PathSpline = preload("res://scripts/path_spline.gd")
 const _YOL_SPLINE_ADIM := 10
 
 const _ISO_ARAZI_CIZIMI := true
-const _ZEMIN_DOKU := "zengin"  # "cim" | "zengin" | "pixel"
+const _ZEMIN_DOKU := "3d"  # "3d" | "cim" | "zengin" | "pixel"
 const _PIXEL_CIMEN_ZEMIN := false
 const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
@@ -22,6 +22,10 @@ const _CIMEN_PIXEL_TILESET_YOL := "res://assets/zemin/cimen_tileset.tres"
 const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
+const _ZEMIN3D_COZUNURLUK := 0.5  # viewport render olcegi (1.0 = tam, dusuk = az VRAM)
+const _ZEMIN3D_DOKU_TEKRAR := 256.0  # kac logical birimde bir doku tekrari
+const _ZEMIN3D_DIS_PAY := 640.0  # 3d zeminde harita disi pay (viewport boyutunu sinirlar)
+const _KAMERA_LIMIT_PAY := 1600.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
 const _CIMEN_KARO_YOLLARI := [
 	"res://assets/zemin/cimen_duz.png",
 	"res://assets/placeholder_cimen_iso.png",
@@ -60,6 +64,8 @@ var cimen_katmani: Node2D = null
 var _cimen_tilemap: TileMapLayer = null
 var _doku_tabanli_tileset_onbellek: Dictionary = {}
 var _pixel_cimen_tileset_hazir: TileSet = null
+var _zemin3d_viewport: SubViewport = null
+var _zemin3d_sprite: Sprite2D = null
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -305,10 +311,10 @@ func kamera_limitlerini_guncelle() -> void:
 	if kamera == null:
 		return
 	var s := _aktif_kamera_sinir()
-	kamera.limit_left = int(s["min_x"])
-	kamera.limit_right = int(s["max_x"])
-	kamera.limit_top = int(s["min_y"])
-	kamera.limit_bottom = int(s["max_y"])
+	kamera.limit_left = int(s["min_x"] - _KAMERA_LIMIT_PAY)
+	kamera.limit_right = int(s["max_x"] + _KAMERA_LIMIT_PAY)
+	kamera.limit_top = int(s["min_y"] - _KAMERA_LIMIT_PAY)
+	kamera.limit_bottom = int(s["max_y"] + _KAMERA_LIMIT_PAY)
 	kamera_sinirla()
 
 func kamera_sinirla() -> void:
@@ -592,7 +598,10 @@ func arazi_gorsellerini_guncelle() -> void:
 		_gorsel_lekeler_ekle()
 	# --- YENI IZOMETRIK CIZIM (aktif) ---
 	if _ISO_ARAZI_CIZIMI:
-		_cimen_zemin_ekle(sinir)
+		if _ZEMIN_DOKU == "3d":
+			_zemin3d_ekle(sinir)
+		else:
+			_cimen_zemin_ekle(sinir)
 	elif _PIXEL_CIMEN_ZEMIN:
 		_cimen_zemin_ekle(sinir)
 	if is_instance_valid(cimen_katmani) and not _ISO_ARAZI_CIZIMI and not _PIXEL_CIMEN_ZEMIN:
@@ -652,7 +661,7 @@ func _aktif_doku_yolu() -> String:
 			return _CIMEN_GERCEK_YOL
 		"zengin":
 			return _zengin_doku_yolu_bul()
-		"pixel":
+		"pixel", "3d":
 			return ""
 		_:
 			push_warning("WorldSystem: bilinmeyen _ZEMIN_DOKU='%s', cim kullaniliyor." % _ZEMIN_DOKU)
@@ -860,6 +869,104 @@ func _cimen_zemin_ekle(sinir: Dictionary) -> void:
 			x += k
 		if is_instance_valid(ilk_sprite):
 			print("[TILE-HIZA] eski_ilk_sprite=", ilk_sprite.global_position)
+
+
+func _zemin3d_ekle(sinir: Dictionary) -> void:
+	cimen_katmani_olustur()
+	if not is_instance_valid(cimen_katmani):
+		return
+	for c in cimen_katmani.get_children():
+		c.queue_free()
+	_cimen_tilemap = null
+	_zemin3d_viewport = null
+	_zemin3d_sprite = null
+
+	var min_x := float(sinir["min_x"])
+	var max_x := float(sinir["max_x"])
+	var min_y := float(sinir["min_y"])
+	var max_y := float(sinir["max_y"])
+	var pay := _ZEMIN3D_DIS_PAY
+	var gw := (max_x - min_x) + pay * 2.0
+	var gh := (max_y - min_y) + pay * 2.0
+	var merkez := Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)
+
+	# Genisletilmis alanin iso bbox boyutu (2:1 izometri)
+	var iso_w := (gw + gh) * 0.5
+	var iso_h := (gw + gh) * 0.25
+
+	var vp := SubViewport.new()
+	vp.name = "Zemin3DViewport"
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.size = Vector2i(
+		maxi(16, int(iso_w * _ZEMIN3D_COZUNURLUK)),
+		maxi(16, int(iso_h * _ZEMIN3D_COZUNURLUK))
+	)
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	cimen_katmani.add_child(vp)
+
+	var kok3d := Node3D.new()
+	kok3d.name = "Zemin3DKok"
+	vp.add_child(kok3d)
+
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(gw, gh)
+	var mi := MeshInstance3D.new()
+	mi.name = "ZeminMesh"
+	mi.mesh = plane
+	mi.position = Vector3(merkez.x, 0.0, merkez.y)
+	mi.material_override = _zemin3d_materyal(gw, gh)
+	kok3d.add_child(mi)
+
+	var isik := DirectionalLight3D.new()
+	isik.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
+	isik.light_energy = 1.15
+	isik.shadow_enabled = false
+	kok3d.add_child(isik)
+
+	# 2:1 izometriye kalibre ortografik kamera:
+	# rotation (-30, 45, 0) + size = iso_h * sqrt(2) => logical_to_iso ile birebir
+	var kam := Camera3D.new()
+	kam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	kam.size = iso_h * sqrt(2.0)
+	kam.rotation_degrees = Vector3(-30.0, 45.0, 0.0)
+	var geri := Vector3(sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0)))
+	var mesafe := (gw + gh) * 0.31 + 200.0
+	kam.position = Vector3(merkez.x, 0.0, merkez.y) + geri * mesafe
+	kam.near = 1.0
+	kam.far = mesafe * 2.0 + 400.0
+	kok3d.add_child(kam)
+	kam.current = true
+
+	var off := _izo_cizim_offseti(sinir)
+	var spr := Sprite2D.new()
+	spr.name = "Zemin3DSprite"
+	spr.texture = vp.get_texture()
+	spr.centered = true
+	spr.position = IsoProj.logical_to_iso(merkez) + off
+	spr.scale = Vector2.ONE / _ZEMIN3D_COZUNURLUK
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	spr.z_index = 0
+	cimen_katmani.add_child(spr)
+	_zemin3d_viewport = vp
+	_zemin3d_sprite = spr
+
+
+func _zemin3d_materyal(gw: float, gh: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.roughness = 1.0
+	mat.metallic = 0.0
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var yol := _zengin_doku_yolu_bul()
+	var tex: Texture2D = null
+	if ResourceLoader.exists(yol):
+		tex = load(yol) as Texture2D
+	if tex != null:
+		mat.albedo_texture = tex
+		mat.uv1_scale = Vector3(gw / _ZEMIN3D_DOKU_TEKRAR, gh / _ZEMIN3D_DOKU_TEKRAR, 1.0)
+	else:
+		mat.albedo_color = Color(0.16, 0.21, 0.13)
+	return mat
 
 
 func _izo_taban_ekle(sinir: Dictionary) -> void:
