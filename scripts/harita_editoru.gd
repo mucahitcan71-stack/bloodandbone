@@ -47,16 +47,17 @@ var _firca_yaricap := FIRCA_YARICAP_BASLANGIC
 var _prop_sol_basili := false
 var _son_firca_surukleme := Vector2.ZERO
 var _prop_paleti: PanelContainer
-var _prop_palet_vbox: VBoxContainer
+var _prop_palet_icerik: VBoxContainer
 var _prop_butonlar: Dictionary = {}
 
 
 func _ready() -> void:
 	_kamera = $Camera2D
 	_prop_paleti = $EditorUI/PropPaleti
-	_prop_palet_vbox = $EditorUI/PropPaleti/VBox
+	_prop_palet_icerik = $EditorUI/PropPaleti/RootVBox/Scroll/Icerik
 	_secili_prop_id = PropKatalog.varsayilan_id()
 	_prop_paletini_kur()
+	_prop_paleti_gorsel_kur()
 	_prop_paleti.visible = false
 	_kamera.position = _harita_merkez_logical()
 	_kamera.zoom = Vector2.ONE
@@ -177,8 +178,10 @@ func _draw() -> void:
 	for prop in proplar:
 		var plogical: Vector2 = prop["konum"]
 		var piso := IsoProjection.logical_to_iso(plogical) + off
-		draw_circle(piso, 7.0, Color(0.12, 0.58, 0.22, 0.95))
-		draw_arc(piso, 7.0, 0.0, TAU, 16, Color(0.05, 0.35, 0.12, 0.9), 1.5)
+		var pkat := PropKatalog.kategori(str(prop.get("id", "")))
+		var p_renk := _prop_kategori_renk(pkat)
+		draw_circle(piso, 7.0, p_renk)
+		draw_arc(piso, 7.0, 0.0, TAU, 16, p_renk.darkened(0.35), 1.5)
 		var pis := PropKatalog.isim(str(prop.get("id", "")))
 		draw_string(font, piso + Vector2(9, -6), pis, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs - 1, Color(0.85, 1.0, 0.85, 0.95))
 
@@ -1169,24 +1172,43 @@ func _mod_adi() -> String:
 
 
 func _prop_paletini_kur() -> void:
-	if _prop_palet_vbox == null:
+	if _prop_palet_icerik == null:
 		return
-	for c in _prop_palet_vbox.get_children():
-		if c.name != "Baslik":
-			c.queue_free()
+	for c in _prop_palet_icerik.get_children():
+		c.queue_free()
 	_prop_butonlar.clear()
-	for entry in PropKatalog.KATALOG:
-		var pid := str(entry.get("id", ""))
-		if pid == "":
+	for kat in PropKatalog.KATEGORI_SIRASI:
+		var grup := PropKatalog.katalog_kategori(kat)
+		if grup.is_empty():
 			continue
-		var btn := Button.new()
-		btn.name = "PropBtn_%s" % pid
-		btn.text = str(entry.get("isim", pid))
-		btn.toggle_mode = true
-		btn.button_pressed = pid == _secili_prop_id
-		btn.pressed.connect(_prop_palet_sec.bind(pid))
-		_prop_palet_vbox.add_child(btn)
-		_prop_butonlar[pid] = btn
+		var baslik := Label.new()
+		baslik.text = str(PropKatalog.KATEGORI_BASLIK.get(kat, kat))
+		baslik.add_theme_color_override("font_color", _prop_kategori_renk(kat).lightened(0.25))
+		_prop_palet_icerik.add_child(baslik)
+		for entry in grup:
+			var pid := str(entry.get("id", ""))
+			if pid == "":
+				continue
+			var btn := Button.new()
+			btn.name = "PropBtn_%s" % pid
+			btn.text = str(entry.get("isim", pid))
+			btn.toggle_mode = true
+			btn.button_pressed = pid == _secili_prop_id
+			btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			btn.add_theme_color_override("font_color", _prop_kategori_renk(kat))
+			btn.pressed.connect(_prop_palet_sec.bind(pid))
+			_prop_palet_icerik.add_child(btn)
+			_prop_butonlar[pid] = btn
+
+
+func _prop_kategori_renk(kat: String) -> Color:
+	match kat:
+		"kaya":
+			return Color(0.55, 0.52, 0.48, 0.95)
+		"cali":
+			return Color(0.45, 0.72, 0.28, 0.95)
+		_:
+			return Color(0.12, 0.58, 0.22, 0.95)
 
 
 func _prop_palet_sec(pid: String) -> void:
@@ -1199,11 +1221,28 @@ func _prop_palet_sec(pid: String) -> void:
 func _prop_paleti_ac() -> void:
 	if is_instance_valid(_prop_paleti):
 		_prop_paleti.visible = true
+		_prop_paleti.move_to_front()
 
 
 func _prop_paleti_kapat() -> void:
 	if is_instance_valid(_prop_paleti):
 		_prop_paleti.visible = false
+
+
+func _prop_paleti_gorsel_kur() -> void:
+	if not is_instance_valid(_prop_paleti):
+		return
+	_prop_paleti.custom_minimum_size = Vector2(220, 420)
+	var stil := StyleBoxFlat.new()
+	stil.bg_color = Color(0.12, 0.14, 0.11, 0.92)
+	stil.border_color = Color(0.45, 0.55, 0.38, 0.9)
+	stil.set_border_width_all(2)
+	stil.set_corner_radius_all(4)
+	stil.content_margin_left = 8
+	stil.content_margin_right = 8
+	stil.content_margin_top = 6
+	stil.content_margin_bottom = 6
+	_prop_paleti.add_theme_stylebox_override("panel", stil)
 
 
 func _prop_ui_uzerinde_mi(mouse_dunya: Vector2) -> bool:
