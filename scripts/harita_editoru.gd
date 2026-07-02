@@ -15,6 +15,9 @@ const YOL_SEG_ESIK := 50.0
 const YOL_UZER_ESIK := 28.0
 const PATIKA_NOKTA_ESIK := 30.0
 const PROP_SILME_ESIK := 150.0
+const PROP_SECIM_ESIK := 90.0
+const PROP_OLCEK_MIN := 0.5
+const PROP_OLCEK_MAX := 40.0
 const FIRCA_YARICAP_MIN := 40.0
 const FIRCA_YARICAP_MAX := 480.0
 const FIRCA_YARICAP_BASLANGIC := 100.0
@@ -28,6 +31,7 @@ const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
 const _ACILISTA_YUKLE := true
 
 enum EditorMod { US, NOKTA, YOL, KIVIR, PROP }
+enum PropAltMod { YERLESTIR, DUZENLE }
 
 var mod: EditorMod = EditorMod.NOKTA
 var noktalar: Array[Dictionary] = []
@@ -47,6 +51,9 @@ var _sonraki_kavsak_index := 0
 var _yol_cizim_olusturulan_kavsaklar: Array[String] = []
 var _secili_yol_tipi := "ana"
 var _secili_prop_id := ""
+var _prop_alt_mod := PropAltMod.YERLESTIR
+var _secili_prop_idx := -1
+var _prop_duzenle_surukleme := false
 var _firca_yaricap := FIRCA_YARICAP_BASLANGIC
 var _firca_yogunluk := FIRCA_YOGUNLUK_BASLANGIC
 var _prop_gizli := false
@@ -112,8 +119,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_zoom_ayarla(_kamera.zoom.x + ZOOM_ADIM)
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
-		if mod == EditorMod.PROP and _prop_sol_basili and not _prop_ui_uzerinde_mi(get_global_mouse_position()):
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR and _prop_sol_basili and not _prop_ui_uzerinde_mi(get_global_mouse_position()):
 			_prop_firca_surukle(get_global_mouse_position())
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _prop_duzenle_surukleme and _secili_prop_idx >= 0:
+			_prop_duzenle_tasi(get_global_mouse_position())
+			queue_redraw()
 		if not _surukleme_ara.is_empty():
 			_ara_nokta_surukle(get_global_mouse_position())
 			queue_redraw()
@@ -187,10 +197,10 @@ func _draw() -> void:
 		draw_string(font, iso + Vector2(10, -8), etiket, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, 0.95))
 
 	if not _prop_gizli:
-		for prop in _prop_sirali_cizim_listesi():
-			_ciz_prop_isaret(prop, off, font, fs)
+		for pidx in _prop_sirali_indeksleri():
+			_ciz_prop_isaret(proplar[pidx], pidx, off, font, fs)
 
-	if mod == EditorMod.PROP:
+	if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
 		var fare_iso := get_global_mouse_position()
 		if not _prop_ui_uzerinde_mi(fare_iso):
 			var fare_logical := IsoProjection.iso_to_logical(fare_iso - off)
@@ -214,10 +224,20 @@ func _draw() -> void:
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
 	if mod == EditorMod.PROP:
-		mod_yazi = "MOD: PROP - secili: %s (%s)" % [
-			PropKatalog.isim(_secili_prop_id),
-			PropKatalog.KATEGORI_SEKME.get(PropKatalog.kategori(_secili_prop_id), ""),
-		]
+		if _prop_alt_mod == PropAltMod.DUZENLE:
+			mod_yazi = "MOD: PROP - DUZENLE"
+			if _secili_prop_idx >= 0 and _secili_prop_idx < proplar.size():
+				var sp: Dictionary = proplar[_secili_prop_idx]
+				mod_yazi = "MOD: PROP - DUZENLE | %s | olcek %.2f | rot %.0f" % [
+					PropKatalog.isim(str(sp.get("id", ""))),
+					float(sp.get("olcek", 8.0)),
+					float(sp.get("rot", 0.0)),
+				]
+		else:
+			mod_yazi = "MOD: PROP - YERLESTIR | %s (%s)" % [
+				PropKatalog.isim(_secili_prop_id),
+				PropKatalog.KATEGORI_SEKME.get(PropKatalog.kategori(_secili_prop_id), ""),
+			]
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
 	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	draw_string(
@@ -253,15 +273,26 @@ func _draw() -> void:
 		)
 		durum_y = 114.0
 	elif mod == EditorMod.PROP:
-		draw_string(
-			font,
-			Vector2(18, 92),
-			"Sol tik/surukle | sag sil | Firca: %.0f ([/]) | Yogunluk: x%.1f (,/.) | H gizle" % [_firca_yaricap, _firca_yogunluk],
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1.0,
-			fs,
-			Color(0.75, 0.95, 0.7, 1.0)
-		)
+		if _prop_alt_mod == PropAltMod.DUZENLE:
+			draw_string(
+				font,
+				Vector2(18, 92),
+				"Sol tik sec/surukle | +/- olcek | [/] rot | Del/sag sil | Esc birak | T yerlestir",
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1.0,
+				fs,
+				Color(0.85, 0.9, 0.75, 1.0)
+			)
+		else:
+			draw_string(
+				font,
+				Vector2(18, 92),
+				"Sol tik/surukle | sag sil | Firca: %.0f ([/]) | Yogunluk: x%.1f (,/.) | E duzenle | H gizle" % [_firca_yaricap, _firca_yogunluk],
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1.0,
+				fs,
+				Color(0.75, 0.95, 0.7, 1.0)
+			)
 		durum_y = 114.0
 	elif _prop_gizli:
 		draw_string(
@@ -336,28 +367,58 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		queue_redraw()
 	elif _tus_mu(ev, KEY_T):
 		mod = EditorMod.PROP
+		_prop_alt_mod = PropAltMod.YERLESTIR
+		_secili_prop_idx = -1
+		_prop_duzenle_surukleme = false
 		_yol_cizim_iptal()
 		_surukleme_ara = {}
 		_prop_paleti_ac()
 		queue_redraw()
+	elif _tus_mu(ev, KEY_E):
+		mod = EditorMod.PROP
+		_prop_alt_mod = PropAltMod.DUZENLE
+		_prop_sol_basili = false
+		_prop_duzenle_surukleme = false
+		_yol_cizim_iptal()
+		_surukleme_ara = {}
+		_prop_paleti_kapat()
+		queue_redraw()
 	elif _tus_mu(ev, KEY_BRACKETLEFT):
-		_firca_yaricap = clampf(_firca_yaricap - 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
-		queue_redraw()
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+			_prop_rotasyon_ayarla(-8.0)
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+			_firca_yaricap = clampf(_firca_yaricap - 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
+			queue_redraw()
 	elif _tus_mu(ev, KEY_BRACKETRIGHT):
-		_firca_yaricap = clampf(_firca_yaricap + 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
-		queue_redraw()
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+			_prop_rotasyon_ayarla(8.0)
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+			_firca_yaricap = clampf(_firca_yaricap + 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
+			queue_redraw()
 	elif _tus_mu(ev, KEY_COMMA):
-		_firca_yogunluk = clampf(_firca_yogunluk - 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
-		queue_redraw()
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+			_firca_yogunluk = clampf(_firca_yogunluk - 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+			queue_redraw()
 	elif _tus_mu(ev, KEY_PERIOD):
-		_firca_yogunluk = clampf(_firca_yogunluk + 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
-		queue_redraw()
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+			_firca_yogunluk = clampf(_firca_yogunluk + 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
+			queue_redraw()
+	elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+		if _tus_mu(ev, KEY_EQUAL) or _tus_mu(ev, KEY_PLUS) or _tus_mu(ev, KEY_KP_ADD):
+			_prop_olcek_ayarla(1.1)
+		elif _tus_mu(ev, KEY_MINUS) or _tus_mu(ev, KEY_KP_SUBTRACT):
+			_prop_olcek_ayarla(0.9)
 	elif _tus_mu(ev, KEY_H):
 		_prop_gizli = not _prop_gizli
 		_durum_mesaji = "Prop isaretleri %s" % ("gizlendi" if _prop_gizli else "gosteriliyor")
 		_durum_sure = 1.8
 		queue_redraw()
-	elif _tus_mu(ev, KEY_ESCAPE) and mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
+	elif _tus_mu(ev, KEY_ESCAPE):
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE:
+			_secili_prop_idx = -1
+			_prop_duzenle_surukleme = false
+			queue_redraw()
+		elif mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 			_yol_cizim_iptal()
 			_durum_mesaji = "Yol cizimi iptal"
 			_durum_sure = 1.5
@@ -366,9 +427,12 @@ func _handle_key_input(ev: InputEventKey) -> void:
 			_yol_cizim_ara_son_geri()
 			queue_redraw()
 	elif _tus_mu(ev, KEY_Z):
-			_geri_al()
-	elif _tus_mu(ev, KEY_C) or _tus_mu(ev, KEY_DELETE):
-			_tumunu_temizle()
+		_geri_al()
+	elif _tus_mu(ev, KEY_DELETE):
+		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+			_prop_secili_sil()
+	elif _tus_mu(ev, KEY_C):
+		_tumunu_temizle()
 	elif _tus_mu(ev, KEY_L):
 		_yukle_editor_cikti(false)
 		queue_redraw()
@@ -381,6 +445,15 @@ func _tus_mu(ev: InputEventKey, code: Key) -> bool:
 func _handle_left_click(mouse_dunya: Vector2) -> void:
 	if mod == EditorMod.PROP:
 		if _prop_ui_uzerinde_mi(mouse_dunya):
+			return
+		if _prop_alt_mod == PropAltMod.DUZENLE:
+			var idx := _prop_sec_idx(mouse_dunya)
+			if idx >= 0:
+				_secili_prop_idx = idx
+				_prop_duzenle_surukleme = true
+			else:
+				_secili_prop_idx = -1
+			queue_redraw()
 			return
 		_prop_sol_basili = true
 		var logical := _mouse_to_logical(mouse_dunya)
@@ -734,6 +807,9 @@ func _kivir_modu_tikla(mouse_dunya: Vector2) -> void:
 
 func _handle_left_release() -> void:
 	if mod == EditorMod.PROP:
+		if _prop_alt_mod == PropAltMod.DUZENLE:
+			_prop_duzenle_surukleme = false
+			return
 		_prop_sol_basili = false
 		return
 	if _surukleme_ara.is_empty():
@@ -755,6 +831,10 @@ func _handle_left_release() -> void:
 func _handle_right_click(mouse_dunya: Vector2) -> void:
 	if mod == EditorMod.PROP:
 		if _prop_ui_uzerinde_mi(mouse_dunya):
+			return
+		if _prop_alt_mod == PropAltMod.DUZENLE:
+			if _secili_prop_idx >= 0:
+				_prop_secili_sil()
 			return
 		_prop_sil_yakin(mouse_dunya)
 		return
@@ -817,6 +897,8 @@ func _editor_durumunu_temizle() -> void:
 	_surukleme_ara = {}
 	_sonraki_nokta_index = 0
 	_sonraki_kavsak_index = 0
+	_secili_prop_idx = -1
+	_prop_duzenle_surukleme = false
 
 
 func _id_uret(index: int) -> String:
@@ -1349,43 +1431,71 @@ func _prop_yakin_var(logical: Vector2, mesafe: float) -> bool:
 	return false
 
 
-func _firca_etkin_min_mesafe() -> float:
+func _firca_kategori_carpan() -> float:
+	match PropKatalog.kategori_normalize(PropKatalog.kategori(_secili_prop_id)):
+		"tas", "cicek":
+			return 1.55
+		"bitki":
+			return 1.2
+		_:
+			return 1.0
+
+
+func _firca_etkin_yogunluk() -> float:
 	var y := clampf(_firca_yogunluk, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
-	return maxf(10.0, FIRCA_MIN_MESAFE / y)
+	return y * _firca_kategori_carpan()
+
+
+func _firca_etkin_min_mesafe() -> float:
+	var y := _firca_etkin_yogunluk()
+	return maxf(8.0, FIRCA_MIN_MESAFE / y)
 
 
 func _firca_etkin_serp_adim() -> float:
-	var y := clampf(_firca_yogunluk, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
-	return maxf(6.0, FIRCA_SURUKLEME_ADIM / sqrt(y))
+	var y := _firca_etkin_yogunluk()
+	return maxf(5.0, FIRCA_SURUKLEME_ADIM / sqrt(y))
 
 
 func _firca_etkin_deneme() -> int:
-	return clampi(int(FIRCA_SERPISTIRME_TABAN * _firca_yogunluk), 4, 24)
+	return clampi(int(FIRCA_SERPISTIRME_TABAN * _firca_etkin_yogunluk()), 4, 28)
 
 
-func _prop_sirali_cizim_listesi() -> Array:
-	var kopya: Array = proplar.duplicate()
-	kopya.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var ya: Vector2 = a["konum"]
-		var yb: Vector2 = b["konum"]
+func _prop_sirali_indeksleri() -> Array:
+	var indeksler: Array = []
+	for i in range(proplar.size()):
+		indeksler.append(i)
+	indeksler.sort_custom(func(a: int, b: int) -> bool:
+		var ya: Vector2 = proplar[a]["konum"]
+		var yb: Vector2 = proplar[b]["konum"]
 		if absf(ya.y - yb.y) > 0.01:
 			return ya.y < yb.y
 		return ya.x < yb.x
 	)
-	return kopya
+	return indeksler
 
 
-func _ciz_prop_isaret(prop: Dictionary, off: Vector2, font: Font, fs: int) -> void:
+func _ciz_prop_isaret(prop: Dictionary, prop_idx: int, off: Vector2, font: Font, fs: int) -> void:
 	var plogical: Vector2 = prop["konum"]
 	var piso := IsoProjection.logical_to_iso(plogical) + off
 	var pid := str(prop.get("id", ""))
 	var pkat := PropKatalog.kategori(pid)
 	var p_renk := _prop_kategori_renk(pkat)
-	var secili := pid == _secili_prop_id and mod == EditorMod.PROP
-	var yaricap := 10.0 if secili else 9.0
+	var duzenle_secili := (
+		mod == EditorMod.PROP
+		and _prop_alt_mod == PropAltMod.DUZENLE
+		and prop_idx == _secili_prop_idx
+	)
+	var yerlestir_tipi := pid == _secili_prop_id and mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR
+	var yaricap := 12.0 if duzenle_secili else (10.0 if yerlestir_tipi else 9.0)
 	draw_circle(piso, yaricap, p_renk)
 	draw_arc(piso, yaricap, 0.0, TAU, 20, Color(0.05, 0.05, 0.05, 0.85), 2.0)
-	if secili:
+	if duzenle_secili:
+		draw_arc(piso, yaricap + 4.0, 0.0, TAU, 28, Color(1.0, 0.95, 0.2, 1.0), 3.0)
+		draw_arc(piso, yaricap + 7.0, 0.0, TAU, 28, Color(1.0, 1.0, 1.0, 0.75), 1.5)
+		var rot := deg_to_rad(float(prop.get("rot", 0.0)))
+		var ok_uz := 18.0
+		draw_line(piso, piso + Vector2(sin(rot), -cos(rot)) * ok_uz, Color(1.0, 0.95, 0.35, 0.95), 2.0)
+	elif yerlestir_tipi:
 		draw_arc(piso, yaricap + 3.0, 0.0, TAU, 24, Color(1.0, 0.92, 0.35, 0.95), 2.0)
 	var kisaltma := PropKatalog.isim(pid).substr(0, 3)
 	draw_string(font, piso + Vector2(11, -7), kisaltma, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(1, 1, 1, 0.92))
@@ -1409,6 +1519,61 @@ func _prop_firca_surukle(mouse_dunya: Vector2) -> void:
 		if _prop_yakin_var(pos, min_mesafe):
 			continue
 		_prop_ekle(pos, _secili_prop_id)
+	queue_redraw()
+
+
+func _prop_sec_idx(mouse_dunya: Vector2) -> int:
+	var logical := _mouse_to_logical(mouse_dunya)
+	var en_iyi := -1
+	var en_kisa := PROP_SECIM_ESIK
+	var en_yuksek_y := -INF
+	for i in range(proplar.size()):
+		var pk: Vector2 = proplar[i]["konum"]
+		var d := pk.distance_to(logical)
+		if d > PROP_SECIM_ESIK:
+			continue
+		if d < en_kisa - 0.5 or (absf(d - en_kisa) <= 0.5 and pk.y > en_yuksek_y):
+			en_kisa = d
+			en_yuksek_y = pk.y
+			en_iyi = i
+	return en_iyi
+
+
+func _prop_duzenle_tasi(mouse_dunya: Vector2) -> void:
+	if _secili_prop_idx < 0 or _secili_prop_idx >= proplar.size():
+		return
+	var logical := _mouse_to_logical(mouse_dunya)
+	if not _harita_icinde_mi(logical):
+		return
+	proplar[_secili_prop_idx]["konum"] = logical
+
+
+func _prop_olcek_ayarla(carpan: float) -> void:
+	if _secili_prop_idx < 0 or _secili_prop_idx >= proplar.size():
+		return
+	var yeni := clampf(float(proplar[_secili_prop_idx].get("olcek", 8.0)) * carpan, PROP_OLCEK_MIN, PROP_OLCEK_MAX)
+	proplar[_secili_prop_idx]["olcek"] = snappedf(yeni, 0.01)
+	queue_redraw()
+
+
+func _prop_rotasyon_ayarla(delta_deg: float) -> void:
+	if _secili_prop_idx < 0 or _secili_prop_idx >= proplar.size():
+		return
+	var rot := float(proplar[_secili_prop_idx].get("rot", 0.0)) + delta_deg
+	while rot < 0.0:
+		rot += 360.0
+	while rot >= 360.0:
+		rot -= 360.0
+	proplar[_secili_prop_idx]["rot"] = snappedf(rot, 0.1)
+	queue_redraw()
+
+
+func _prop_secili_sil() -> void:
+	if _secili_prop_idx < 0 or _secili_prop_idx >= proplar.size():
+		return
+	proplar.remove_at(_secili_prop_idx)
+	_secili_prop_idx = -1
+	_prop_duzenle_surukleme = false
 	queue_redraw()
 
 
@@ -1462,3 +1627,5 @@ func _proplar_yukle(kayit: Dictionary) -> void:
 			"olcek": PropKatalog.olcek_normalize(ham_olcek, baz),
 			"rot": float(d.get("rot", 0.0)),
 		})
+	_secili_prop_idx = -1
+	_prop_duzenle_surukleme = false
