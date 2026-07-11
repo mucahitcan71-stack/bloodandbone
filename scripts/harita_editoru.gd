@@ -17,7 +17,7 @@ const PATIKA_NOKTA_ESIK := 30.0
 const PROP_SILME_ESIK := 150.0
 const PROP_SECIM_ESIK := 90.0
 const PROP_OLCEK_MIN := 0.5
-const PROP_OLCEK_MAX := 40.0
+const PROP_OLCEK_MAX := 80.0
 const FIRCA_YARICAP_MIN := 40.0
 const FIRCA_YARICAP_MAX := 480.0
 const FIRCA_YARICAP_BASLANGIC := 100.0
@@ -29,14 +29,23 @@ const FIRCA_YOGUNLUK_BASLANGIC := 2.0
 const FIRCA_SERPISTIRME_TABAN := 10
 const CIKTI_DOSYA := "res://data/maps/editor_cikti.json"
 const _ACILISTA_YUKLE := true
+const ARAZI_KAPANIS_ESIK := 18.0
+const ARAZI_TIPLERI := [
+	{"id": "gizlenme", "isim": "Gizlenme (Orman)", "renk": Color(0.1, 0.4, 0.1, 0.35)},
+	{"id": "tepe", "isim": "Tepe (Savunma)", "renk": Color(0.5, 0.35, 0.2, 0.35)},
+	{"id": "vadi", "isim": "Vadi (Hiz)", "renk": Color(0.3, 0.5, 0.6, 0.35)},
+]
 
-enum EditorMod { US, NOKTA, YOL, KIVIR, PROP }
+enum EditorMod { US, NOKTA, YOL, KIVIR, PROP, ARAZI }
 enum PropAltMod { YERLESTIR, DUZENLE }
 
 var mod: EditorMod = EditorMod.NOKTA
 var noktalar: Array[Dictionary] = []
 var yollar: Array[Dictionary] = []
 var proplar: Array[Dictionary] = []
+var arazi_bolgeleri: Array[Dictionary] = []
+var _arazi_aktif_koseler: Array = []
+var _secili_arazi_tip_idx := 0
 var _secili_yol_kaynak_id := ""
 var _yol_cizim_ara: Array = []
 var _islem_gecmisi: Array[Dictionary] = []
@@ -70,7 +79,7 @@ var _prop_kat_butonlar: Dictionary = {}
 func _ready() -> void:
 	_kamera = $Camera2D
 	_prop_paleti = $EditorUI/PropPaleti
-	_prop_kategori_sekmeleri = $EditorUI/PropPaleti/RootVBox/KategoriSekmeler
+	_prop_kategori_sekmeleri = $EditorUI/PropPaleti/RootVBox/KategoriScroll/KategoriSekmeler
 	_prop_palet_icerik = $EditorUI/PropPaleti/RootVBox/Scroll/Icerik
 	_secili_prop_id = PropKatalog.varsayilan_id()
 	_prop_paleti_gorsel_kur()
@@ -129,6 +138,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			queue_redraw()
 		elif mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 			queue_redraw()
+		elif mod == EditorMod.ARAZI and not _arazi_aktif_koseler.is_empty():
+			queue_redraw()
 		elif _orta_tik_surukleme:
 			_kamera.position -= mm.relative * _kamera.zoom
 
@@ -145,6 +156,8 @@ func _draw() -> void:
 
 	var font := ThemeDB.fallback_font
 	var fs := ThemeDB.fallback_font_size
+	_ciz_arazi_bolgeleri(off)
+
 	for yol in yollar:
 		var iso_pts := _yol_iso_polyline(yol, off)
 		if iso_pts.size() >= 2:
@@ -222,8 +235,13 @@ func _draw() -> void:
 			if onizleme.size() >= 2:
 				_ciz_editor_yol(onizleme, _secili_yol_tipi)
 
+	if mod == EditorMod.ARAZI:
+		_ciz_arazi_aktif(off)
+
 	var mod_yazi := "MOD: %s" % _mod_adi()
-	if mod == EditorMod.PROP:
+	if mod == EditorMod.ARAZI:
+		mod_yazi = "MOD: ARAZI - tip: %s" % _arazi_tip_isim(_secili_arazi_tip_idx)
+	elif mod == EditorMod.PROP:
 		if _prop_alt_mod == PropAltMod.DUZENLE:
 			mod_yazi = "MOD: PROP - DUZENLE"
 			if _secili_prop_idx >= 0 and _secili_prop_idx < proplar.size():
@@ -239,7 +257,7 @@ func _draw() -> void:
 				PropKatalog.KATEGORI_SEKME.get(PropKatalog.kategori(_secili_prop_id), ""),
 			]
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
-	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
+	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L | Arazi: A", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	draw_string(
 		font,
 		Vector2(18, 70),
@@ -270,6 +288,17 @@ func _draw() -> void:
 			-1.0,
 			fs,
 			Color(0.9, 0.85, 0.65, 1.0)
+		)
+		durum_y = 114.0
+	elif mod == EditorMod.ARAZI:
+		draw_string(
+			font,
+			Vector2(18, 92),
+			"6=gizlenme 7=tepe 8=vadi | Sol tik=kose | Space/Enter/ilk koseye tik=kapat | Sag=geri | Esc=iptal",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(0.75, 0.95, 0.7, 1.0)
 		)
 		durum_y = 114.0
 	elif mod == EditorMod.PROP:
@@ -339,11 +368,13 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		mod = EditorMod.US
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_2):
 		mod = EditorMod.NOKTA
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_3):
 			_secili_yol_tipi = "ana"
@@ -354,15 +385,33 @@ func _handle_key_input(ev: InputEventKey) -> void:
 	elif _tus_mu(ev, KEY_5):
 			_secili_yol_tipi = "gizli"
 			queue_redraw()
+	elif _tus_mu(ev, KEY_6) and mod == EditorMod.ARAZI:
+		_secili_arazi_tip_idx = 0
+		queue_redraw()
+	elif _tus_mu(ev, KEY_7) and mod == EditorMod.ARAZI:
+		_secili_arazi_tip_idx = 1
+		queue_redraw()
+	elif _tus_mu(ev, KEY_8) and mod == EditorMod.ARAZI:
+		_secili_arazi_tip_idx = 2
+		queue_redraw()
+	elif _tus_mu(ev, KEY_A) and not (Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_SHIFT)):
+		# Not: A basili tutulursa WASD pan da sola kayar; kisa basis = arazi modu.
+		mod = EditorMod.ARAZI
+		_prop_paleti_kapat()
+		_yol_cizim_iptal()
+		_surukleme_ara = {}
+		queue_redraw()
 	elif _tus_mu(ev, KEY_Y):
 		mod = EditorMod.YOL
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_K):
 		mod = EditorMod.KIVIR
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		_surukleme_ara = {}
 		queue_redraw()
 	elif _tus_mu(ev, KEY_T):
@@ -371,6 +420,7 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_secili_prop_idx = -1
 		_prop_duzenle_surukleme = false
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		_surukleme_ara = {}
 		_prop_paleti_ac()
 		queue_redraw()
@@ -380,6 +430,7 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_prop_sol_basili = false
 		_prop_duzenle_surukleme = false
 		_yol_cizim_iptal()
+		_arazi_cizim_iptal()
 		_surukleme_ara = {}
 		_prop_paleti_kapat()
 		queue_redraw()
@@ -413,8 +464,15 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_durum_mesaji = "Prop isaretleri %s" % ("gizlendi" if _prop_gizli else "gosteriliyor")
 		_durum_sure = 1.8
 		queue_redraw()
+	elif (_tus_mu(ev, KEY_SPACE) or _tus_mu(ev, KEY_ENTER) or _tus_mu(ev, KEY_KP_ENTER)) and mod == EditorMod.ARAZI:
+		_arazi_poligonu_kapat()
 	elif _tus_mu(ev, KEY_ESCAPE):
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE:
+		if mod == EditorMod.ARAZI and not _arazi_aktif_koseler.is_empty():
+			_arazi_cizim_iptal()
+			_durum_mesaji = "Arazi cizimi iptal"
+			_durum_sure = 1.5
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE:
 			_secili_prop_idx = -1
 			_prop_duzenle_surukleme = false
 			queue_redraw()
@@ -423,6 +481,9 @@ func _handle_key_input(ev: InputEventKey) -> void:
 			_durum_mesaji = "Yol cizimi iptal"
 			_durum_sure = 1.5
 			queue_redraw()
+	elif _tus_mu(ev, KEY_BACKSPACE) and mod == EditorMod.ARAZI and not _arazi_aktif_koseler.is_empty():
+		_arazi_kose_geri()
+		queue_redraw()
 	elif _tus_mu(ev, KEY_BACKSPACE) and mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 			_yol_cizim_ara_son_geri()
 			queue_redraw()
@@ -468,6 +529,9 @@ func _handle_left_click(mouse_dunya: Vector2) -> void:
 		return
 	if mod == EditorMod.KIVIR:
 		_kivir_modu_tikla(mouse_dunya)
+		return
+	if mod == EditorMod.ARAZI:
+		_arazi_modu_tikla(mouse_dunya)
 		return
 	var logical := IsoProjection.iso_to_logical(mouse_dunya - merkez_logical_iso_offseti(HARITA_SINIR))
 	var yeni_id := _id_uret(_sonraki_nokta_index)
@@ -829,6 +893,10 @@ func _handle_left_release() -> void:
 
 
 func _handle_right_click(mouse_dunya: Vector2) -> void:
+	if mod == EditorMod.ARAZI:
+		_arazi_kose_geri()
+		queue_redraw()
+		return
 	if mod == EditorMod.PROP:
 		if _prop_ui_uzerinde_mi(mouse_dunya):
 			return
@@ -892,6 +960,8 @@ func _editor_durumunu_temizle() -> void:
 	noktalar.clear()
 	yollar.clear()
 	proplar.clear()
+	arazi_bolgeleri.clear()
+	_arazi_cizim_iptal()
 	_islem_gecmisi.clear()
 	_yol_cizim_iptal()
 	_surukleme_ara = {}
@@ -1280,7 +1350,103 @@ func _mod_adi() -> String:
 			return "KIVIR"
 		EditorMod.PROP:
 			return "PROP"
+		EditorMod.ARAZI:
+			return "ARAZI"
 	return "?"
+
+
+func _arazi_tip_isim(idx: int) -> String:
+	if idx < 0 or idx >= ARAZI_TIPLERI.size():
+		return "?"
+	return str(ARAZI_TIPLERI[idx].get("isim", "?"))
+
+
+func _arazi_tip_renk(tip_id: String) -> Color:
+	for t in ARAZI_TIPLERI:
+		if str(t.get("id", "")) == tip_id:
+			return t.get("renk", Color(0.3, 0.3, 0.3, 0.35))
+	return Color(0.3, 0.3, 0.3, 0.35)
+
+
+func _arazi_cizim_iptal() -> void:
+	_arazi_aktif_koseler.clear()
+
+
+func _arazi_kose_geri() -> void:
+	if not _arazi_aktif_koseler.is_empty():
+		_arazi_aktif_koseler.pop_back()
+
+
+func _arazi_modu_tikla(mouse_dunya: Vector2) -> void:
+	var logical := _mouse_to_logical(mouse_dunya)
+	if not _harita_icinde_mi(logical):
+		return
+	if _arazi_aktif_koseler.size() >= 3:
+		var ilk: Vector2 = _arazi_aktif_koseler[0]
+		var ilk_iso := IsoProjection.logical_to_iso(ilk) + merkez_logical_iso_offseti(HARITA_SINIR)
+		if mouse_dunya.distance_to(ilk_iso) <= ARAZI_KAPANIS_ESIK:
+			_arazi_poligonu_kapat()
+			return
+	_arazi_aktif_koseler.append(logical)
+	queue_redraw()
+
+
+func _arazi_poligonu_kapat() -> void:
+	if _arazi_aktif_koseler.size() < 3:
+		_durum_mesaji = "Arazi icin en az 3 kose gerekli"
+		_durum_sure = 1.8
+		queue_redraw()
+		return
+	var tip_id := str(ARAZI_TIPLERI[_secili_arazi_tip_idx].get("id", "gizlenme"))
+	var koseler: Array = []
+	for k in _arazi_aktif_koseler:
+		if k is Vector2:
+			koseler.append(k)
+	arazi_bolgeleri.append({"tip": tip_id, "koseler": koseler})
+	_arazi_aktif_koseler.clear()
+	_durum_mesaji = "Arazi eklendi: %s (%d)" % [_arazi_tip_isim(_secili_arazi_tip_idx), arazi_bolgeleri.size()]
+	_durum_sure = 1.8
+	queue_redraw()
+
+
+func _ciz_arazi_bolgeleri(off: Vector2) -> void:
+	for bolge in arazi_bolgeleri:
+		var tip_id := str(bolge.get("tip", "gizlenme"))
+		var renk := _arazi_tip_renk(tip_id)
+		var pts: Array = bolge.get("koseler", [])
+		if pts.size() < 3:
+			continue
+		var iso := PackedVector2Array()
+		for p in pts:
+			if p is Vector2:
+				iso.append(IsoProjection.logical_to_iso(p) + off)
+		if iso.size() < 3:
+			continue
+		draw_colored_polygon(iso, renk)
+		var sinir := Color(renk.r, renk.g, renk.b, minf(1.0, renk.a + 0.45))
+		for i in range(iso.size()):
+			draw_line(iso[i], iso[(i + 1) % iso.size()], sinir, 2.0, true)
+
+
+func _ciz_arazi_aktif(off: Vector2) -> void:
+	if _arazi_aktif_koseler.is_empty():
+		return
+	var renk := _arazi_tip_renk(str(ARAZI_TIPLERI[_secili_arazi_tip_idx].get("id", "gizlenme")))
+	var sinir := Color(renk.r, renk.g, renk.b, 0.95)
+	var iso_pts: Array = []
+	for k in _arazi_aktif_koseler:
+		if k is Vector2:
+			var iso := IsoProjection.logical_to_iso(k) + off
+			iso_pts.append(iso)
+			draw_circle(iso, 5.0, sinir)
+	for i in range(iso_pts.size() - 1):
+		draw_line(iso_pts[i], iso_pts[i + 1], sinir, 1.8, true)
+	var fare_iso := get_global_mouse_position()
+	if not iso_pts.is_empty():
+		draw_line(iso_pts[iso_pts.size() - 1], fare_iso, Color(sinir.r, sinir.g, sinir.b, 0.55), 1.4, true)
+		if iso_pts.size() >= 3:
+			draw_line(fare_iso, iso_pts[0], Color(1.0, 1.0, 0.4, 0.35), 1.2, true)
+			draw_arc(iso_pts[0], ARAZI_KAPANIS_ESIK, 0.0, TAU, 20, Color(1.0, 1.0, 0.35, 0.55), 1.2)
 
 
 func _prop_paletini_kur() -> void:
@@ -1318,7 +1484,8 @@ func _prop_kategori_sekmeleri_kur() -> void:
 		btn.text = str(PropKatalog.KATEGORI_SEKME.get(kat, kat))
 		btn.toggle_mode = true
 		btn.button_pressed = kat == _prop_aktif_kategori
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.custom_minimum_size = Vector2(46, 26)
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		btn.add_theme_color_override("font_color", _prop_kategori_renk(kat))
 		btn.pressed.connect(_prop_kategori_sec.bind(kat))
 		_prop_kategori_sekmeleri.add_child(btn)
@@ -1346,6 +1513,12 @@ func _prop_kategori_renk(kat: String) -> Color:
 			return Color(0.45, 0.72, 0.28, 0.95)
 		"cicek":
 			return Color(0.82, 0.45, 0.62, 0.95)
+		"yapi":
+			return Color(0.72, 0.56, 0.34, 0.95)
+		"dag":
+			return Color(0.42, 0.5, 0.62, 0.95)
+		"detay":
+			return Color(0.78, 0.62, 0.32, 0.95)
 		_:
 			return Color(0.12, 0.58, 0.22, 0.95)
 
@@ -1376,7 +1549,7 @@ func _prop_paleti_kapat() -> void:
 func _prop_paleti_gorsel_kur() -> void:
 	if not is_instance_valid(_prop_paleti):
 		return
-	_prop_paleti.custom_minimum_size = Vector2(220, 420)
+	_prop_paleti.custom_minimum_size = Vector2(240, 420)
 	var stil := StyleBoxFlat.new()
 	stil.bg_color = Color(0.12, 0.14, 0.11, 0.92)
 	stil.border_color = Color(0.45, 0.55, 0.38, 0.9)
@@ -1433,10 +1606,12 @@ func _prop_yakin_var(logical: Vector2, mesafe: float) -> bool:
 
 func _firca_kategori_carpan() -> float:
 	match PropKatalog.kategori_normalize(PropKatalog.kategori(_secili_prop_id)):
-		"tas", "cicek":
+		"tas", "cicek", "detay":
 			return 1.55
 		"bitki":
 			return 1.2
+		"yapi", "dag":
+			return 0.85
 		_:
 			return 1.0
 
