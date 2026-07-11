@@ -2,6 +2,7 @@ extends RefCounted
 class_name CombatLoopSystem
 
 const Constants = preload("res://scripts/constants.gd")
+const _YOL_DISI_HIZ_CARPAN := 0.5
 
 var _host: Node2D = null
 
@@ -97,14 +98,15 @@ func _process_movement_and_deaths(delta: float) -> void:
 					var yol: PackedVector2Array = _host.birim_yol_bul(birim["konum"], takip["konum"])
 					if yol.size() >= 2:
 						birim["waypoints"] = yol
-						birim["waypoint_idx"] = 1
-						birim["hedef"] = yol[1]
+						birim["waypoint_idx"] = 1 if yol[0].distance_to(birim["konum"]) <= 14.0 else 0
+						birim["hedef"] = yol[birim["waypoint_idx"]]
 						birim["hareket_durdu"] = false
 					else:
 						birim["waypoints"] = PackedVector2Array()
 						birim["waypoint_idx"] = 0
 						birim["yol_baglanti"] = false
-						birim["hedef"] = birim["konum"]
+						birim["hedef"] = takip["konum"]
+						birim["hareket_durdu"] = false
 				birim["hedef_nokta"] = _host.en_yakin_nokta_bul(takip["konum"])
 		for b in _host.aktif_birimler:
 			if b["taraf"] != birim["taraf"] and b["hp"] > 0:
@@ -142,36 +144,34 @@ func _process_movement_and_deaths(delta: float) -> void:
 			dusman_menzilde = false
 		if not dusman_menzilde and not hedefe_varildi:
 			var aktif_yol: PackedVector2Array = birim.get("waypoints", PackedVector2Array())
-			if aktif_yol.is_empty():
-				birim["hedef"] = birim["konum"]
-				hedefe_varildi = true
+			var yol_hiz: float = 1.0
+			if _host.yol_hiz_avantaji_mi(birim["konum"]):
+				birim["yol_baglanti"] = false
 			else:
-				var step = hareket_efekt["hiz"] * delta
-				if dist > 0.001:
-					var aday_konum = hedef_pos if step >= dist else birim["konum"] + (to_hedef / dist) * step
-					if _host.yol_uzerinde_mi(birim["konum"]):
-						birim["yol_baglanti"] = false
-					var yol_izni: bool = _host.yol_uzerinde_mi(aday_konum) or bool(birim.get("yol_baglanti", false))
-					if yol_izni and not _host.gecis_engelli_mi(aday_konum):
-						birim["konum"] = aday_konum
-				var arazi_hareket = _host.birimin_arazisini_bul(birim["konum"])
-				if bool(arazi_hareket.get("tek_sira", false)):
-					var snap_dist = birim["konum"].distance_to(hedef_pos)
-					if snap_dist > varis_esigi * 2.0:
-						var rect: Rect2 = arazi_hareket.get("rect", Rect2())
-						var merkez = _host._dar_koridor_merkez(rect)
-						if rect.size.x <= rect.size.y:
-							birim["konum"].x = merkez.x
-						else:
-							birim["konum"].y = merkez.y
-				birim["pusu_arazi_gizli"] = false
-				dist = birim["konum"].distance_to(birim["hedef"])
-				if dist <= varis_esigi:
-					if _waypoint_siradaki(birim):
-						hedefe_varildi = false
-						birim["hareket_durdu"] = false
+				yol_hiz = _YOL_DISI_HIZ_CARPAN
+			var step = hareket_efekt["hiz"] * yol_hiz * delta
+			if dist > 0.001:
+				var aday_konum = hedef_pos if step >= dist else birim["konum"] + (to_hedef / dist) * step
+				if not _host.gecis_engelli_mi(aday_konum):
+					birim["konum"] = aday_konum
+			var arazi_hareket = _host.birimin_arazisini_bul(birim["konum"])
+			if bool(arazi_hareket.get("tek_sira", false)):
+				var snap_dist = birim["konum"].distance_to(hedef_pos)
+				if snap_dist > varis_esigi * 2.0:
+					var rect: Rect2 = arazi_hareket.get("rect", Rect2())
+					var merkez = _host._dar_koridor_merkez(rect)
+					if rect.size.x <= rect.size.y:
+						birim["konum"].x = merkez.x
 					else:
-						hedefe_varildi = true
+						birim["konum"].y = merkez.y
+			birim["pusu_arazi_gizli"] = false
+			dist = birim["konum"].distance_to(birim["hedef"])
+			if dist <= varis_esigi:
+				if not aktif_yol.is_empty() and _waypoint_siradaki(birim):
+					hedefe_varildi = false
+					birim["hareket_durdu"] = false
+				else:
+					hedefe_varildi = true
 		elif not birim.get("pusu_modunda", false):
 			var orman_idx = _host._orman_bolge_index(birim["konum"])
 			birim["pusu_arazi_gizli"] = orman_idx >= 0 and not dusman_menzilde and hedefe_varildi

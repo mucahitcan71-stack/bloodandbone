@@ -9,6 +9,8 @@ const PATH_DEBUG := true
 const _YOL_SPLINE_ADIM := 10
 const _MERGE_TOLERANS := 14.0
 const _YOL_USTU_TOLERANS := 95.0
+const _YOL_BILINCLI_TIK := 48.0
+const _YOL_HIZ_TOLERANS := 36.0
 const _YOL_TIKLAMA_TOLERANS := 220.0
 const _YOLA_ULASIM_TOLERANS := 900.0
 const _YAY_ADIM := 5
@@ -85,16 +87,21 @@ func find_path(from: Vector2, to: Vector2) -> PackedVector2Array:
 	return _waypoint_temizle(tam)
 
 
-func plan_move(from: Vector2, to: Vector2) -> PackedVector2Array:
+func plan_move(from: Vector2, to: Vector2, force_offroad: bool = false) -> PackedVector2Array:
+	# Yol SADECE hedef yolun ustune tiklaninca. Aksi halde duz — yola asla sapma.
+	if force_offroad:
+		return _duz_yol(from, to)
+	var hit_to := _yola_en_yakin(to)
+	var hedef_yolda: bool = float(hit_to["mesafe"]) <= _YOL_BILINCLI_TIK
+	if not hedef_yolda:
+		return _duz_yol(from, to)
 	var yol := find_path(from, to)
 	if yol.size() >= 2:
 		return yol
-	var hit_to := _yola_en_yakin(to)
-	if hit_to["mesafe"] <= _YOL_TIKLAMA_TOLERANS:
-		yol = find_path(from, hit_to["pos"])
-		if yol.size() >= 2:
-			return yol
-	return yola_yaklasim_yolu(from)
+	yol = find_path(from, hit_to["pos"])
+	if yol.size() >= 2:
+		return yol
+	return _duz_yol(from, hit_to["pos"])
 
 
 func yola_yaklasim_yolu(from: Vector2) -> PackedVector2Array:
@@ -107,8 +114,20 @@ func yola_yaklasim_yolu(from: Vector2) -> PackedVector2Array:
 	return sonuc
 
 
+func _duz_yol(from: Vector2, to: Vector2) -> PackedVector2Array:
+	var sonuc := PackedVector2Array()
+	sonuc.append(from)
+	sonuc.append(to)
+	return sonuc
+
+
 func yol_uzerinde_mi(pos: Vector2) -> bool:
 	return _yola_en_yakin(pos)["mesafe"] <= _YOL_USTU_TOLERANS
+
+
+func yol_hiz_avantaji_mi(pos: Vector2) -> bool:
+	# Tam hiz sadece gercekten yol merkezine yakin olunca (graf kenarinda "sayilma" yok).
+	return float(_yola_en_yakin(pos)["mesafe"]) <= _YOL_HIZ_TOLERANS
 
 
 func yola_ulasimda_mi(pos: Vector2) -> bool:
@@ -152,7 +171,7 @@ func path_to_control_point(from: Vector2, nokta_id: String) -> PackedVector2Arra
 	var kapi: Variant = _en_yakin_kapi_konumu(nokta_id, from)
 	if kapi != null:
 		hedef = kapi
-	return find_path(from, hedef)
+	return plan_move(from, hedef)
 
 
 func nearest_node_id(pos: Vector2) -> int:
