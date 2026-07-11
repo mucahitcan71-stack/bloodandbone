@@ -72,6 +72,7 @@ var kavsak_konumlari = {}
 var nokta_puan = {}
 var nokta_altin = {}
 var arazi_bolgeleri: Array = []
+var arazi_poligonlari: Array = []
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
 var gorsel_yollar: Array = []
@@ -165,6 +166,9 @@ func polyline_kale_kes(pts: PackedVector2Array) -> Array:
 
 func get_terrain_regions() -> Array:
 	return arazi_bolgeleri
+
+func get_arazi_poligonlari() -> Array:
+	return arazi_poligonlari
 
 func get_forest_regions() -> Array:
 	return orman_bolgeleri
@@ -307,6 +311,7 @@ func harita_uygula(map_id: String) -> void:
 	nokta_altin = _sabit_nokta_altin.duplicate()
 	harita_sinir = map_data["sinir"].duplicate()
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
+	arazi_poligonlari = map_data.get("arazi_poligonlari", []).duplicate(true)
 	bolge_etiketleri = map_data.get("bolge_etiketleri", []).duplicate(true)
 	gorsel_yollar = map_data.get("gorsel_yollar", []).duplicate(true)
 	gorsel_patikalar = map_data.get("gorsel_patikalar", []).duplicate(true)
@@ -547,6 +552,30 @@ func orman_bolge_index(pos: Vector2) -> int:
 		if rect.has_point(pos):
 			return i
 	return -1
+
+func nokta_poligon_icinde_mi(pos: Vector2, koseler: Array) -> bool:
+	if koseler.size() < 3:
+		return false
+	var poly := PackedVector2Array()
+	for k in koseler:
+		if k is Vector2:
+			poly.append(k)
+		elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
+			var a: Array = k
+			poly.append(Vector2(float(a[0]), float(a[1])))
+	if poly.size() < 3:
+		return false
+	return Geometry2D.is_point_in_polygon(pos, poly)
+
+func gizlenme_bolgesinde_mi(pos: Vector2) -> bool:
+	for bolge in arazi_poligonlari:
+		if typeof(bolge) != TYPE_DICTIONARY:
+			continue
+		if str(bolge.get("tip", "")) != "gizlenme":
+			continue
+		if nokta_poligon_icinde_mi(pos, bolge.get("koseler", [])):
+			return true
+	return false
 
 func harita_gorsellerini_guncelle() -> void:
 	if _root == null:

@@ -22,6 +22,12 @@ var _minimap_fow_doku: ImageTexture = null
 # Gecici: tum haritayi gostermek icin true (sonra false yap)
 var harita_sis_kapali := true
 
+# Pusu gorunurluk (saldiri bonusu ayri adim)
+const _GIZLENME_AKTIF := true
+const _TESPIT_MENZIL := 400.0
+const _GIZLI_MODULATE := Color(1.0, 1.0, 1.0, 0.42)
+const _OYUNCU_TARAF := "osmanli"
+
 const FOG_GORUNUR = Color(0, 0, 0, 0.0)
 const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
 
@@ -145,17 +151,103 @@ func update_point_visibility() -> void:
 			bar.color = Color(1, 0.8, 0)
 
 func update_unit_visibility() -> void:
-	if harita_sis_kapali:
-		for birim in _root.aktif_birimler:
-			if is_instance_valid(birim.get("node")):
-				birim["node"].visible = true
-		update_enemy_intel(_root.aktif_birimler)
-		return
+	guncelle_gizlenme_durumlari(_root.aktif_birimler)
 	for birim in _root.aktif_birimler:
-		if not is_instance_valid(birim["node"]):
-			continue
-		birim["node"].visible = is_unit_visible_to_player(birim, _root.aktif_birimler)
+		_birim_gorunurluk_uygula(birim)
 	update_enemy_intel(_root.aktif_birimler)
+
+func guncelle_gizlenme_durumlari(units: Array) -> void:
+	if not _GIZLENME_AKTIF:
+		for birim in units:
+			if birim.get("hp", 0) > 0:
+				birim["pusu_arazi_gizli"] = false
+		return
+	for birim in units:
+		if birim.get("hp", 0) <= 0:
+			birim["pusu_arazi_gizli"] = false
+			continue
+		if birim.get("pusu_modunda", false):
+			# Komut pususu ayri; arazi bayragini temiz tut
+			birim["pusu_arazi_gizli"] = false
+			continue
+		birim["pusu_arazi_gizli"] = _birim_arazi_gizli_mi(birim, units)
+
+func _birim_arazi_gizli_mi(birim: Dictionary, units: Array) -> bool:
+	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
+	# 3) Yol uzerinde -> her zaman gorunur
+	if _root.has_method("yol_uzerinde_mi") and _root.yol_uzerinde_mi(konum):
+		return false
+	var gizlenme_icinde := _world != null and _world.gizlenme_bolgesinde_mi(konum)
+	var duruyor := _birim_duruyor_mu(birim)
+	# 1) Gizlenme bolgesi + duruyor -> tam gizli
+	if gizlenme_icinde and duruyor:
+		return true
+	# 2) Yol disi (gizlenme disi veya hareket halinde) -> tespit menzili
+	return not _dusman_tespit_menzilinde(birim, units)
+
+func _birim_duruyor_mu(birim: Dictionary) -> bool:
+	if int(birim.get("takip_edilen_dusman", -1)) >= 0:
+		return false
+	if birim.get("geri_cekiliyor", false):
+		return false
+	if bool(birim.get("hareket_durdu", false)):
+		return true
+	var hedef: Vector2 = birim.get("hedef", birim.get("konum", Vector2.ZERO))
+	return birim.get("konum", Vector2.ZERO).distance_to(hedef) <= 8.0
+
+func _dusman_tespit_menzilinde(birim: Dictionary, units: Array) -> bool:
+	var taraf := str(birim.get("taraf", ""))
+	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
+	for b in units:
+		if b.get("hp", 0) <= 0:
+			continue
+		if str(b.get("taraf", "")) == taraf:
+			continue
+		if konum.distance_to(b.get("konum", Vector2.ZERO)) <= _TESPIT_MENZIL:
+			return true
+	return false
+
+func _birim_gorunurluk_uygula(birim: Dictionary) -> void:
+	if birim.get("hp", 0) <= 0:
+		return
+	var kendi := str(birim.get("taraf", "")) == _OYUNCU_TARAF
+	var gizli := bool(birim.get("pusu_modunda", false)) or bool(birim.get("pusu_arazi_gizli", false))
+	var gorunur: bool
+	if kendi:
+		gorunur = true
+	else:
+		gorunur = is_unit_visible_to_player(birim, _root.aktif_birimler)
+	var kok = birim.get("kok_node")
+	var node = birim.get("node")
+	var cerceve = birim.get("cerceve_node")
+	if is_instance_valid(kok):
+		kok.visible = gorunur
+		kok.modulate = _GIZLI_MODULATE if (kendi and gizli and gorunur) else Color.WHITE
+	if is_instance_valid(node):
+		node.visible = gorunur
+		if not is_instance_valid(kok):
+			node.modulate = _GIZLI_MODULATE if (kendi and gizli and gorunur) else Color.WHITE
+	if is_instance_valid(cerceve):
+		cerceve.visible = gorunur
+		if not is_instance_valid(kok):
+			cerceve.modulate = _GIZLI_MODULATE if (kendi and gizli and gorunur) else Color.WHITE
+
+func is_unit_visible_to_faction(target: Dictionary, observer_faction: String, units: Array) -> bool:
+	if target.get("hp", 0) <= 0:
+		return false
+	if str(target.get("taraf", "")) == observer_faction:
+		return true
+	# Pusu / gizlenme: sis kapali olsa bile dusmana kapali
+	if target.get("pusu_modunda", false):
+		return false
+	if _GIZLENME_AKTIF and target.get("pusu_arazi_gizli", false):
+		return false
+	if harita_sis_kapali:
+		return true
+	return _goruste_mi(target["konum"], get_current_vision(observer_faction))
+
+func is_unit_visible_to_player(unit: Dictionary, units: Array) -> bool:
+	return is_unit_visible_to_faction(unit, _OYUNCU_TARAF, units)
 
 func tick_battle_fog() -> void:
 	update_vision(_root.aktif_birimler, _root.nokta_sahipleri)
@@ -218,22 +310,6 @@ func is_forest_stealth_broken(target: Dictionary, observer_faction: String, unit
 		if _world.orman_bolge_index(b["konum"]) == bolge_idx and b["konum"].distance_to(target["konum"]) <= tespit_mesafesi:
 			return true
 	return false
-
-func is_unit_visible_to_faction(target: Dictionary, observer_faction: String, units: Array) -> bool:
-	if harita_sis_kapali and observer_faction == "osmanli":
-		return target["hp"] > 0
-	if target["taraf"] == observer_faction:
-		return true
-	if target["hp"] <= 0:
-		return false
-	if target.get("pusu_modunda", false):
-		return false
-	if target.get("pusu_arazi_gizli", false) and not is_forest_stealth_broken(target, observer_faction, units):
-		return false
-	return _goruste_mi(target["konum"], get_current_vision(observer_faction))
-
-func is_unit_visible_to_player(unit: Dictionary, units: Array) -> bool:
-	return is_unit_visible_to_faction(unit, "osmanli", units)
 
 func update_vision(units: Array, point_owners: Dictionary) -> void:
 	su_anki_gorus_alani.clear()
