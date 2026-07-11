@@ -13,6 +13,7 @@ const _ZEMIN_DOKU := "3d"  # "3d" | "cim" | "zengin" | "pixel"
 const _PIXEL_CIMEN_ZEMIN := false
 const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
+const _ARAZI_GORSEL := true  # editor poligonlari (gizlenme/tepe/vadi)
 const _CIMEN_GRID_K := 64.0
 const _CIMEN_GERCEK_YOL := "res://assets/zemin/cimen_gercek.jpg"
 const _CIMEN_ZENGIN_YOLLARI := [
@@ -652,6 +653,55 @@ func arazi_gorsellerini_guncelle() -> void:
 			_arazi_bolge_ciz(bolge, rect, tip, i)
 		if _ISO_ARAZI_CIZIMI and not _GIZLE_ARAZI_BOLGE_GORSEL:
 			_arazi_bolgesini_izo_ciz(bolge, rect, tip, i, iso_offset)
+	_arazi_poligon_gorsellerini_ekle()
+
+func _arazi_poligon_tip_rengi(tip: String) -> Color:
+	match tip:
+		"gizlenme":
+			return Color(0.1, 0.4, 0.1, 0.30)
+		"tepe":
+			return Color(0.5, 0.35, 0.2, 0.30)
+		"vadi":
+			return Color(0.3, 0.5, 0.6, 0.30)
+		_:
+			return Color(0.3, 0.3, 0.3, 0.25)
+
+func _arazi_poligon_gorsellerini_ekle() -> void:
+	if not _ARAZI_GORSEL or not is_instance_valid(arazi_katmani):
+		return
+	for i in range(arazi_poligonlari.size()):
+		var bolge = arazi_poligonlari[i]
+		if typeof(bolge) != TYPE_DICTIONARY:
+			continue
+		var tip := str(bolge.get("tip", "gizlenme"))
+		var koseler: Array = bolge.get("koseler", [])
+		if koseler.size() < 3:
+			continue
+		var pts := PackedVector2Array()
+		for k in koseler:
+			if k is Vector2:
+				pts.append(_izo(k))
+			elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
+				var a: Array = k
+				pts.append(_izo(Vector2(float(a[0]), float(a[1]))))
+		if pts.size() < 3:
+			continue
+		var renk := _arazi_poligon_tip_rengi(tip)
+		var poly := Polygon2D.new()
+		poly.name = "AraziPoligon_" + tip + "_" + str(i)
+		poly.polygon = pts
+		poly.color = renk
+		poly.z_index = 7
+		arazi_katmani.add_child(poly)
+		var kenar := Line2D.new()
+		kenar.name = "AraziPoligonKenar_" + tip + "_" + str(i)
+		kenar.points = pts
+		kenar.closed = true
+		kenar.width = 2.0
+		kenar.default_color = Color(renk.r, renk.g, renk.b, minf(1.0, renk.a + 0.45))
+		kenar.antialiased = true
+		kenar.z_index = 8
+		arazi_katmani.add_child(kenar)
 
 func decor_gorsellerini_guncelle() -> void:
 	if not is_instance_valid(decor_katmani):
