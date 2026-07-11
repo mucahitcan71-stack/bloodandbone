@@ -3,6 +3,9 @@ class_name CombatLoopSystem
 
 const Constants = preload("res://scripts/constants.gd")
 const _YOL_DISI_HIZ_CARPAN := 0.5
+const _PUSU_AKTIF := true
+const _PUSU_HASAR_CARPAN := 1.5
+const _PUSU_MORAL_CEZA := 12.0
 
 var _host: Node2D = null
 
@@ -16,6 +19,7 @@ func tick(delta: float) -> void:
 	_host.fog_system.tick_battle_fog()
 
 func _process_attacks(delta: float) -> void:
+	var hazir: Array = []
 	for birim in _host.aktif_birimler:
 		if birim["hp"] <= 0:
 			continue
@@ -27,32 +31,98 @@ func _process_attacks(delta: float) -> void:
 			continue
 		birim["saldirim_timer"] = 0.0
 
-		var dusman_listesi: Array = []
-		var saldiran_efekt = _host.birim_etkin_degerleri(birim)
-		for b in _host.aktif_birimler:
-			if b["taraf"] != birim["taraf"] and b["hp"] > 0:
-				if not _host.birim_gorunur_mu_tarafa(b, birim["taraf"]):
-					continue
-				if birim["konum"].distance_to(b["konum"]) <= saldiran_efekt["menzil"]:
-					dusman_listesi.append(b)
-
-		if dusman_listesi.is_empty():
+		var hedefler := _menzildeki_dusmanlar(birim)
+		if hedefler.is_empty():
 			birim["savas_halinde"] = false
 			continue
-
 		birim["savas_halinde"] = true
-		var hasar_per = max(1.0, float(saldiran_efekt["guc"]) / float(dusman_listesi.size()))
-		for dusman in dusman_listesi:
-			var dusman_efekt = _host.birim_etkin_degerleri(dusman)
-			var carpan = _host.hasar_carpani_hesapla(birim["isim"], dusman["isim"])
-			if not birim.get("pusu_ilk_saldiri_kullanildi", true):
-				carpan *= float(birim.get("pusu_hasar_carpani", _host.pusu_ilk_saldiri_carpani))
-				birim["pusu_ilk_saldiri_kullanildi"] = true
-			var gercek_hasar = max(1.0, (hasar_per - float(dusman_efekt["savunma"])) * carpan)
-			dusman["bekleyen_hasar"] += gercek_hasar
-			birim["hasar_verilen"] += int(gercek_hasar)
-			_host.ult_sarj[birim["taraf"]] = min(100.0, _host.ult_sarj[birim["taraf"]] + gercek_hasar * 0.08)
-			_host.mac_istatistik[birim["taraf"]]["hasar"] += gercek_hasar
+		hazir.append({"birim": birim, "hedefler": hedefler})
+
+	# Ilk vurus: pusu saldirilari once, hasar hemen uygulanir; sonra normal
+	var normal: Array = []
+	for kayit in hazir:
+		var birim: Dictionary = kayit["birim"]
+		var hedefler: Array = kayit["hedefler"]
+		var pusu_hedefler: Array = []
+		var diger_hedefler: Array = []
+		for dusman in hedefler:
+			if dusman.get("hp", 0) <= 0:
+				continue
+			if _pusu_saldiri_mi(birim, dusman):
+				pusu_hedefler.append(dusman)
+			else:
+				diger_hedefler.append(dusman)
+		if not pusu_hedefler.is_empty():
+			_saldiri_uygula(birim, pusu_hedefler, true)
+			_apply_pending_damage()
+		if not diger_hedefler.is_empty():
+			normal.append({"birim": birim, "hedefler": diger_hedefler})
+
+	for kayit in normal:
+		var birim2: Dictionary = kayit["birim"]
+		if birim2.get("hp", 0) <= 0:
+			continue
+		var canli: Array = []
+		for d in kayit["hedefler"]:
+			if d.get("hp", 0) > 0:
+				canli.append(d)
+		if not canli.is_empty():
+			_saldiri_uygula(birim2, canli, false)
+
+func _menzildeki_dusmanlar(birim: Dictionary) -> Array:
+	var sonuc: Array = []
+	var saldiran_efekt = _host.birim_etkin_degerleri(birim)
+	for b in _host.aktif_birimler:
+		if b["taraf"] == birim["taraf"] or b["hp"] <= 0:
+			continue
+		if not _host.birim_gorunur_mu_tarafa(b, birim["taraf"]):
+			continue
+		if birim["konum"].distance_to(b["konum"]) <= saldiran_efekt["menzil"]:
+			sonuc.append(b)
+	return sonuc
+
+func _pusu_saldiri_mi(saldiran: Dictionary, hedef: Dictionary) -> bool:
+	if not _PUSU_AKTIF:
+		return false
+	# Komut pususu tetik sonrasi rezerve ilk vurus
+	if not saldiran.get("pusu_ilk_saldiri_kullanildi", true):
+		return true
+	# Arazi gizliligi: saldiran, hedefin tarafindan gorunmuyor
+	return not _host.birim_gorunur_mu_tarafa(saldiran, str(hedef.get("taraf", "")))
+
+func _saldiri_uygula(birim: Dictionary, dusman_listesi: Array, pusu: bool) -> void:
+	if dusman_listesi.is_empty() or birim.get("hp", 0) <= 0:
+		return
+	var saldiran_efekt = _host.birim_etkin_degerleri(birim)
+	var hasar_per = max(1.0, float(saldiran_efekt["guc"]) / float(dusman_listesi.size()))
+	var pusu_kullanildi := false
+	for dusman in dusman_listesi:
+		if dusman.get("hp", 0) <= 0:
+			continue
+		var dusman_efekt = _host.birim_etkin_degerleri(dusman)
+		var carpan = _host.hasar_carpani_hesapla(birim["isim"], dusman["isim"])
+		var bu_pusu := pusu and _pusu_saldiri_mi(birim, dusman)
+		if bu_pusu:
+			carpan *= _PUSU_HASAR_CARPAN
+			if not pusu_kullanildi:
+				_host.moral_degistir(str(dusman.get("taraf", "")), -_PUSU_MORAL_CEZA)
+			pusu_kullanildi = true
+		var gercek_hasar = max(1.0, (hasar_per - float(dusman_efekt["savunma"])) * carpan)
+		dusman["bekleyen_hasar"] += gercek_hasar
+		birim["hasar_verilen"] += int(gercek_hasar)
+		_host.ult_sarj[birim["taraf"]] = min(100.0, _host.ult_sarj[birim["taraf"]] + gercek_hasar * 0.08)
+		_host.mac_istatistik[birim["taraf"]]["hasar"] += gercek_hasar
+	if pusu_kullanildi:
+		_pusu_ortaya_cik(birim)
+
+func _pusu_ortaya_cik(birim: Dictionary) -> void:
+	birim["pusu_modunda"] = false
+	birim["pusu_arazi_gizli"] = false
+	birim["pusu_ilk_saldiri_kullanildi"] = true
+	if birim.get("taraf", "") == "osmanli":
+		var savas_l = _host.ui_node("Label_SavasBilgi") if _host.has_method("ui_node") else null
+		if savas_l != null:
+			savas_l.text = "Pusu! Ilk vurus x%.1f, dusman morali dustu" % _PUSU_HASAR_CARPAN
 
 func _apply_pending_damage() -> void:
 	for birim in _host.aktif_birimler:
@@ -172,9 +242,6 @@ func _process_movement_and_deaths(delta: float) -> void:
 					birim["hareket_durdu"] = false
 				else:
 					hedefe_varildi = true
-		elif not birim.get("pusu_modunda", false):
-			var orman_idx = _host._orman_bolge_index(birim["konum"])
-			birim["pusu_arazi_gizli"] = orman_idx >= 0 and not dusman_menzilde and hedefe_varildi
 		if hedefe_varildi and not chasing and not birim.get("pusu_modunda", false) and not birim.get("savunma_modunda", false):
 			birim["hedef"] = birim["konum"]
 			birim["hareket_durdu"] = true
