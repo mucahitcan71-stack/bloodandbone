@@ -187,6 +187,9 @@ static func parse_map(data: Dictionary) -> Dictionary:
 	print("[US] yuklenen usler=", usler)
 
 	var proplar: Array = _parse_proplar(data.get("proplar", []))
+	# Editor poligon arazileri (gizlenme/tepe/vadi). Oyun gorsel/mantik henuz kullanmaz.
+	# Not: "arazi_bolgeleri" ciktisi eski rect araziler (araziler[]) icindir; poligonlar ayri tutulur.
+	var arazi_poligonlari: Array = _parse_arazi_poligonlari(data.get("arazi_bolgeleri", []))
 
 	return {
 		"id": str(data.get("id", "")),
@@ -197,6 +200,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"nokta_altin": nokta_altin,
 		"sinir": bounds,
 		"arazi_bolgeleri": arazi_bolgeleri,
+		"arazi_poligonlari": arazi_poligonlari,
 		"bolge_etiketleri": bolge_etiketleri,
 		"gorsel_yollar": gorsel_yollar,
 		"gorsel_patikalar": gorsel_patikalar,
@@ -257,6 +261,29 @@ static func _parse_proplar(raw: Variant) -> Array:
 			"olcek": PropKatalog.olcek_normalize(ham_olcek, baz),
 			"rot": float(d.get("rot", 0.0)),
 		})
+	return sonuc
+
+static func _parse_arazi_poligonlari(raw: Variant) -> Array:
+	var sonuc: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return sonuc
+	for entry in raw:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = entry
+		var tip_id := str(d.get("tip", "gizlenme"))
+		var ham_koseler: Variant = d.get("koseler", [])
+		if typeof(ham_koseler) != TYPE_ARRAY:
+			continue
+		var koseler: Array = []
+		for pt in ham_koseler as Array:
+			if typeof(pt) != TYPE_ARRAY or (pt as Array).size() < 2:
+				continue
+			var parr: Array = pt
+			koseler.append(Vector2(float(parr[0]), float(parr[1])))
+		if koseler.size() < 3:
+			continue
+		sonuc.append({"tip": tip_id, "koseler": koseler})
 	return sonuc
 
 static func _parse_gorsel_yollar(raw: Variant) -> Array:

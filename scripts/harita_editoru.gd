@@ -1132,6 +1132,7 @@ func _kaydet_editor_cikti() -> void:
 		"cevre_dekor": [],
 		"bolge_etiketleri": [],
 		"proplar": _json_proplar_uret(),
+		"arazi_bolgeleri": _json_arazi_bolgeleri_uret(),
 	}
 
 	var klasor := "res://data/maps"
@@ -1264,8 +1265,13 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 				yeni_yollar.append({"a": a, "b": b, "ara": ara_list, "tip": str(yol.get("tip", "ana"))})
 	yollar = yeni_yollar
 	_proplar_yukle(kayit)
-	print("Yuklendi: %s (%d nokta, %d yol, %d prop)" % [CIKTI_DOSYA, noktalar.size(), yollar.size(), proplar.size()])
-	_durum_mesaji = "Yuklendi: %d nokta, %d yol, %d prop" % [noktalar.size(), yollar.size(), proplar.size()]
+	_arazi_bolgeleri_yukle(kayit)
+	print("Yuklendi: %s (%d nokta, %d yol, %d prop, %d arazi)" % [
+		CIKTI_DOSYA, noktalar.size(), yollar.size(), proplar.size(), arazi_bolgeleri.size()
+	])
+	_durum_mesaji = "Yuklendi: %d nokta, %d yol, %d prop, %d arazi" % [
+		noktalar.size(), yollar.size(), proplar.size(), arazi_bolgeleri.size()
+	]
 	_durum_sure = 3.0
 	queue_redraw()
 
@@ -1779,6 +1785,49 @@ func _json_proplar_uret() -> Array:
 			"rot": snappedf(float(prop.get("rot", 0.0)), 0.01),
 		})
 	return json_proplar
+
+
+func _json_arazi_bolgeleri_uret() -> Array:
+	var sonuc: Array = []
+	for bolge in arazi_bolgeleri:
+		if typeof(bolge) != TYPE_DICTIONARY:
+			continue
+		var tip_id := str(bolge.get("tip", "gizlenme"))
+		var pts: Array = bolge.get("koseler", [])
+		if pts.size() < 3:
+			continue
+		var koseler_json: Array = []
+		for p in pts:
+			if p is Vector2:
+				koseler_json.append([int(round(p.x)), int(round(p.y))])
+		if koseler_json.size() < 3:
+			continue
+		sonuc.append({"tip": tip_id, "koseler": koseler_json})
+	return sonuc
+
+
+func _arazi_bolgeleri_yukle(kayit: Dictionary) -> void:
+	arazi_bolgeleri.clear()
+	_arazi_cizim_iptal()
+	var ham: Variant = kayit.get("arazi_bolgeleri", [])
+	if typeof(ham) != TYPE_ARRAY:
+		return
+	for raw in ham as Array:
+		if typeof(raw) != TYPE_DICTIONARY:
+			continue
+		var d: Dictionary = raw
+		var tip_id := str(d.get("tip", "gizlenme"))
+		var ham_koseler: Variant = d.get("koseler", [])
+		if typeof(ham_koseler) != TYPE_ARRAY:
+			continue
+		var koseler: Array = []
+		for pt in ham_koseler as Array:
+			if typeof(pt) == TYPE_ARRAY and (pt as Array).size() >= 2:
+				var parr: Array = pt
+				koseler.append(Vector2(float(parr[0]), float(parr[1])))
+		if koseler.size() < 3:
+			continue
+		arazi_bolgeleri.append({"tip": tip_id, "koseler": koseler})
 
 
 func _proplar_yukle(kayit: Dictionary) -> void:
