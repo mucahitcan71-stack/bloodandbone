@@ -3,9 +3,11 @@ class_name CameraController
 
 var speed := 800.0
 var edge_trigger_px := 35.0
-var zoom_min := 0.15
-var zoom_max := 1.5
-var zoom_speed := 0.1
+## En uzak / en yakin Camera2D.zoom (tek zoom kaynagi; 3D size bundan turetilir).
+var zoom_min := 0.12
+var zoom_max := 5.0
+## Carpimsal adim (0.1 => her tekerlek ~%10).
+var zoom_speed := 0.12
 
 func apply_pan(camera: Camera2D, delta: float, mouse_pos: Vector2, viewport_size: Vector2, clamp_cb: Callable) -> void:
 	if camera == null:
@@ -41,14 +43,15 @@ func apply_drag_pan(camera: Camera2D, relative: Vector2, clamp_cb: Callable) -> 
 	if clamp_cb.is_valid():
 		clamp_cb.call()
 
+## zoom_in=true => uzaklas (Camera2D.zoom kuculur). InputRouter bu sozlesmeyi kullanir.
 func apply_zoom(camera: Camera2D, zoom_in: bool) -> void:
 	if camera == null:
 		return
-	var delta = Vector2(zoom_speed, zoom_speed)
+	var z := camera.zoom.x
+	var faktor := 1.0 + zoom_speed
 	if zoom_in:
-		delta *= -1.0
-	var yeni = camera.zoom + delta
-	camera.zoom = Vector2(
-		clamp(yeni.x, zoom_min, zoom_max),
-		clamp(yeni.y, zoom_min, zoom_max)
-	)
+		z /= faktor
+	else:
+		z *= faktor
+	z = clampf(z, zoom_min, zoom_max)
+	camera.zoom = Vector2(z, z)

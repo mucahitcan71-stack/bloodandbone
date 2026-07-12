@@ -18,6 +18,19 @@ var hazirlik_tab_container_map = {}
 var savas_paneli: Array = []
 var hiz_tek_btn: Button = null
 var savas_kaynak_satir: HBoxContainer = null
+var _fps_label: Label = null
+var _fps_legend: Label = null
+var _timing_label: Label = null
+var _fps_acik := true
+var _PERF_DIAG_TIMING_ACIK := false
+var _perf_diag_status := {
+	"prop": true, "golge": true, "ssao": true, "asker": true,
+	"fog": true, "minimap": true, "zemin": true, "viewport": true, "timing": false,
+}
+var _timing_us := {
+	"fog": 0, "minimap": 0, "combat": 0, "ui": 0, "zemin3d": 0,
+	"combat_hareket": 0, "combat_mesafe": 0, "combat_yol": 0, "combat_gorunurluk": 0,
+}
 
 func configure(root_node: Node2D) -> void:
 	_root = root_node
@@ -92,6 +105,150 @@ func get_detay_popup_timer() -> Timer:
 
 func build_unit_detail_popup() -> void:
 	_detail_popup.build()
+
+func build_fps_overlay() -> void:
+	if _root == null or not _root.has_node("CanvasLayer"):
+		return
+	if is_instance_valid(_fps_label):
+		return
+	var layer: CanvasLayer = _root.get_node("CanvasLayer")
+	var lbl := Label.new()
+	lbl.name = "Label_Fps"
+	lbl.visible = true
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	lbl.position = Vector2(8, 8)
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", Color(0.98, 0.98, 0.75, 1.0))
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	lbl.add_theme_constant_override("outline_size", 3)
+	lbl.text = _fps_overlay_metni()
+	layer.add_child(lbl)
+	_fps_label = lbl
+	var legend := Label.new()
+	legend.name = "Label_FpsLegend"
+	legend.visible = true
+	legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	legend.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	legend.position = Vector2(8, 32)
+	legend.add_theme_font_size_override("font_size", 14)
+	legend.add_theme_color_override("font_color", Color(0.85, 0.9, 0.75, 0.95))
+	legend.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	legend.add_theme_constant_override("outline_size", 2)
+	legend.text = "F4:Fog  F12:Mini  Ctrl+F6:Zemin  Ctrl+F7:VP  F1:Timing | F6:Prop  F7:Golge  F10:SSAO  F11:Asker  F2:FPS"
+	layer.add_child(legend)
+	_fps_legend = legend
+	var timing := Label.new()
+	timing.name = "Label_PerfTiming"
+	timing.visible = false
+	timing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	timing.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	timing.position = Vector2(8, 52)
+	timing.add_theme_font_size_override("font_size", 15)
+	timing.add_theme_color_override("font_color", Color(0.75, 0.95, 1.0, 1.0))
+	timing.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	timing.add_theme_constant_override("outline_size", 3)
+	timing.text = _timing_overlay_metni()
+	layer.add_child(timing)
+	_timing_label = timing
+	_fps_acik = true
+
+func toggle_fps_overlay() -> void:
+	_fps_acik = not _fps_acik
+	if is_instance_valid(_fps_label):
+		_fps_label.visible = _fps_acik
+		if _fps_acik:
+			_fps_label.text = _fps_overlay_metni()
+	if is_instance_valid(_fps_legend):
+		_fps_legend.visible = _fps_acik
+	if is_instance_valid(_timing_label):
+		_timing_label.visible = _fps_acik and _PERF_DIAG_TIMING_ACIK
+
+func set_perf_diag_status(status: Dictionary) -> void:
+	_perf_diag_status = status
+	if _fps_acik and is_instance_valid(_fps_label):
+		_fps_label.text = _fps_overlay_metni()
+
+func is_perf_timing_acik() -> bool:
+	return _PERF_DIAG_TIMING_ACIK
+
+func toggle_perf_timing() -> bool:
+	_PERF_DIAG_TIMING_ACIK = not _PERF_DIAG_TIMING_ACIK
+	_perf_diag_status["timing"] = _PERF_DIAG_TIMING_ACIK
+	if is_instance_valid(_timing_label):
+		_timing_label.visible = _fps_acik and _PERF_DIAG_TIMING_ACIK
+		if _PERF_DIAG_TIMING_ACIK:
+			_timing_label.text = _timing_overlay_metni()
+	return _PERF_DIAG_TIMING_ACIK
+
+func perf_timing_frame_basla() -> void:
+	if not _PERF_DIAG_TIMING_ACIK:
+		return
+	for k in _timing_us.keys():
+		_timing_us[k] = 0
+
+func perf_timing_basla() -> int:
+	if not _PERF_DIAG_TIMING_ACIK:
+		return -1
+	return Time.get_ticks_usec()
+
+func perf_timing_ekle(key: String, t0: int) -> void:
+	if t0 < 0:
+		return
+	_timing_us[key] = int(_timing_us.get(key, 0)) + (Time.get_ticks_usec() - t0)
+
+func perf_timing_us_ekle(key: String, us: int) -> void:
+	if not _PERF_DIAG_TIMING_ACIK or us <= 0:
+		return
+	_timing_us[key] = int(_timing_us.get(key, 0)) + us
+
+func perf_timing_combat_topla() -> void:
+	if not _PERF_DIAG_TIMING_ACIK:
+		return
+	_timing_us["combat"] = (
+		int(_timing_us.get("combat_hareket", 0))
+		+ int(_timing_us.get("combat_mesafe", 0))
+		+ int(_timing_us.get("combat_yol", 0))
+	)
+
+func tick_fps_overlay() -> void:
+	if not _fps_acik or not is_instance_valid(_fps_label):
+		return
+	_fps_label.text = _fps_overlay_metni()
+	if _PERF_DIAG_TIMING_ACIK and is_instance_valid(_timing_label):
+		_timing_label.text = _timing_overlay_metni()
+
+func _fps_overlay_metni() -> String:
+	return "FPS: %d  |  Prop:%s Golge:%s SSAO:%s Asker:%s | Fog:%s Mini:%s Zem:%s VP:%s" % [
+		Engine.get_frames_per_second(),
+		_perf_diag_etiket("prop"),
+		_perf_diag_etiket("golge"),
+		_perf_diag_etiket("ssao"),
+		_perf_diag_etiket("asker"),
+		_perf_diag_etiket("fog"),
+		_perf_diag_etiket("minimap"),
+		_perf_diag_etiket("zemin"),
+		_perf_diag_etiket("viewport"),
+	]
+
+func _timing_overlay_metni() -> String:
+	return (
+		"Fog: %.1fms | Minimap: %.1fms | Combat: %.1fms | UI: %.1fms | Zemin3d: %.1fms\n"
+		+ "Hareket: %.1fms | Mesafe: %.1fms | Yol: %.1fms | Gorunurluk: %.1fms"
+	) % [
+		float(_timing_us.get("fog", 0)) / 1000.0,
+		float(_timing_us.get("minimap", 0)) / 1000.0,
+		float(_timing_us.get("combat", 0)) / 1000.0,
+		float(_timing_us.get("ui", 0)) / 1000.0,
+		float(_timing_us.get("zemin3d", 0)) / 1000.0,
+		float(_timing_us.get("combat_hareket", 0)) / 1000.0,
+		float(_timing_us.get("combat_mesafe", 0)) / 1000.0,
+		float(_timing_us.get("combat_yol", 0)) / 1000.0,
+		float(_timing_us.get("combat_gorunurluk", 0)) / 1000.0,
+	]
+
+func _perf_diag_etiket(k: String) -> String:
+	return "ACIK" if bool(_perf_diag_status.get(k, true)) else "KAPALI"
 
 func begin_unit_detail_hover(tip: Dictionary) -> void:
 	_detail_popup.begin_hover(tip)

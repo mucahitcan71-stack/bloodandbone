@@ -4,7 +4,7 @@ class_name PathGraphSystem
 const PathSpline = preload("res://scripts/path_spline.gd")
 
 # Ileride yol uzeri pusu noktalari: graf dugum tipi "pusu_noktasi" + yola_snap ayni kenar agi.
-const PATH_DEBUG := true
+var PATH_DEBUG := false
 
 const _YOL_SPLINE_ADIM := 10
 const _MERGE_TOLERANS := 14.0
@@ -22,6 +22,8 @@ var _debug_katmani: Node2D = null
 var _nodes: Array = []
 var _edges: Array = []
 var _adjacency: Array = []
+var _edge_spatial: Dictionary = {}
+const _SPATIAL_CELL := 256.0
 
 
 func configure(root: Node2D, world: WorldSystem) -> void:
@@ -33,6 +35,7 @@ func rebuild() -> void:
 	_nodes.clear()
 	_edges.clear()
 	_adjacency.clear()
+	_edge_spatial.clear()
 	if _world == null:
 		_debug_temizle()
 		return
@@ -40,10 +43,20 @@ func rebuild() -> void:
 	_graf_kavsaklardan_insaa()
 	_graf_kale_kapi_yaylari_bagla()
 	_adjacency_olustur()
+	_spatial_olustur()
 	if PATH_DEBUG:
 		_debug_cizimi_guncelle()
 	else:
 		_debug_temizle()
+
+
+func toggle_path_debug() -> bool:
+	PATH_DEBUG = not PATH_DEBUG
+	if PATH_DEBUG:
+		_debug_cizimi_guncelle()
+	else:
+		_debug_temizle()
+	return PATH_DEBUG
 
 
 func find_path(from: Vector2, to: Vector2) -> PackedVector2Array:
@@ -144,6 +157,37 @@ func yola_snap(pos: Vector2) -> Dictionary:
 
 
 func _yola_en_yakin(pos: Vector2) -> Dictionary:
+	if _edges.is_empty():
+		return {"pos": pos, "mesafe": INF}
+	if _edge_spatial.is_empty():
+		return _yola_en_yakin_tam(pos)
+	var ck := _spatial_key(pos)
+	var en_kisa := INF
+	var en_iyi := pos
+	# 900px ulasim toleransina yetecek halka (~4 hucre)
+	var max_ring := 4
+	for ring in range(max_ring + 1):
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				if ring > 0 and maxi(absi(dx), absi(dy)) != ring:
+					continue
+				var liste = _edge_spatial.get(Vector2i(ck.x + dx, ck.y + dy), null)
+				if liste == null:
+					continue
+				for ei in liste:
+					var e: Dictionary = _edges[ei]
+					var pa: Vector2 = _nodes[e["a"]]["pos"]
+					var pb: Vector2 = _nodes[e["b"]]["pos"]
+					var hit := _segment_en_yakin(pa, pb, pos)
+					if hit["dist"] < en_kisa:
+						en_kisa = hit["dist"]
+						en_iyi = hit["pos"]
+	if en_kisa < INF:
+		return {"pos": en_iyi, "mesafe": en_kisa}
+	return _yola_en_yakin_tam(pos)
+
+
+func _yola_en_yakin_tam(pos: Vector2) -> Dictionary:
 	var en_kisa := INF
 	var en_iyi := pos
 	for e in _edges:
@@ -154,6 +198,26 @@ func _yola_en_yakin(pos: Vector2) -> Dictionary:
 			en_kisa = hit["dist"]
 			en_iyi = hit["pos"]
 	return {"pos": en_iyi, "mesafe": en_kisa}
+
+
+func _spatial_key(pos: Vector2) -> Vector2i:
+	return Vector2i(int(floor(pos.x / _SPATIAL_CELL)), int(floor(pos.y / _SPATIAL_CELL)))
+
+
+func _spatial_olustur() -> void:
+	_edge_spatial.clear()
+	for i in range(_edges.size()):
+		var e: Dictionary = _edges[i]
+		var pa: Vector2 = _nodes[e["a"]]["pos"]
+		var pb: Vector2 = _nodes[e["b"]]["pos"]
+		var min_c := _spatial_key(Vector2(minf(pa.x, pb.x), minf(pa.y, pb.y)))
+		var max_c := _spatial_key(Vector2(maxf(pa.x, pb.x), maxf(pa.y, pb.y)))
+		for x in range(min_c.x, max_c.x + 1):
+			for y in range(min_c.y, max_c.y + 1):
+				var k := Vector2i(x, y)
+				if not _edge_spatial.has(k):
+					_edge_spatial[k] = []
+				_edge_spatial[k].append(i)
 
 
 func _segment_en_yakin(a: Vector2, b: Vector2, p: Vector2) -> Dictionary:

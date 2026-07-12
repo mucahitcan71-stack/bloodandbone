@@ -93,8 +93,7 @@ func select_unit(birim) -> Dictionary:
 		_deselect_unit_visual(secili_birim)
 	secili_birim = birim
 	birim["secili"] = true
-	if is_instance_valid(birim.get("node")):
-		birim["node"].modulate = Color(1.5, 1.5, 0.5)
+	_birim_secim_gorseli(birim, true)
 	var metin = "Secili: " + str(birim.get("isim", "Birim"))
 	metin += " — hedefe tikla" if secili_komut == "hareket" else " — pusu kurmak icin tikla"
 	return {
@@ -106,13 +105,23 @@ func _deselect_unit_visual(birim) -> void:
 	if birim == null:
 		return
 	birim["secili"] = false
-	if is_instance_valid(birim.get("node")):
-		birim["node"].modulate = Color(1, 1, 1)
+	_birim_secim_gorseli(birim, false)
 
 func _release_unit_after_command(birim: Dictionary) -> void:
 	birim["secili"] = false
-	if is_instance_valid(birim.get("node")):
+	_birim_secim_gorseli(birim, false)
+
+func _birim_secim_gorseli(birim, secili: bool) -> void:
+	# Eski sari secim karesi (cerceve) kapali — geri bildirim sadece zemin halkasi
+	var cerceve = birim.get("cerceve_node") if birim is Dictionary else null
+	if is_instance_valid(cerceve):
+		cerceve.visible = false
+	if birim is Dictionary and is_instance_valid(birim.get("node")):
 		birim["node"].modulate = Color(1, 1, 1)
+	if birim is Dictionary and _root != null:
+		var ws = _root.get("world_system")
+		if ws != null:
+			ws.zemin3d_birim_halka_secili(birim, secili)
 
 func execute_move(hedef_pos: Vector2, force_offroad: bool = false) -> Dictionary:
 	if secili_birim == null:

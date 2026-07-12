@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dp4u6f3ga5ilx"]
+
+[ext_resource type="Script" uid="uid://q4jnjun7ava5" path="res://scripts/harita_editoru.gd" id="1"]
+
+[node name="HaritaEditoru" type="Node2D" unique_id=28206532]
+script = ExtResource("1")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=578487178]

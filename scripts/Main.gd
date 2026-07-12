@@ -302,6 +302,27 @@ func path_debug_toggle() -> void:
 	if savas_bilgi != null:
 		savas_bilgi.text = "Debug: %s" % ("ACIK" if acik else "KAPALI")
 
+func fps_overlay_toggle() -> void:
+	ui_system.toggle_fps_overlay()
+
+func perf_diag_toggle(kind: String) -> void:
+	match kind:
+		"prop", "golge", "ssao", "asker", "zemin", "viewport":
+			world_system.perf_diag_toggle(kind)
+		"fog", "minimap":
+			fog_system.perf_diag_toggle(kind)
+		"timing":
+			ui_system.toggle_perf_timing()
+		_:
+			pass
+	ui_system.set_perf_diag_status(_perf_diag_status_birlesik())
+
+func _perf_diag_status_birlesik() -> Dictionary:
+	var status := world_system.get_perf_diag_status()
+	status.merge(fog_system.get_perf_diag_status())
+	status["timing"] = ui_system.is_perf_timing_acik()
+	return status
+
 func _world_refs_sync() -> void:
 	aktif_harita_id = world_system.get_active_map_id()
 	harita_sinir = world_system.get_map_bounds()
@@ -563,6 +584,8 @@ func _ready() -> void:
 	takviye_sag_tik_menu_olustur()
 	minimap_olustur()
 	birim_detay_popup_olustur()
+	ui_system.build_fps_overlay()
+	ui_system.set_perf_diag_status(_perf_diag_status_birlesik())
 	tekrar_oyna_butonu_olustur()
 	hazirlik_baslat()
 	_command_refs_sync()
@@ -1294,10 +1317,14 @@ func birim_pusu_kur() -> void:
 	_command_status_line_uygula(result)
 
 func _process(delta: float) -> void:
+	ui_system.tick_fps_overlay()
 	if oyun_bitti:
 		return
 
+	ui_system.perf_timing_frame_basla()
+	var t0 := ui_system.perf_timing_basla()
 	world_system.zemin3d_kalite_tick()
+	ui_system.perf_timing_ekle("zemin3d", t0)
 
 	_command_state_push()
 
@@ -1307,8 +1334,12 @@ func _process(delta: float) -> void:
 
 	kalan_sure -= delta
 	oyun_suresi += delta
+	t0 = ui_system.perf_timing_basla()
 	ui_guncelle()
+	ui_system.perf_timing_ekle("ui", t0)
+	t0 = ui_system.perf_timing_basla()
 	minimap_guncelle()
+	ui_system.perf_timing_ekle("minimap", t0)
 
 	if hazirlik_fazi:
 		ai_system.tick_preparation(delta)
@@ -1341,13 +1372,10 @@ func _process(delta: float) -> void:
 		ai_system.upgrade_point()
 
 	point_economy.tick_capture(delta)
-	savas_sisi_guncelle()
 	ai_system.update_units(delta)
 	point_economy.tick_hold_stats(delta)
 	pusu_tetik_kontrolu()
-	nokta_gorunurluklerini_guncelle()
-	birim_gorunurluklerini_guncelle()
-
+	# Fog/gorunurluk: sadece combat_loop.tick -> fog_system.tick_battle_fog
 	combat_loop.tick(delta)
 
 	_kamera_kaydirmayi_uygula(delta)

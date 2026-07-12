@@ -6,6 +6,8 @@ const _YOL_DISI_HIZ_CARPAN := 0.5
 const _PUSU_AKTIF := true
 const _PUSU_HASAR_CARPAN := 1.5
 const _PUSU_MORAL_CEZA := 12.0
+const _MENZIL_ARALIK := 0.12
+const _YOL_HIZ_ARALIK := 0.12
 
 var _host: Node2D = null
 
@@ -13,10 +15,19 @@ func configure(host: Node2D) -> void:
 	_host = host
 
 func tick(delta: float) -> void:
+	var ui = _host.ui_system
+	var t_mesafe: int = ui.perf_timing_basla()
 	_process_attacks(delta)
 	_apply_pending_damage()
+	ui.perf_timing_ekle("combat_mesafe", t_mesafe)
+
 	_process_movement_and_deaths(delta)
-	_host.fog_system.tick_battle_fog()
+	ui.perf_timing_combat_topla()
+
+	var t_fog: int = ui.perf_timing_basla()
+	_host.fog_system.tick_battle_fog(delta)
+	ui.perf_timing_ekle("fog", t_fog)
+	ui.perf_timing_ekle("combat_gorunurluk", t_fog)
 
 func _process_attacks(delta: float) -> void:
 	var hazir: Array = []
@@ -38,7 +49,6 @@ func _process_attacks(delta: float) -> void:
 		birim["savas_halinde"] = true
 		hazir.append({"birim": birim, "hedefler": hedefler})
 
-	# Ilk vurus: pusu saldirilari once, hasar hemen uygulanir; sonra normal
 	var normal: Array = []
 	for kayit in hazir:
 		var birim: Dictionary = kayit["birim"]
@@ -84,10 +94,8 @@ func _menzildeki_dusmanlar(birim: Dictionary) -> Array:
 func _pusu_saldiri_mi(saldiran: Dictionary, hedef: Dictionary) -> bool:
 	if not _PUSU_AKTIF:
 		return false
-	# Komut pususu tetik sonrasi rezerve ilk vurus
 	if not saldiran.get("pusu_ilk_saldiri_kullanildi", true):
 		return true
-	# Arazi gizliligi: saldiran, hedefin tarafindan gorunmuyor
 	return not _host.birim_gorunur_mu_tarafa(saldiran, str(hedef.get("taraf", "")))
 
 func _saldiri_uygula(birim: Dictionary, dusman_listesi: Array, pusu: bool) -> void:
@@ -131,7 +139,13 @@ func _apply_pending_damage() -> void:
 			birim["bekleyen_hasar"] = 0.0
 
 func _process_movement_and_deaths(delta: float) -> void:
+	var ui = _host.ui_system
+	var timing_on: bool = ui.is_perf_timing_acik()
 	var silinecekler: Array = []
+	var yol_us := 0
+	var mesafe_us := 0
+	var hareket_us := 0
+	var t_all0 := Time.get_ticks_usec() if timing_on else 0
 	for birim in _host.aktif_birimler:
 		if birim["hp"] <= 0:
 			if birim.get("is_general", false):
@@ -156,7 +170,6 @@ func _process_movement_and_deaths(delta: float) -> void:
 			_host.mac_istatistik[diger]["oldurme"] += 1
 			continue
 
-		var dusman_menzilde = false
 		var hareket_efekt = _host.birim_etkin_degerleri(birim)
 		var takip_id = int(birim.get("takip_edilen_dusman", -1))
 		if takip_id >= 0:
@@ -180,13 +193,11 @@ func _process_movement_and_deaths(delta: float) -> void:
 						birim["hedef"] = takip["konum"]
 						birim["hareket_durdu"] = false
 				birim["hedef_nokta"] = _host.en_yakin_nokta_bul(takip["konum"])
-		for b in _host.aktif_birimler:
-			if b["taraf"] != birim["taraf"] and b["hp"] > 0:
-				if not _host.birim_gorunur_mu_tarafa(b, birim["taraf"]):
-					continue
-				if birim["konum"].distance_to(b["konum"]) <= hareket_efekt["menzil"]:
-					dusman_menzilde = true
-					break
+
+		var t_m0 := Time.get_ticks_usec() if timing_on else 0
+		var dusman_menzilde := _dusman_menzilde_periyodik(birim, hareket_efekt, delta)
+		if timing_on:
+			mesafe_us += Time.get_ticks_usec() - t_m0
 
 		var hedef_pos: Vector2 = birim["hedef"]
 		var to_hedef = hedef_pos - birim["konum"]
@@ -216,11 +227,10 @@ func _process_movement_and_deaths(delta: float) -> void:
 			dusman_menzilde = false
 		if not dusman_menzilde and not hedefe_varildi:
 			var aktif_yol: PackedVector2Array = birim.get("waypoints", PackedVector2Array())
-			var yol_hiz: float = 1.0
-			if _host.yol_hiz_avantaji_mi(birim["konum"]):
-				birim["yol_baglanti"] = false
-			else:
-				yol_hiz = _YOL_DISI_HIZ_CARPAN
+			var t_y0 := Time.get_ticks_usec() if timing_on else 0
+			var yol_hiz: float = _yol_hiz_periyodik(birim, delta)
+			if timing_on:
+				yol_us += Time.get_ticks_usec() - t_y0
 			var step = hareket_efekt["hiz"] * yol_hiz * delta
 			if dist > 0.001:
 				var aday_konum = hedef_pos if step >= dist else birim["konum"] + (to_hedef / dist) * step
@@ -263,6 +273,49 @@ func _process_movement_and_deaths(delta: float) -> void:
 
 	for silinecek in silinecekler:
 		_host.aktif_birimler.erase(silinecek)
+
+	if timing_on:
+		hareket_us = Time.get_ticks_usec() - t_all0 - mesafe_us - yol_us
+		ui.perf_timing_us_ekle("combat_yol", yol_us)
+		ui.perf_timing_us_ekle("combat_mesafe", mesafe_us)
+		ui.perf_timing_us_ekle("combat_hareket", maxi(0, hareket_us))
+
+func _dusman_menzilde_periyodik(birim: Dictionary, hareket_efekt: Dictionary, delta: float) -> bool:
+	var cd := float(birim.get("_menzil_cd", 0.0)) - delta
+	if cd > 0.0:
+		birim["_menzil_cd"] = cd
+		return bool(birim.get("_dusman_menzilde", false))
+	birim["_menzil_cd"] = _MENZIL_ARALIK
+	var dusman_menzilde := false
+	var taraf: String = birim["taraf"]
+	var konum: Vector2 = birim["konum"]
+	var menzil: float = float(hareket_efekt["menzil"])
+	for b in _host.aktif_birimler:
+		if b["taraf"] == taraf or b["hp"] <= 0:
+			continue
+		if not _host.birim_gorunur_mu_tarafa(b, taraf):
+			continue
+		if konum.distance_to(b["konum"]) <= menzil:
+			dusman_menzilde = true
+			break
+	birim["_dusman_menzilde"] = dusman_menzilde
+	return dusman_menzilde
+
+func _yol_hiz_periyodik(birim: Dictionary, delta: float) -> float:
+	var cd := float(birim.get("_yol_hiz_cd", 0.0)) - delta
+	if cd > 0.0:
+		birim["_yol_hiz_cd"] = cd
+		if bool(birim.get("_yol_hiz_avantaj", false)):
+			birim["yol_baglanti"] = false
+			return 1.0
+		return _YOL_DISI_HIZ_CARPAN
+	birim["_yol_hiz_cd"] = _YOL_HIZ_ARALIK
+	var avantaj: bool = _host.yol_hiz_avantaji_mi(birim["konum"])
+	birim["_yol_hiz_avantaj"] = avantaj
+	if avantaj:
+		birim["yol_baglanti"] = false
+		return 1.0
+	return _YOL_DISI_HIZ_CARPAN
 
 func _waypoint_siradaki(birim: Dictionary) -> bool:
 	var yol: PackedVector2Array = birim.get("waypoints", PackedVector2Array())

@@ -85,7 +85,11 @@ func start_preparation() -> void:
 	_host.ai_secili_ekipman = ai_ek_keys[randi() % ai_ek_keys.size()]
 
 	for birim in _host.aktif_birimler:
-		if is_instance_valid(birim["node"]):
+		if _host.world_system != null:
+			_host.world_system.zemin3d_birim_asker_sil(birim)
+		if birim.has("kok_node") and is_instance_valid(birim["kok_node"]):
+			birim["kok_node"].queue_free()
+		elif is_instance_valid(birim.get("node")):
 			birim["node"].queue_free()
 	_host.aktif_birimler.clear()
 

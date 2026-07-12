@@ -4,9 +4,9 @@ class_name FogSystem
 var _root: Node2D = null
 var _world: WorldSystem = null
 
-var gorus_hucre_boyutu = 120.0  # 3x harita ile orantili (eski 40 @ 5000x3000)
-var gorus_hucreleri = {}
-var gorus_hucre_katmani: Control = null
+# Mantiksal hucre boyutu (gorunurluk sorgulari); gorsel ayri dusuk cozunurluklu doku
+var gorus_hucre_boyutu = 120.0
+var gorus_hucre_katmani: Node2D = null
 var kesfedilen_alanlar = {}
 var su_anki_gorus_alani = {}
 var ai_su_anki_gorus_alani = {}
@@ -19,10 +19,14 @@ var dusman_son_gorulen_konum = {}
 var dusman_hayalet_ikonlari = {}
 var _minimap_fow_gorseli: Image = null
 var _minimap_fow_doku: ImageTexture = null
+var _minimap_dirty := true
 # Gecici: tum haritayi gostermek icin true (sonra false yap)
 var harita_sis_kapali := true
+# --- TEMP PERF DIAG (F4 Fog / F12 Minimap) ---
+var _PERF_DIAG_FOG_ACIK := true
+var _PERF_DIAG_MINIMAP_ACIK := true
+# --- /TEMP PERF DIAG ---
 
-# Pusu gorunurluk (saldiri bonusu ayri adim)
 const _GIZLENME_AKTIF := true
 const _TESPIT_MENZIL := 400.0
 const _GIZLI_MODULATE := Color(1.0, 1.0, 1.0, 0.42)
@@ -31,11 +35,59 @@ const _OYUNCU_TARAF := "osmanli"
 const FOG_GORUNUR = Color(0, 0, 0, 0.0)
 const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
 
+const _FOG_TEX_TARGET_W := 128
+const _VISION_INTERVAL := 0.15
+const _FOG_SHADER_PATH := "res://assets/shaders/fog_of_war.gdshader"
+
+var _fog_tex_w := 128
+var _fog_tex_h := 96
+var _fog_image: Image = null
+var _fog_texture: ImageTexture = null
+var _fog_poly: Polygon2D = null
+var _fog_dirty := true
+var _vision_accum := 0.0
+var _map_min := Vector2.ZERO
+var _map_size := Vector2(1, 1)
+var _clear_grid: PackedByteArray = PackedByteArray()
+
 func configure(root_node: Node2D, world_system: WorldSystem) -> void:
 	_root = root_node
 	_world = world_system
 
-func get_fog_layer() -> Control:
+func get_perf_diag_status() -> Dictionary:
+	return {
+		"fog": _PERF_DIAG_FOG_ACIK,
+		"minimap": _PERF_DIAG_MINIMAP_ACIK,
+	}
+
+func perf_diag_toggle(kind: String) -> Dictionary:
+	match kind:
+		"fog":
+			_PERF_DIAG_FOG_ACIK = not _PERF_DIAG_FOG_ACIK
+			_perf_diag_fog_uygula()
+		"minimap":
+			_PERF_DIAG_MINIMAP_ACIK = not _PERF_DIAG_MINIMAP_ACIK
+		_:
+			pass
+	return get_perf_diag_status()
+
+func _perf_diag_fog_uygula() -> void:
+	if not is_instance_valid(gorus_hucre_katmani):
+		return
+	if _PERF_DIAG_FOG_ACIK:
+		_vision_accum = _VISION_INTERVAL
+		_fog_dirty = true
+		_minimap_dirty = true
+		if _root != null and not _root.hazirlik_fazi:
+			tick_battle_fog(_VISION_INTERVAL)
+		else:
+			set_layer_visible(true)
+			_upload_fog_texture()
+	else:
+		if is_instance_valid(gorus_hucre_katmani):
+			gorus_hucre_katmani.visible = false
+
+func get_fog_layer() -> Node:
 	return gorus_hucre_katmani
 
 func get_cell_size() -> float:
@@ -105,8 +157,12 @@ func reset_match_discovery(point_ids: Array) -> void:
 		kesfedilen_noktalar[nokta] = false
 
 func set_layer_visible(visible: bool) -> void:
-	if is_instance_valid(gorus_hucre_katmani):
-		gorus_hucre_katmani.visible = visible and not harita_sis_kapali
+	if not is_instance_valid(gorus_hucre_katmani):
+		return
+	if not _PERF_DIAG_FOG_ACIK:
+		gorus_hucre_katmani.visible = false
+		return
+	gorus_hucre_katmani.visible = visible and not harita_sis_kapali
 
 func reset_fog_on_map_change() -> void:
 	if is_instance_valid(gorus_hucre_katmani):
@@ -118,6 +174,8 @@ func unit_vision_radius(unit_type: Dictionary) -> float:
 	return float(unit_type.get("menzil", 80.0)) + normal_birim_gorus_bonus
 
 func update_point_visibility() -> void:
+	if not _PERF_DIAG_FOG_ACIK:
+		return
 	if harita_sis_kapali:
 		_tum_noktalari_goster()
 		return
@@ -151,6 +209,8 @@ func update_point_visibility() -> void:
 			bar.color = Color(1, 0.8, 0)
 
 func update_unit_visibility() -> void:
+	if not _PERF_DIAG_FOG_ACIK:
+		return
 	guncelle_gizlenme_durumlari(_root.aktif_birimler)
 	for birim in _root.aktif_birimler:
 		_birim_gorunurluk_uygula(birim)
@@ -167,22 +227,18 @@ func guncelle_gizlenme_durumlari(units: Array) -> void:
 			birim["pusu_arazi_gizli"] = false
 			continue
 		if birim.get("pusu_modunda", false):
-			# Komut pususu ayri; arazi bayragini temiz tut
 			birim["pusu_arazi_gizli"] = false
 			continue
 		birim["pusu_arazi_gizli"] = _birim_arazi_gizli_mi(birim, units)
 
 func _birim_arazi_gizli_mi(birim: Dictionary, units: Array) -> bool:
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
-	# 3) Yol uzerinde -> her zaman gorunur
 	if _root.has_method("yol_uzerinde_mi") and _root.yol_uzerinde_mi(konum):
 		return false
 	var gizlenme_icinde := _world != null and _world.gizlenme_bolgesinde_mi(konum)
 	var duruyor := _birim_duruyor_mu(birim)
-	# 1) Gizlenme bolgesi + duruyor -> tam gizli
 	if gizlenme_icinde and duruyor:
 		return true
-	# 2) Yol disi (gizlenme disi veya hareket halinde) -> tespit menzili
 	return not _dusman_tespit_menzilinde(birim, units)
 
 func _birim_duruyor_mu(birim: Dictionary) -> bool:
@@ -228,16 +284,19 @@ func _birim_gorunurluk_uygula(birim: Dictionary) -> void:
 		if not is_instance_valid(kok):
 			node.modulate = _GIZLI_MODULATE if (kendi and gizli and gorunur) else Color.WHITE
 	if is_instance_valid(cerceve):
-		cerceve.visible = gorunur
-		if not is_instance_valid(kok):
-			cerceve.modulate = _GIZLI_MODULATE if (kendi and gizli and gorunur) else Color.WHITE
+		cerceve.visible = false
+	var asker3d = birim.get("asker3d")
+	if is_instance_valid(asker3d):
+		asker3d.visible = gorunur
+	var halka3d = birim.get("halka3d")
+	if is_instance_valid(halka3d):
+		halka3d.visible = gorunur
 
 func is_unit_visible_to_faction(target: Dictionary, observer_faction: String, units: Array) -> bool:
 	if target.get("hp", 0) <= 0:
 		return false
 	if str(target.get("taraf", "")) == observer_faction:
 		return true
-	# Pusu / gizlenme: sis kapali olsa bile dusmana kapali
 	if target.get("pusu_modunda", false):
 		return false
 	if _GIZLENME_AKTIF and target.get("pusu_arazi_gizli", false):
@@ -249,10 +308,17 @@ func is_unit_visible_to_faction(target: Dictionary, observer_faction: String, un
 func is_unit_visible_to_player(unit: Dictionary, units: Array) -> bool:
 	return is_unit_visible_to_faction(unit, _OYUNCU_TARAF, units)
 
-func tick_battle_fog() -> void:
-	update_vision(_root.aktif_birimler, _root.nokta_sahipleri)
-	update_point_visibility()
-	update_unit_visibility()
+func tick_battle_fog(delta: float = _VISION_INTERVAL) -> void:
+	if not _PERF_DIAG_FOG_ACIK:
+		return
+	_vision_accum += delta
+	if _vision_accum >= _VISION_INTERVAL:
+		_vision_accum = 0.0
+		update_vision(_root.aktif_birimler, _root.nokta_sahipleri)
+		update_point_visibility()
+		update_unit_visibility()
+	elif _fog_dirty:
+		_upload_fog_texture()
 
 func _point_owner_color(taraf: String) -> Color:
 	if taraf == "osmanli":
@@ -271,28 +337,31 @@ func get_minimap_fow_texture() -> ImageTexture:
 	return _minimap_fow_doku
 
 func update_minimap_fow() -> void:
-	var harita_sinir = _world.get_map_bounds()
-	var min_h = _hucre_anahtari(Vector2(harita_sinir["min_x"], harita_sinir["min_y"]))
-	var max_h = _hucre_anahtari(Vector2(harita_sinir["max_x"], harita_sinir["max_y"]))
-	var w = maxi(1, max_h.x - min_h.x + 1)
-	var h = maxi(1, max_h.y - min_h.y + 1)
+	if not _PERF_DIAG_MINIMAP_ACIK:
+		return
+	var w := _fog_tex_w
+	var h := _fog_tex_h
+	if w <= 0 or h <= 0:
+		return
 	if _minimap_fow_gorseli == null or _minimap_fow_gorseli.get_width() != w or _minimap_fow_gorseli.get_height() != h:
 		_minimap_fow_gorseli = Image.create(w, h, false, Image.FORMAT_RGBA8)
 		_minimap_fow_doku = ImageTexture.create_from_image(_minimap_fow_gorseli)
-	for x in range(w):
+		_minimap_dirty = true
+	if not _minimap_dirty and _minimap_fow_doku != null:
+		return
+	if harita_sis_kapali:
+		_minimap_fow_gorseli.fill(FOG_GORUNUR)
+	else:
 		for y in range(h):
-			var anahtar = Vector2i(min_h.x + x, min_h.y + y)
-			var col = FOG_GORUNUR if harita_sis_kapali else FOG_KAPALI
-			if not harita_sis_kapali:
-				if su_anki_gorus_alani.get(anahtar, false):
-					col = FOG_GORUNUR
-				elif kesfedilen_alanlar.get(anahtar, false):
-					col = FOG_GORUNUR
-			_minimap_fow_gorseli.set_pixel(x, y, col)
+			for x in range(w):
+				var idx := y * w + x
+				var clear := idx < _clear_grid.size() and _clear_grid[idx] != 0
+				_minimap_fow_gorseli.set_pixel(x, y, FOG_GORUNUR if clear else FOG_KAPALI)
 	if _minimap_fow_doku == null:
 		_minimap_fow_doku = ImageTexture.create_from_image(_minimap_fow_gorseli)
 	else:
 		_minimap_fow_doku.update(_minimap_fow_gorseli)
+	_minimap_dirty = false
 
 func is_scout_unit(unit: Dictionary) -> bool:
 	return float(unit.get("gorus_yaricapi", 0.0)) >= kesif_tespit_esigi
@@ -312,6 +381,8 @@ func is_forest_stealth_broken(target: Dictionary, observer_faction: String, unit
 	return false
 
 func update_vision(units: Array, point_owners: Dictionary) -> void:
+	if not _PERF_DIAG_FOG_ACIK:
+		return
 	su_anki_gorus_alani.clear()
 	ai_su_anki_gorus_alani.clear()
 	for birim in units:
@@ -332,6 +403,7 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 
 	for anahtar in su_anki_gorus_alani:
 		kesfedilen_alanlar[anahtar] = true
+		_stamp_clear_cell(anahtar)
 
 	var nokta_konumlari = _world.get_point_positions()
 	for nokta in nokta_konumlari:
@@ -345,14 +417,17 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 				kesfedilen_noktalar[nokta] = true
 				break
 
-	_apply_main_map_overlay()
+	if harita_sis_kapali:
+		_clear_grid.fill(1)
+	_fog_dirty = true
+	_minimap_dirty = true
+	_upload_fog_texture()
 
 func create_fog_layer() -> void:
 	if is_instance_valid(gorus_hucre_katmani):
 		return
-	gorus_hucre_katmani = Control.new()
+	gorus_hucre_katmani = Node2D.new()
 	gorus_hucre_katmani.name = "FogLayer"
-	gorus_hucre_katmani.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gorus_hucre_katmani.z_index = 40
 	_root.add_child(gorus_hucre_katmani)
 	reset_fog_grid()
@@ -363,22 +438,132 @@ func reset_fog_grid() -> void:
 	kesfedilen_alanlar.clear()
 	su_anki_gorus_alani.clear()
 	ai_su_anki_gorus_alani.clear()
-	gorus_hucreleri.clear()
-	for c in gorus_hucre_katmani.get_children():
-		c.queue_free()
+	_vision_accum = _VISION_INTERVAL
+	_ensure_fog_resolution()
+	_clear_grid.resize(_fog_tex_w * _fog_tex_h)
+	_clear_grid.fill(0)
+	_ensure_fog_draw_node()
+	_fog_dirty = true
+	_minimap_dirty = true
+	_upload_fog_texture()
+	set_layer_visible(false)
+
+func _ensure_fog_resolution() -> void:
 	var harita_sinir = _world.get_map_bounds()
-	var min_h = _hucre_anahtari(Vector2(harita_sinir["min_x"], harita_sinir["min_y"]))
-	var max_h = _hucre_anahtari(Vector2(harita_sinir["max_x"], harita_sinir["max_y"]))
-	for x in range(min_h.x, max_h.x + 1):
-		for y in range(min_h.y, max_h.y + 1):
-			var hucre = ColorRect.new()
-			hucre.size = Vector2(gorus_hucre_boyutu, gorus_hucre_boyutu)
-			hucre.position = Vector2(float(x) * gorus_hucre_boyutu, float(y) * gorus_hucre_boyutu)
-			hucre.color = FOG_KAPALI
-			hucre.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			hucre.visible = true
-			gorus_hucre_katmani.add_child(hucre)
-			gorus_hucreleri[Vector2i(x, y)] = hucre
+	_map_min = Vector2(float(harita_sinir["min_x"]), float(harita_sinir["min_y"]))
+	var map_max = Vector2(float(harita_sinir["max_x"]), float(harita_sinir["max_y"]))
+	_map_size = map_max - _map_min
+	if _map_size.x < 1.0:
+		_map_size.x = 1.0
+	if _map_size.y < 1.0:
+		_map_size.y = 1.0
+	_fog_tex_w = _FOG_TEX_TARGET_W
+	_fog_tex_h = maxi(8, int(round(float(_FOG_TEX_TARGET_W) * _map_size.y / _map_size.x)))
+	# Mantiksal hucre: doku cozunurlugune yakin tut (sorgu tutarliligi)
+	gorus_hucre_boyutu = maxf(32.0, _map_size.x / float(_fog_tex_w))
+
+func _ensure_fog_draw_node() -> void:
+	if not is_instance_valid(gorus_hucre_katmani):
+		return
+	if _fog_image == null or _fog_image.get_width() != _fog_tex_w or _fog_image.get_height() != _fog_tex_h:
+		_fog_image = Image.create(_fog_tex_w, _fog_tex_h, false, Image.FORMAT_RF)
+		_fog_image.fill(Color(0, 0, 0, 1))
+		_fog_texture = ImageTexture.create_from_image(_fog_image)
+	elif _fog_texture == null:
+		_fog_texture = ImageTexture.create_from_image(_fog_image)
+
+	if not is_instance_valid(_fog_poly):
+		_fog_poly = Polygon2D.new()
+		_fog_poly.name = "FogOverlay"
+		_fog_poly.z_index = 0
+		_fog_poly.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		var sh := load(_FOG_SHADER_PATH) as Shader
+		if sh != null:
+			var mat := ShaderMaterial.new()
+			mat.shader = sh
+			mat.set_shader_parameter("fog_color", FOG_KAPALI)
+			_fog_poly.material = mat
+		gorus_hucre_katmani.add_child(_fog_poly)
+
+	_fog_poly.texture = _fog_texture
+	if _fog_poly.material is ShaderMaterial:
+		(_fog_poly.material as ShaderMaterial).set_shader_parameter("fog_tex", _fog_texture)
+
+	var p00 := _world.logical_to_ekran(_map_min)
+	var p10 := _world.logical_to_ekran(_map_min + Vector2(_map_size.x, 0.0))
+	var p11 := _world.logical_to_ekran(_map_min + _map_size)
+	var p01 := _world.logical_to_ekran(_map_min + Vector2(0.0, _map_size.y))
+	_fog_poly.polygon = PackedVector2Array([p00, p10, p11, p01])
+	var tw := float(_fog_tex_w)
+	var th := float(_fog_tex_h)
+	_fog_poly.uv = PackedVector2Array([
+		Vector2(0.0, 0.0),
+		Vector2(tw, 0.0),
+		Vector2(tw, th),
+		Vector2(0.0, th),
+	])
+
+func _rebuild_clear_grid() -> void:
+	var n := _fog_tex_w * _fog_tex_h
+	if _clear_grid.size() != n:
+		_clear_grid.resize(n)
+	_clear_grid.fill(0)
+	if harita_sis_kapali:
+		_clear_grid.fill(1)
+		return
+	var origin := _hucre_anahtari(_map_min)
+	for anahtar in kesfedilen_alanlar:
+		_stamp_clear_cell_at(anahtar, origin)
+
+func _stamp_clear_cell(anahtar: Vector2i) -> void:
+	_stamp_clear_cell_at(anahtar, _hucre_anahtari(_map_min))
+
+func _stamp_clear_cell_at(anahtar: Vector2i, origin: Vector2i) -> void:
+	var tx := anahtar.x - origin.x
+	var ty := anahtar.y - origin.y
+	if tx < 0 or ty < 0 or tx >= _fog_tex_w or ty >= _fog_tex_h:
+		return
+	var idx := ty * _fog_tex_w + tx
+	if idx >= 0 and idx < _clear_grid.size():
+		_clear_grid[idx] = 1
+
+func _upload_fog_texture() -> void:
+	if not _fog_dirty:
+		return
+	if not _PERF_DIAG_FOG_ACIK or harita_sis_kapali:
+		if is_instance_valid(gorus_hucre_katmani):
+			gorus_hucre_katmani.visible = false
+		_fog_dirty = false
+		return
+	_ensure_fog_draw_node()
+	if _fog_image == null:
+		return
+	# RF: her piksel 1 float
+	var n := _fog_tex_w * _fog_tex_h
+	var bytes := PackedByteArray()
+	bytes.resize(n * 4)
+	for i in range(n):
+		var v := 1.0 if (i < _clear_grid.size() and _clear_grid[i] != 0) else 0.0
+		bytes.encode_float(i * 4, v)
+	_fog_image.set_data(_fog_tex_w, _fog_tex_h, false, Image.FORMAT_RF, bytes)
+	if _fog_texture == null:
+		_fog_texture = ImageTexture.create_from_image(_fog_image)
+	else:
+		_fog_texture.update(_fog_image)
+	if is_instance_valid(_fog_poly):
+		_fog_poly.texture = _fog_texture
+		if _fog_poly.material is ShaderMaterial:
+			(_fog_poly.material as ShaderMaterial).set_shader_parameter("fog_tex", _fog_texture)
+	set_layer_visible(true)
+	_fog_dirty = false
+
+func _world_to_tex(pos: Vector2) -> Vector2i:
+	var u := (pos.x - _map_min.x) / _map_size.x
+	var v := (pos.y - _map_min.y) / _map_size.y
+	return Vector2i(
+		clampi(int(floor(u * float(_fog_tex_w))), 0, _fog_tex_w - 1),
+		clampi(int(floor(v * float(_fog_tex_h))), 0, _fog_tex_h - 1)
+	)
 
 func _hucre_anahtari(pos: Vector2) -> Vector2i:
 	return Vector2i(
@@ -398,30 +583,12 @@ func _goruste_mi(pos: Vector2, gorus_alani: Dictionary) -> bool:
 func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> void:
 	var min_h = _hucre_anahtari(merkez - Vector2(yaricap, yaricap))
 	var max_h = _hucre_anahtari(merkez + Vector2(yaricap, yaricap))
+	var r2 := yaricap * yaricap
 	for x in range(min_h.x, max_h.x + 1):
 		for y in range(min_h.y, max_h.y + 1):
 			var anahtar = Vector2i(x, y)
-			if _hucre_merkezi(anahtar).distance_to(merkez) <= yaricap:
+			if _hucre_merkezi(anahtar).distance_squared_to(merkez) <= r2:
 				gorus_alani[anahtar] = true
-
-func _apply_main_map_overlay() -> void:
-	if harita_sis_kapali:
-		for anahtar in gorus_hucreleri:
-			var hucre = gorus_hucreleri[anahtar]
-			if is_instance_valid(hucre):
-				hucre.color = FOG_GORUNUR
-		set_layer_visible(false)
-		return
-	for anahtar in gorus_hucreleri:
-		var hucre = gorus_hucreleri[anahtar]
-		if not is_instance_valid(hucre):
-			continue
-		if su_anki_gorus_alani.get(anahtar, false):
-			hucre.color = FOG_GORUNUR
-		elif kesfedilen_alanlar.get(anahtar, false):
-			hucre.color = FOG_GORUNUR
-		else:
-			hucre.color = FOG_KAPALI
 
 func _clear_ghost_icon(id: int) -> void:
 	if dusman_hayalet_ikonlari.has(id):

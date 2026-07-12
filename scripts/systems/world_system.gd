@@ -24,8 +24,23 @@ const _CIMEN_PIXEL_TILESET_YOL := "res://assets/zemin/cimen_tileset.tres"
 const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
-## SubViewport piksel yogunlugu = Camera2D.zoom * olcek (1.0 = ekran 1:1, 1.5/2.0 = supersample).
-const _ZEMIN3D_VIEWPORT_OLCEK := 1.0
+## SubViewport piksel yogunlugu = Camera2D.zoom * olcek (1.0 = ekran 1:1, >1 = supersample).
+const _VIEWPORT_OLCEK := 1.0
+# --- TEMP PERF DIAG (F6 Prop / F7 Golge / F10 SSAO / F11 Asker / Ctrl+F6 Zemin / Ctrl+F7 VP) ---
+# In-game toggle: InputRouter → Main → WorldSystem.restart gerekmez.
+# Not: F8 editor Stop (hardcoded), F9 breakpoint — SSAO/Asker F10/F11.
+var _PERF_DIAG_ASKER_ACIK := true
+var _PERF_DIAG_GOLGE_ACIK := true
+var _PERF_DIAG_PROP_ACIK := true
+var _PERF_DIAG_SSAO_ACIK := true
+var _PERF_DIAG_ZEMIN_ACIK := true
+var _PERF_DIAG_VIEWPORT_ALWAYS := true
+var _perf_diag_isik: DirectionalLight3D = null
+var _perf_diag_env: Environment = null
+var _zemin3d_prop_kok: Node3D = null
+var _zemin3d_nokta_kok: Node3D = null
+var _zemin3d_mesh_mi: MeshInstance3D = null
+# --- /TEMP PERF DIAG ---
 const _ZEMIN3D_VP_MAX := 4096.0  # bolge basina viewport ust siniri
 const _ZEMIN3D_BOLGE_ESIK := 40.0  # kamera kaydirma esigi (ekran px)
 const _ZEMIN3D_ZOOM_ESIK := 0.001  # zoom degisince zorla yeniden ornekle
@@ -125,6 +140,7 @@ var nokta_puan = {}
 var nokta_altin = {}
 var arazi_bolgeleri: Array = []
 var arazi_poligonlari: Array = []
+var _gizlenme_poly_cache: Array = []  # PackedVector2Array listesi
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
 var gorsel_yollar: Array = []
@@ -181,6 +197,75 @@ func set_on_map_applied(callback: Callable) -> void:
 
 func set_on_map_visuals_extra(callback: Callable) -> void:
 	_on_map_visuals_extra = callback
+
+func get_perf_diag_status() -> Dictionary:
+	return {
+		"prop": _PERF_DIAG_PROP_ACIK,
+		"golge": _PERF_DIAG_GOLGE_ACIK,
+		"ssao": _PERF_DIAG_SSAO_ACIK,
+		"asker": _PERF_DIAG_ASKER_ACIK,
+		"zemin": _PERF_DIAG_ZEMIN_ACIK,
+		"viewport": _PERF_DIAG_VIEWPORT_ALWAYS,
+	}
+
+func perf_diag_toggle(kind: String) -> Dictionary:
+	match kind:
+		"prop":
+			_PERF_DIAG_PROP_ACIK = not _PERF_DIAG_PROP_ACIK
+		"golge":
+			_PERF_DIAG_GOLGE_ACIK = not _PERF_DIAG_GOLGE_ACIK
+		"ssao":
+			_PERF_DIAG_SSAO_ACIK = not _PERF_DIAG_SSAO_ACIK
+		"asker":
+			_PERF_DIAG_ASKER_ACIK = not _PERF_DIAG_ASKER_ACIK
+		"zemin":
+			_PERF_DIAG_ZEMIN_ACIK = not _PERF_DIAG_ZEMIN_ACIK
+		"viewport":
+			_PERF_DIAG_VIEWPORT_ALWAYS = not _PERF_DIAG_VIEWPORT_ALWAYS
+		_:
+			pass
+	_perf_diag_uygula(kind)
+	return get_perf_diag_status()
+
+# kind="" = hepsini uygula (kurulum). Toggle'da sadece ilgili dal.
+func _perf_diag_uygula(kind: String = "") -> void:
+	if kind == "" or kind == "prop":
+		if is_instance_valid(_zemin3d_prop_kok):
+			_zemin3d_prop_kok.visible = _PERF_DIAG_PROP_ACIK
+		elif kind == "prop":
+			push_warning("WorldSystem: perf_diag prop kökü yok, atlandı")
+		if is_instance_valid(_zemin3d_nokta_kok):
+			_zemin3d_nokta_kok.visible = _PERF_DIAG_PROP_ACIK
+		if is_instance_valid(_zemin3d_kok):
+			var test_agac := _zemin3d_kok.get_node_or_null("TestAgac")
+			if test_agac != null:
+				test_agac.visible = _PERF_DIAG_PROP_ACIK
+	if kind == "" or kind == "golge":
+		if is_instance_valid(_perf_diag_isik):
+			_perf_diag_isik.shadow_enabled = _PERF_DIAG_GOLGE_ACIK
+		elif kind == "golge":
+			push_warning("WorldSystem: perf_diag ışık yok, atlandı")
+	if kind == "" or kind == "ssao":
+		if is_instance_valid(_perf_diag_env):
+			_perf_diag_env.ssao_enabled = _SSAO_AKTIF and _PERF_DIAG_SSAO_ACIK
+			_perf_diag_env.glow_enabled = _GLOW_AKTIF and _PERF_DIAG_SSAO_ACIK
+		elif kind == "ssao":
+			push_warning("WorldSystem: perf_diag Environment yok, atlandı")
+	if kind == "" or kind == "asker":
+		# Sadece tracked asker kökü; sahne taraması / prop sync yok.
+		if is_instance_valid(_zemin3d_asker_kok):
+			_zemin3d_asker_kok.visible = _PERF_DIAG_ASKER_ACIK
+		elif kind == "asker":
+			push_warning("WorldSystem: perf_diag asker kökü yok, atlandı")
+	if kind == "" or kind == "zemin":
+		if is_instance_valid(_zemin3d_mesh_mi):
+			_zemin3d_mesh_mi.visible = _PERF_DIAG_ZEMIN_ACIK
+		elif kind == "zemin":
+			push_warning("WorldSystem: perf_diag zemin mesh yok, atlandı")
+	if kind == "" or kind == "viewport":
+		_zemin3d_asker_viewport_modu_ayarla()
+		if kind == "viewport" and not is_instance_valid(_zemin3d_viewport):
+			push_warning("WorldSystem: perf_diag viewport yok, atlandı")
 
 func get_active_map_id() -> String:
 	return aktif_harita_id
@@ -379,6 +464,7 @@ func harita_uygula(map_id: String) -> void:
 	harita_sinir = map_data["sinir"].duplicate()
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
 	arazi_poligonlari = map_data.get("arazi_poligonlari", []).duplicate(true)
+	_gizlenme_poly_cache_yenile()
 	bolge_etiketleri = map_data.get("bolge_etiketleri", []).duplicate(true)
 	gorsel_yollar = map_data.get("gorsel_yollar", []).duplicate(true)
 	gorsel_patikalar = map_data.get("gorsel_patikalar", []).duplicate(true)
@@ -635,14 +721,30 @@ func nokta_poligon_icinde_mi(pos: Vector2, koseler: Array) -> bool:
 	return Geometry2D.is_point_in_polygon(pos, poly)
 
 func gizlenme_bolgesinde_mi(pos: Vector2) -> bool:
+	if _gizlenme_poly_cache.is_empty():
+		_gizlenme_poly_cache_yenile()
+	for poly in _gizlenme_poly_cache:
+		if poly is PackedVector2Array and (poly as PackedVector2Array).size() >= 3:
+			if Geometry2D.is_point_in_polygon(pos, poly):
+				return true
+	return false
+
+func _gizlenme_poly_cache_yenile() -> void:
+	_gizlenme_poly_cache.clear()
 	for bolge in arazi_poligonlari:
 		if typeof(bolge) != TYPE_DICTIONARY:
 			continue
 		if str(bolge.get("tip", "")) != "gizlenme":
 			continue
-		if nokta_poligon_icinde_mi(pos, bolge.get("koseler", [])):
-			return true
-	return false
+		var poly := PackedVector2Array()
+		for k in bolge.get("koseler", []):
+			if k is Vector2:
+				poly.append(k)
+			elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
+				var a: Array = k
+				poly.append(Vector2(float(a[0]), float(a[1])))
+		if poly.size() >= 3:
+			_gizlenme_poly_cache.append(poly)
 
 func harita_gorsellerini_guncelle() -> void:
 	if _root == null:
@@ -1033,6 +1135,11 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_sprite = null
 	_zemin3d_kok = null
 	_zemin3d_asker_kok = null
+	_zemin3d_prop_kok = null
+	_zemin3d_nokta_kok = null
+	_zemin3d_mesh_mi = null
+	_perf_diag_isik = null
+	_perf_diag_env = null
 	_zemin3d_birim_asker_adet = 0
 	_halka_torus_mesh = null
 	_halka_kenar_mesh = null
@@ -1070,6 +1177,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	asker_kok.name = "BirimAskerleri"
 	kok3d.add_child(asker_kok)
 	_zemin3d_asker_kok = asker_kok
+	asker_kok.visible = _PERF_DIAG_ASKER_ACIK
 
 	# Plane, kamera frustumunun tamamini kaplayacak kadar genis:
 	# viewport dikdortgeninin kose bolgeleri de (elmas disi) dokulu gorunur
@@ -1083,19 +1191,22 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	mi.mesh = plane
 	mi.position = Vector3(merkez.x, 0.0, merkez.y)
 	mi.material_override = _zemin3d_materyal(plane_kenar, plane_kenar)
+	mi.visible = _PERF_DIAG_ZEMIN_ACIK
 	kok3d.add_child(mi)
+	_zemin3d_mesh_mi = mi
 
 	var isik := DirectionalLight3D.new()
 	isik.name = "ZeminGunIsigi"
 	isik.rotation_degrees = _ISIK_ACI
 	isik.light_energy = _ISIK_ENERJI
 	isik.light_color = _ISIK_RENK
-	isik.shadow_enabled = true
+	isik.shadow_enabled = _PERF_DIAG_GOLGE_ACIK
 	isik.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	isik.directional_shadow_max_distance = _ISIK_GOLGE_MESAFE
 	isik.shadow_blur = 1.0
 	isik.shadow_bias = 0.03
 	kok3d.add_child(isik)
+	_perf_diag_isik = isik
 
 	# 2:1 izometriye kalibre ortografik kamera:
 	# rotation (-30, 45, 0) + size = iso_h * sqrt(2) => logical_to_iso ile birebir
@@ -1117,6 +1228,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	we.name = "ZeminOrtam"
 	we.environment = _zemin3d_ortam_olustur()
 	kok3d.add_child(we)
+	_perf_diag_env = we.environment
 
 	if _AGAC_TEST_AKTIF:
 		_zemin3d_test_agac_ekle(kok3d)
@@ -1125,6 +1237,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	if _ASKER_TEST_AKTIF:
 		_zemin3d_test_asker_ekle(kok3d)
 	_zemin3d_asker_viewport_modu_ayarla(vp)
+	_perf_diag_uygula()
 
 	var spr := Sprite2D.new()
 	spr.name = "Zemin3DSprite"
@@ -1143,10 +1256,10 @@ func _zemin3d_ortam_olustur() -> Environment:
 	env.background_mode = Environment.BG_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = _TONEMAP_EXPOSURE
-	env.ssao_enabled = _SSAO_AKTIF
+	env.ssao_enabled = _SSAO_AKTIF and _PERF_DIAG_SSAO_ACIK
 	env.ssao_radius = _SSAO_YARICAP
 	env.ssao_intensity = _SSAO_SIDDET
-	env.glow_enabled = _GLOW_AKTIF
+	env.glow_enabled = _GLOW_AKTIF and _PERF_DIAG_SSAO_ACIK
 	env.glow_intensity = _GLOW_SIDDET
 	env.glow_strength = 0.8
 	env.glow_bloom = 0.05
@@ -1231,7 +1344,7 @@ func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
 	var iso_center: Vector2 = bolge["iso_center"]
 	var logical_center: Vector2 = bolge["logical_center"]
 	# Tek zoom kaynagi: Camera2D.zoom. PPD = z * olcek => gorunen alan ~ ekran cozunurlugu.
-	var ppd := z * _ZEMIN3D_VIEWPORT_OLCEK
+	var ppd := z * _VIEWPORT_OLCEK
 	if not zorla:
 		var zoom_degisti := absf(z - _zemin3d_son_zoom) > _ZEMIN3D_ZOOM_ESIK
 		var ekran_degisti := ekran.distance_squared_to(_zemin3d_son_ekran) > 0.25
@@ -1259,10 +1372,7 @@ func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
 			sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0))
 		)
 		_zemin3d_kam3d.position = Vector3(logical_center.x, 0.0, logical_center.y) + geri * _zemin3d_kam_mesafe
-	if _ASKER_TEST_AKTIF or _zemin3d_birim_asker_adet > 0:
-		_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	else:
-		_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_zemin3d_asker_viewport_modu_ayarla()
 
 
 func zemin3d_kalite_tick() -> void:
@@ -1292,6 +1402,10 @@ func _zemin3d_test_agac_ekle(kok3d: Node3D) -> void:
 func _zemin3d_asker_viewport_modu_ayarla(vp: SubViewport = null) -> void:
 	var hedef := vp if vp != null else _zemin3d_viewport
 	if not is_instance_valid(hedef):
+		return
+	# TEMP PERF DIAG: false => asker-driven ALWAYS'i ezer (UPDATE_DISABLED)
+	if not _PERF_DIAG_VIEWPORT_ALWAYS:
+		hedef.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		return
 	if _ASKER_TEST_AKTIF or _zemin3d_birim_asker_adet > 0:
 		hedef.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -1778,6 +1892,8 @@ func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
 	var kok := Node3D.new()
 	kok.name = "HaritaProplari"
 	kok3d.add_child(kok)
+	_zemin3d_prop_kok = kok
+	kok.visible = _PERF_DIAG_PROP_ACIK
 	var model_onbellek: Dictionary = {}
 	for raw in harita_proplari:
 		if typeof(raw) != TYPE_DICTIONARY:
@@ -1815,6 +1931,7 @@ func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
 		inst.position = Vector3(konum.x, 0.0, konum.y)
 		inst.rotation_degrees = Vector3(0.0, rot, 0.0)
 		inst.scale = Vector3.ONE * olcek
+		inst.visible = _PERF_DIAG_PROP_ACIK
 		kok.add_child(inst)
 
 
@@ -1852,6 +1969,8 @@ func _zemin3d_nokta_yapilari_ekle(kok3d: Node3D) -> void:
 	var kok := Node3D.new()
 	kok.name = "NoktaYapilari"
 	kok3d.add_child(kok)
+	_zemin3d_nokta_kok = kok
+	kok.visible = _PERF_DIAG_PROP_ACIK
 	for nokta in nokta_konumlari:
 		if kavsak_konumlari.has(nokta):
 			continue

@@ -17,6 +17,12 @@ func configure(host: Node2D) -> void:
 func handle_input(event: InputEvent) -> bool:
 	if _host.oyun_bitti:
 		return true
+	if _handle_fps_overlay_toggle(event):
+		return true
+	if _handle_perf_diag_toggle(event):
+		return true
+	if _handle_path_debug_toggle(event):
+		return true
 	if handle_cancel_menu(event):
 		return true
 	if event is InputEventMouseButton:
@@ -99,6 +105,59 @@ func _handle_left_drag_pan(
 	if not _sol_surukle_tasinmis:
 		return false
 	camera_controller.apply_drag_pan(camera, motion.relative, Callable(_host, "kamera_sinirla"))
+	return true
+
+func _handle_fps_overlay_toggle(event: InputEvent) -> bool:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	if (event as InputEventKey).keycode != KEY_F2:
+		return false
+	_host.fps_overlay_toggle()
+	return true
+
+func _handle_perf_diag_toggle(event: InputEvent) -> bool:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	var ek := event as InputEventKey
+	var key := ek.keycode
+	var kind := ""
+	# F8 = Godot editor/debugger "Stop" (oyunu kapatır). F9 = breakpoint.
+	# SSAO/Asker bu yüzden F10/F11. F1=Timing F4=Fog F12=Minimap Ctrl+F6=Zemin Ctrl+F7=VP.
+	if ek.ctrl_pressed:
+		match key:
+			KEY_F6:
+				kind = "zemin"
+			KEY_F7:
+				kind = "viewport"
+			_:
+				return false
+	else:
+		match key:
+			KEY_F1:
+				kind = "timing"
+			KEY_F4:
+				kind = "fog"
+			KEY_F6:
+				kind = "prop"
+			KEY_F7:
+				kind = "golge"
+			KEY_F10:
+				kind = "ssao"
+			KEY_F11:
+				kind = "asker"
+			KEY_F12:
+				kind = "minimap"
+			_:
+				return false
+	_host.perf_diag_toggle(kind)
+	return true
+
+func _handle_path_debug_toggle(event: InputEvent) -> bool:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return false
+	if (event as InputEventKey).keycode != KEY_F3:
+		return false
+	_host.path_debug_toggle()
 	return true
 
 func handle_cancel_menu(event: InputEvent) -> bool:
