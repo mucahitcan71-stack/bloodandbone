@@ -54,7 +54,7 @@ const _ASKER_TEST_AKTIF := false
 const _ASKER_TEST_MODEL := "res://assets/karakterler/Exports/glTF (Godot-Unreal)/Outfits/Male_Ranger.gltf"
 const _ASKER_TEST_ANIM := "res://assets/karakterler/UAL2_Standard.glb"
 # Quaternius ~1.8m; kale olcek 80, agac 8. Birim olcegi (~insan vs prop).
-const _ASKER_TEST_OLCEK := 10.0
+const _ASKER_TEST_OLCEK := 20.0
 const _ASKER_ANIM_HIZ := 1.5  # 1.0 = normal; buyut = hizli adim
 const _ASKER_ROT_DUZELTME := Vector3(20.0, 0.0, 0.0)  # degrees; one dogru yatik -> dik (+X)
 const _ASKER_TEST_KONUM := Vector2(7500, 4500)  # fallback
