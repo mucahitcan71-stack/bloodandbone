@@ -141,6 +141,8 @@ func _process_movement_and_deaths(delta: float) -> void:
 			var birim_id = int(birim.get("id", -1))
 			if birim_id >= 0:
 				_host.fog_system.remove_enemy_intel(birim_id)
+			if _host.world_system != null:
+				_host.world_system.zemin3d_birim_asker_sil(birim)
 			if birim.has("kok_node") and is_instance_valid(birim["kok_node"]):
 				birim["kok_node"].queue_free()
 			elif is_instance_valid(birim.get("node")):
@@ -248,7 +250,7 @@ func _process_movement_and_deaths(delta: float) -> void:
 		if birim.get("geri_cekiliyor", false) and hedefe_varildi:
 			birim["geri_cekiliyor"] = false
 
-		_host.birim_gorselini_uygula(birim)
+		_host.birim_gorselini_uygula(birim, delta)
 
 		if is_instance_valid(birim["node"]):
 			var hp_bar = birim["node"].get_node_or_null("HPBar")

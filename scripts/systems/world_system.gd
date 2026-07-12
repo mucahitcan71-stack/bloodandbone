@@ -49,6 +49,28 @@ const _AGAC_TEST_AKTIF := false  # proplar JSON'dan; test agaci kapali
 const _AGAC_TEST_YOL := "res://assets/proplar/doga/CommonTree_1.gltf"
 const _AGAC_TEST_OLCEK := 8.0
 const _AGAC_TEST_KONUM := Vector2(7500, 4500)  # logical
+# Kanit: tek 3D asker (uretim birimleri acikken kapali tut)
+const _ASKER_TEST_AKTIF := false
+const _ASKER_TEST_MODEL := "res://assets/karakterler/Exports/glTF (Godot-Unreal)/Outfits/Male_Ranger.gltf"
+const _ASKER_TEST_ANIM := "res://assets/karakterler/UAL2_Standard.glb"
+# Quaternius ~1.8m; kale olcek 80, agac 8. Birim olcegi (~insan vs prop).
+const _ASKER_TEST_OLCEK := 10.0
+const _ASKER_ANIM_HIZ := 1.5  # 1.0 = normal; buyut = hizli adim
+const _ASKER_ROT_DUZELTME := Vector3(20.0, 0.0, 0.0)  # degrees; one dogru yatik -> dik (+X)
+const _ASKER_TEST_KONUM := Vector2(7500, 4500)  # fallback
+# Godot import _Loop sonekini dusurur: Walk_Carry_Loop -> Walk_Carry
+const _ASKER_TEST_WALK := "Walk_Carry"
+const _ASKER_TEST_IDLE := "Idle_FoldArms"
+const _ASKER_TEST_OFSET := Vector2(320.0, 80.0)  # kale/kule disina (C'den uzak)
+const _ASKER_ANIM_BLEND := 0.2
+const _ASKER_HAREKET_ESIGI := 0.15
+# Yon: konum deltasindan (taraf/path bagimsiz). 180 = mevcut calisan oyuncu bakisi.
+const _ASKER_YON_OFFSET := 180.0
+const _ASKER_YON_TERS := true
+const _ASKER_YON_ESIGI := 0.05  # kucuk adim (AI yol-disi) icin; idle jitter yok
+const _ASKER_DONUS_HIZI := 16.0  # lerp weight / sn; yuksek = onceki anlik his
+const _RENK_OSMANLI := Color(1.15, 0.85, 0.85)  # hafif kirmizi multiply tint
+const _RENK_ROMA := Color(0.85, 0.9, 1.2)  # hafif mavi multiply tint
 const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
 const _NOKTA_KALE_YOL := "res://assets/proplar/yapilar/blood_and_bone_control_point_v2.glb"
 const _NOKTA_KALE_OLCEK := 80.0
@@ -99,10 +121,19 @@ var _pixel_cimen_tileset_hazir: TileSet = null
 var _zemin3d_viewport: SubViewport = null
 var _zemin3d_sprite: Sprite2D = null
 var _zemin3d_kam3d: Camera3D = null
+var _zemin3d_kok: Node3D = null
+var _zemin3d_asker_kok: Node3D = null
 var _zemin3d_off := Vector2.ZERO
 var _zemin3d_kam_mesafe := 0.0
 var _zemin3d_etkin_ppd := 0.0
 var _zemin3d_son_iso_merkez := Vector2.ZERO
+var _asker_model_sahne: PackedScene = null
+var _asker_anim_sahne: PackedScene = null
+var _asker_paylasilan_libler: Array = []  # {ad, lib}
+var _asker_walk_key := ""
+var _asker_idle_key := ""
+var _asker_anim_hazir := false
+var _zemin3d_birim_asker_adet := 0
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -248,19 +279,20 @@ func izo_ekran_sinir(sinir: Dictionary) -> Dictionary:
 	return {"min_x": bx_min, "max_x": bx_max, "min_y": by_min, "max_y": by_max}
 
 
-func birim_gorselini_uygula(birim: Dictionary) -> void:
+func birim_gorselini_uygula(birim: Dictionary, delta: float = 0.0) -> void:
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
 	var kok = birim.get("kok_node")
 	if is_instance_valid(kok):
 		kok.position = birim_y_sort_foot(konum)
-		return
-	var gorsel: Vector2 = birim_gorsel_konum(konum)
-	var node = birim.get("node")
-	if is_instance_valid(node):
-		node.position = gorsel
-	var cerceve = birim.get("cerceve_node")
-	if is_instance_valid(cerceve):
-		cerceve.position = gorsel - Vector2(2.0, 2.0)
+	else:
+		var gorsel: Vector2 = birim_gorsel_konum(konum)
+		var node = birim.get("node")
+		if is_instance_valid(node):
+			node.position = gorsel
+		var cerceve = birim.get("cerceve_node")
+		if is_instance_valid(cerceve):
+			cerceve.position = gorsel - Vector2(2.0, 2.0)
+	zemin3d_birim_asker_guncelle(birim, delta)
 
 
 func _izo(logical: Vector2) -> Vector2:
@@ -965,6 +997,15 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_cimen_tilemap = null
 	_zemin3d_viewport = null
 	_zemin3d_sprite = null
+	_zemin3d_kok = null
+	_zemin3d_asker_kok = null
+	_zemin3d_birim_asker_adet = 0
+	_asker_anim_hazir = false
+	_asker_paylasilan_libler.clear()
+	_asker_walk_key = ""
+	_asker_idle_key = ""
+	_asker_model_sahne = null
+	_asker_anim_sahne = null
 
 	var min_x := float(sinir["min_x"])
 	var max_x := float(sinir["max_x"])
@@ -988,6 +1029,11 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	var kok3d := Node3D.new()
 	kok3d.name = "Zemin3DKok"
 	vp.add_child(kok3d)
+	_zemin3d_kok = kok3d
+	var asker_kok := Node3D.new()
+	asker_kok.name = "BirimAskerleri"
+	kok3d.add_child(asker_kok)
+	_zemin3d_asker_kok = asker_kok
 
 	# Plane, kamera frustumunun tamamini kaplayacak kadar genis:
 	# viewport dikdortgeninin kose bolgeleri de (elmas disi) dokulu gorunur
@@ -1034,6 +1080,9 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 		_zemin3d_test_agac_ekle(kok3d)
 	_zemin3d_proplari_ekle(kok3d)
 	_zemin3d_nokta_yapilari_ekle(kok3d)
+	if _ASKER_TEST_AKTIF:
+		_zemin3d_test_asker_ekle(kok3d)
+	_zemin3d_asker_viewport_modu_ayarla(vp)
 
 	var spr := Sprite2D.new()
 	spr.name = "Zemin3DSprite"
@@ -1122,7 +1171,10 @@ func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
 			sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0))
 		)
 		_zemin3d_kam3d.position = Vector3(logical_center.x, 0.0, logical_center.y) + geri * _zemin3d_kam_mesafe
-	_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if _ASKER_TEST_AKTIF or _zemin3d_birim_asker_adet > 0:
+		_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	else:
+		_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 func zemin3d_kalite_tick() -> void:
@@ -1147,6 +1199,387 @@ func _zemin3d_test_agac_ekle(kok3d: Node3D) -> void:
 	agac.position = Vector3(_AGAC_TEST_KONUM.x, 0.0, _AGAC_TEST_KONUM.y)
 	agac.scale = Vector3.ONE * _AGAC_TEST_OLCEK
 	kok3d.add_child(agac)
+
+
+func _zemin3d_asker_viewport_modu_ayarla(vp: SubViewport = null) -> void:
+	var hedef := vp if vp != null else _zemin3d_viewport
+	if not is_instance_valid(hedef):
+		return
+	if _ASKER_TEST_AKTIF or _zemin3d_birim_asker_adet > 0:
+		hedef.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	else:
+		hedef.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+func _zemin3d_test_asker_ekle(kok3d: Node3D) -> void:
+	var konum: Vector2 = _ASKER_TEST_KONUM
+	if nokta_konumlari.has("C"):
+		konum = Vector2(nokta_konumlari["C"]) + _ASKER_TEST_OFSET
+	else:
+		konum = Vector2(
+			(float(harita_sinir.get("min_x", 0)) + float(harita_sinir.get("max_x", 0))) * 0.5,
+			(float(harita_sinir.get("min_y", 0)) + float(harita_sinir.get("max_y", 0))) * 0.5
+		)
+	var asker := _zemin3d_asker_model_olustur()
+	if asker == null:
+		return
+	asker.name = "TestAsker"
+	asker.position = Vector3(konum.x, 0.0, konum.y)
+	asker.rotation_degrees = Vector3(0.0, 180.0, 0.0) + _ASKER_ROT_DUZELTME
+	kok3d.add_child(asker)
+	var skel := _zemin3d_skeleton_bul(asker)
+	if skel != null:
+		_zemin3d_asker_kutuphaneleri_hazirla(asker, skel)
+	_zemin3d_asker_anim_bagla(asker, true)
+
+
+func zemin3d_birim_asker_ekle(birim: Dictionary) -> void:
+	if not is_instance_valid(_zemin3d_asker_kok):
+		return
+	if is_instance_valid(birim.get("asker3d")):
+		return
+	var asker := _zemin3d_asker_model_olustur()
+	if asker == null:
+		return
+	var bid := int(birim.get("id", -1))
+	asker.name = "Asker3D_%d" % bid
+	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
+	asker.position = Vector3(konum.x, 0.0, konum.y)
+	asker.rotation_degrees = Vector3(0.0, 180.0, 0.0) + _ASKER_ROT_DUZELTME
+	_zemin3d_asker_kok.add_child(asker)
+	var skel := _zemin3d_skeleton_bul(asker)
+	if skel != null:
+		_zemin3d_asker_kutuphaneleri_hazirla(asker, skel)
+	_zemin3d_asker_faction_boya(asker, str(birim.get("taraf", "")))
+	_zemin3d_asker_anim_bagla(asker, false)
+	birim["asker3d"] = asker
+	birim["asker3d_son_konum"] = konum
+	birim["asker3d_yuz"] = _ASKER_YON_OFFSET
+	birim["asker3d_hedef_yuz"] = _ASKER_YON_OFFSET
+	birim["asker3d_anim"] = ""
+	_zemin3d_birim_asker_adet += 1
+	_zemin3d_asker_viewport_modu_ayarla()
+
+
+func zemin3d_birim_asker_guncelle(birim: Dictionary, delta: float = 0.0) -> void:
+	var asker = birim.get("asker3d")
+	if not is_instance_valid(asker):
+		return
+	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
+	asker.position = Vector3(konum.x, 0.0, konum.y)
+
+	var kok = birim.get("kok_node")
+	if is_instance_valid(kok):
+		asker.visible = kok.visible
+	elif is_instance_valid(birim.get("node")):
+		asker.visible = birim["node"].visible
+
+	var onceki: Vector2 = birim.get("asker3d_son_konum", konum)
+	var delta_pos := konum - onceki
+	var hareket_mesafe := delta_pos.length()
+	# Gercek yer degisimi (savasta menzilde beklerken hedef uzak olsa bile idle)
+	var hareket_ediyor := hareket_mesafe >= _ASKER_HAREKET_ESIGI
+	# Tum birimler: sadece konum deltasindan bakis (path/taraf yok)
+	if hareket_mesafe >= _ASKER_YON_ESIGI:
+		var hedef_yuz := rad_to_deg(atan2(delta_pos.x, delta_pos.y)) + _ASKER_YON_OFFSET
+		if _ASKER_YON_TERS:
+			hedef_yuz += 180.0
+		birim["asker3d_hedef_yuz"] = hedef_yuz
+	var hedef_yuz_now := float(birim.get("asker3d_hedef_yuz", birim.get("asker3d_yuz", _ASKER_YON_OFFSET)))
+	var yuz := float(birim.get("asker3d_yuz", _ASKER_YON_OFFSET))
+	var t := clampf(_ASKER_DONUS_HIZI * delta, 0.0, 1.0)
+	yuz = rad_to_deg(lerp_angle(deg_to_rad(yuz), deg_to_rad(hedef_yuz_now), t))
+	birim["asker3d_yuz"] = yuz
+	asker.rotation_degrees = Vector3(_ASKER_ROT_DUZELTME.x, yuz, _ASKER_ROT_DUZELTME.z)
+	birim["asker3d_son_konum"] = konum
+
+	var ap := asker.get_node_or_null("BirimAnimPlayer") as AnimationPlayer
+	if ap == null:
+		return
+	var hedef_anim := _asker_walk_key if hareket_ediyor else _asker_idle_key
+	if hedef_anim == "":
+		return
+	var onceki_anim := str(birim.get("asker3d_anim", ""))
+	if onceki_anim != hedef_anim:
+		ap.play(hedef_anim, _ASKER_ANIM_BLEND)
+		birim["asker3d_anim"] = hedef_anim
+
+
+func zemin3d_birim_asker_sil(birim: Dictionary) -> void:
+	var asker = birim.get("asker3d")
+	if is_instance_valid(asker):
+		asker.queue_free()
+		_zemin3d_birim_asker_adet = maxi(0, _zemin3d_birim_asker_adet - 1)
+		_zemin3d_asker_viewport_modu_ayarla()
+	birim.erase("asker3d")
+	birim.erase("asker3d_son_konum")
+	birim.erase("asker3d_yuz")
+	birim.erase("asker3d_hedef_yuz")
+	birim.erase("asker3d_anim")
+
+
+func _zemin3d_asker_kaynaklari_yukle() -> bool:
+	if _asker_model_sahne != null and _asker_anim_sahne != null:
+		return true
+	if not ResourceLoader.exists(_ASKER_TEST_MODEL):
+		push_error("WorldSystem: asker modeli yok: " + _ASKER_TEST_MODEL)
+		return false
+	if not ResourceLoader.exists(_ASKER_TEST_ANIM):
+		push_error("WorldSystem: asker animasyonu yok: " + _ASKER_TEST_ANIM)
+		return false
+	_asker_model_sahne = load(_ASKER_TEST_MODEL) as PackedScene
+	_asker_anim_sahne = load(_ASKER_TEST_ANIM) as PackedScene
+	if _asker_model_sahne == null or _asker_anim_sahne == null:
+		push_error("WorldSystem: asker model/anim PackedScene yuklenemedi")
+		return false
+	return true
+
+
+func _zemin3d_asker_model_olustur() -> Node3D:
+	if not _zemin3d_asker_kaynaklari_yukle():
+		return null
+	var asker := _asker_model_sahne.instantiate() as Node3D
+	if asker == null:
+		push_error("WorldSystem: Male_Ranger instantiate basarisiz")
+		return null
+	asker.visible = true
+	asker.scale = Vector3.ONE * _ASKER_TEST_OLCEK
+	for node in asker.find_children("*", "MeshInstance3D", true, false):
+		if node is MeshInstance3D:
+			var mi := node as MeshInstance3D
+			mi.visible = true
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return asker
+
+
+func _zemin3d_asker_faction_boya(asker: Node3D, taraf: String) -> void:
+	var tint := _RENK_OSMANLI if taraf == "osmanli" else _RENK_ROMA
+	for node in asker.find_children("*", "MeshInstance3D", true, false):
+		if not (node is MeshInstance3D):
+			continue
+		var mi := node as MeshInstance3D
+		var mesh := mi.mesh
+		if mesh == null:
+			continue
+		for si in range(mesh.get_surface_count()):
+			var aktif := mi.get_active_material(si)
+			if aktif == null:
+				continue
+			var kopya: Material = aktif.duplicate()
+			if kopya is StandardMaterial3D:
+				var sm := kopya as StandardMaterial3D
+				sm.albedo_color = Color(
+					sm.albedo_color.r * tint.r,
+					sm.albedo_color.g * tint.g,
+					sm.albedo_color.b * tint.b,
+					sm.albedo_color.a
+				)
+			elif kopya is BaseMaterial3D:
+				var bm := kopya as BaseMaterial3D
+				bm.albedo_color = Color(
+					bm.albedo_color.r * tint.r,
+					bm.albedo_color.g * tint.g,
+					bm.albedo_color.b * tint.b,
+					bm.albedo_color.a
+				)
+			mi.set_surface_override_material(si, kopya)
+
+
+func _zemin3d_asker_anim_bagla(asker: Node3D, walk_baslat: bool) -> void:
+	if not is_instance_valid(asker):
+		return
+	var tree := asker.get_tree()
+	if tree != null:
+		tree.process_frame.connect(
+			func(): _zemin3d_asker_anim_bagla_hemen(asker, walk_baslat),
+			CONNECT_ONE_SHOT
+		)
+	else:
+		_zemin3d_asker_anim_bagla_hemen(asker, walk_baslat)
+
+
+func _zemin3d_asker_anim_bagla_hemen(asker: Node3D, walk_baslat: bool) -> void:
+	if not is_instance_valid(asker):
+		return
+	var skel_hedef := _zemin3d_skeleton_bul(asker)
+	if skel_hedef == null:
+		push_error("WorldSystem: Male_Ranger Skeleton3D yok — animasyon baglanamaz")
+		return
+	if not _zemin3d_asker_kutuphaneleri_hazirla(asker, skel_hedef):
+		return
+
+	for eski in asker.find_children("*", "AnimationPlayer", true, false):
+		(eski as AnimationPlayer).active = false
+	var hedef_ap := asker.get_node_or_null("BirimAnimPlayer") as AnimationPlayer
+	if hedef_ap == null:
+		hedef_ap = asker.get_node_or_null("TestAnimPlayer") as AnimationPlayer
+	if hedef_ap == null:
+		hedef_ap = AnimationPlayer.new()
+		hedef_ap.name = "BirimAnimPlayer"
+		asker.add_child(hedef_ap)
+	hedef_ap.root_node = NodePath("..")
+	for kayit in _asker_paylasilan_libler:
+		var ad: String = str(kayit.get("ad", "ual2"))
+		var lib: AnimationLibrary = kayit.get("lib")
+		if lib == null:
+			continue
+		if hedef_ap.has_animation_library(ad):
+			hedef_ap.remove_animation_library(ad)
+		hedef_ap.add_animation_library(ad, lib)
+
+	hedef_ap.active = true
+	hedef_ap.speed_scale = _ASKER_ANIM_HIZ
+	var baslat := _asker_walk_key if walk_baslat else _asker_idle_key
+	if baslat == "":
+		baslat = _asker_idle_key if _asker_idle_key != "" else _asker_walk_key
+	if baslat != "":
+		hedef_ap.play(baslat)
+
+
+func _zemin3d_asker_kutuphaneleri_hazirla(ornek_asker: Node3D, skel_hedef: Skeleton3D) -> bool:
+	if _asker_anim_hazir and not _asker_paylasilan_libler.is_empty():
+		return true
+	if not _zemin3d_asker_kaynaklari_yukle():
+		return false
+
+	# Gecici AP: remap yollari icin root_node = ornek asker
+	var tmp_ap := AnimationPlayer.new()
+	tmp_ap.name = "AskerAnimHazirlaTMP"
+	ornek_asker.add_child(tmp_ap)
+	tmp_ap.root_node = NodePath("..")
+
+	var anim_kok := _asker_anim_sahne.instantiate() as Node3D
+	if anim_kok == null:
+		push_error("WorldSystem: UAL2_Standard instantiate basarisiz")
+		tmp_ap.queue_free()
+		return false
+	anim_kok.visible = false
+	anim_kok.name = "UAL2_AnimKaynak_TMP"
+	var ebeveyn := ornek_asker.get_parent()
+	if ebeveyn != null:
+		ebeveyn.add_child(anim_kok)
+	else:
+		ornek_asker.add_child(anim_kok)
+
+	var kaynak_ap := _zemin3d_animation_player_bul(anim_kok)
+	if kaynak_ap == null:
+		push_error("WorldSystem: UAL2_Standard icinde AnimationPlayer yok")
+		anim_kok.queue_free()
+		tmp_ap.queue_free()
+		return false
+
+	_asker_paylasilan_libler.clear()
+	for lib_name in kaynak_ap.get_animation_library_list():
+		var lib: AnimationLibrary = kaynak_ap.get_animation_library(lib_name)
+		if lib == null:
+			continue
+		var kopya := AnimationLibrary.new()
+		for anim_ad in lib.get_animation_list():
+			var src_anim: Animation = lib.get_animation(anim_ad)
+			if src_anim == null:
+				continue
+			kopya.add_animation(anim_ad, src_anim.duplicate(true))
+		_zemin3d_anim_kutuphanesi_iskelete_bagla(kopya, tmp_ap, skel_hedef)
+		var hedef_ad: String = str(lib_name) if str(lib_name) != "" else "ual2"
+		_asker_paylasilan_libler.append({"ad": hedef_ad, "lib": kopya})
+		tmp_ap.add_animation_library(hedef_ad, kopya)
+
+	anim_kok.queue_free()
+	_asker_walk_key = _zemin3d_animasyon_anahtari_bul(tmp_ap, _ASKER_TEST_WALK)
+	_asker_idle_key = _zemin3d_animasyon_anahtari_bul(tmp_ap, _ASKER_TEST_IDLE)
+	tmp_ap.queue_free()
+
+	if _asker_paylasilan_libler.is_empty():
+		push_error("WorldSystem: UAL2'den AnimationLibrary kopyalanamadi")
+		return false
+	if _asker_walk_key == "" and _asker_idle_key == "":
+		push_error("WorldSystem: Walk/Idle animasyonu bulunamadi")
+		return false
+	_asker_anim_hazir = true
+	return true
+
+
+func _zemin3d_animation_player_bul(kok: Node) -> AnimationPlayer:
+	if kok is AnimationPlayer:
+		return kok as AnimationPlayer
+	var dugumler := kok.find_children("*", "AnimationPlayer", true, false)
+	if dugumler.is_empty():
+		return null
+	return dugumler[0] as AnimationPlayer
+
+
+func _zemin3d_skeleton_bul(kok: Node) -> Skeleton3D:
+	var dugumler := kok.find_children("*", "Skeleton3D", true, false)
+	if dugumler.is_empty():
+		return null
+	return dugumler[0] as Skeleton3D
+
+
+func _zemin3d_animasyon_anahtari_bul(ap: AnimationPlayer, kisa_ad: String) -> String:
+	var adaylar: PackedStringArray = [kisa_ad]
+	if kisa_ad.ends_with("_Loop"):
+		adaylar.append(kisa_ad.substr(0, kisa_ad.length() - 5))
+	elif not kisa_ad.ends_with("_Loop"):
+		adaylar.append(kisa_ad + "_Loop")
+	for aday in adaylar:
+		for anahtar in ap.get_animation_list():
+			var a := str(anahtar)
+			if a == aday or a.ends_with("/" + aday) or a.get_file() == aday:
+				return a
+	var lower := kisa_ad.to_lower().trim_suffix("_loop")
+	for anahtar in ap.get_animation_list():
+		var a := str(anahtar)
+		var al := a.to_lower()
+		if al.ends_with(lower) or al.contains(lower) or al.get_file().trim_suffix("_loop") == lower:
+			return a
+	return ""
+
+
+func _zemin3d_anim_kutuphanesi_iskelete_bagla(
+	lib: AnimationLibrary,
+	ap: AnimationPlayer,
+	skel: Skeleton3D
+) -> void:
+	# Track yollari AnimationPlayer.root_node'a gore (UAL2: Armature/Skeleton3D:kemik).
+	var kok_node: Node = ap.get_node_or_null(ap.root_node)
+	if kok_node == null:
+		kok_node = ap.get_parent()
+	var skel_rel: String = skel.name
+	if kok_node != null:
+		skel_rel = str(kok_node.get_path_to(skel))
+	var bone_set: Dictionary = {}
+	for bi in range(skel.get_bone_count()):
+		bone_set[skel.get_bone_name(bi)] = true
+	var remap_ok := 0
+	var remap_skip := 0
+	for anim_ad in lib.get_animation_list():
+		var anim: Animation = lib.get_animation(anim_ad)
+		if anim == null:
+			continue
+		for ti in range(anim.get_track_count()):
+			var np: NodePath = anim.track_get_path(ti)
+			var kemik: String = np.get_concatenated_subnames()
+			if kemik == "":
+				var parcalar := str(np).split("/")
+				var son: String = parcalar[parcalar.size() - 1] if parcalar.size() > 0 else ""
+				son = son.split(":")[0]
+				if bone_set.has(son):
+					kemik = son
+				else:
+					remap_skip += 1
+					continue
+			elif ":" in kemik:
+				kemik = kemik.split(":")[0]
+			if not bone_set.has(kemik):
+				remap_skip += 1
+				continue
+			anim.track_set_path(ti, NodePath(skel_rel + ":" + kemik))
+			remap_ok += 1
+	if not _asker_anim_hazir:
+		print(
+			"WorldSystem: anim remap skel_rel=", skel_rel,
+			" ok=", remap_ok, " skip=", remap_skip
+		)
 
 
 func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
