@@ -24,11 +24,11 @@ const _CIMEN_PIXEL_TILESET_YOL := "res://assets/zemin/cimen_tileset.tres"
 const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
-const _ZEMIN3D_PPD := 1.4  # gorunen bolge basina piksel/iso birim (yuksek = net)
+## SubViewport piksel yogunlugu = Camera2D.zoom * olcek (1.0 = ekran 1:1, 1.5/2.0 = supersample).
+const _ZEMIN3D_VIEWPORT_OLCEK := 1.0
 const _ZEMIN3D_VP_MAX := 4096.0  # bolge basina viewport ust siniri
-const _ZEMIN3D_ZOOM_REF := 0.5
 const _ZEMIN3D_BOLGE_ESIK := 40.0  # kamera kaydirma esigi (ekran px)
-const _ZEMIN3D_PPD_ESIK := 0.05
+const _ZEMIN3D_ZOOM_ESIK := 0.001  # zoom degisince zorla yeniden ornekle
 const _ZEMIN3D_DOKU_TEKRAR := 256.0  # kac logical birimde bir doku tekrari
 const _ZEMIN3D_DIS_PAY := 640.0  # 3d zeminde harita disi pay (viewport boyutunu sinirlar)
 const _KAMERA_LIMIT_PAY := 4200.0  # zoom-out'ta kenarlarin gorunmesi icin limit payi
@@ -154,7 +154,10 @@ var _zemin3d_kok: Node3D = null
 var _zemin3d_asker_kok: Node3D = null
 var _zemin3d_off := Vector2.ZERO
 var _zemin3d_kam_mesafe := 0.0
-var _zemin3d_etkin_ppd := 0.0
+## Zoom=1 iken Camera3D.size referansi; etkin size = _zemin3d_temel_size / zoom.
+var _zemin3d_temel_size := 0.0
+var _zemin3d_son_zoom := 0.0
+var _zemin3d_son_ekran := Vector2.ZERO
 var _zemin3d_son_iso_merkez := Vector2.ZERO
 var _asker_model_sahne: PackedScene = null
 var _asker_anim_sahne: PackedScene = null
@@ -1055,7 +1058,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	vp.name = "Zemin3DViewport"
 	vp.own_world_3d = true
 	vp.transparent_bg = true
-	vp.size = Vector2i(512, 384)
+	vp.size = Vector2i(1280, 720)
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	cimen_katmani.add_child(vp)
 
@@ -1218,26 +1221,40 @@ func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
 	var bolge := _zemin3d_gorunen_bolge()
 	if bolge.is_empty():
 		return
-	var z := kamera.zoom.x
-	var ppd := _ZEMIN3D_PPD * clampf(z / _ZEMIN3D_ZOOM_REF, 1.0, 5.5)
+	var z := maxf(kamera.zoom.x, 0.01)
+	var root_vp := kamera.get_viewport()
+	if root_vp == null:
+		return
+	var ekran: Vector2 = root_vp.get_visible_rect().size
 	var iso_w: float = bolge["iso_w"]
 	var iso_h: float = bolge["iso_h"]
 	var iso_center: Vector2 = bolge["iso_center"]
 	var logical_center: Vector2 = bolge["logical_center"]
+	# Tek zoom kaynagi: Camera2D.zoom. PPD = z * olcek => gorunen alan ~ ekran cozunurlugu.
+	var ppd := z * _ZEMIN3D_VIEWPORT_OLCEK
 	if not zorla:
-		if absf(ppd - _zemin3d_etkin_ppd) < _ZEMIN3D_PPD_ESIK:
-			if iso_center.distance_to(_zemin3d_son_iso_merkez) < _ZEMIN3D_BOLGE_ESIK / maxf(z, 0.01):
+		var zoom_degisti := absf(z - _zemin3d_son_zoom) > _ZEMIN3D_ZOOM_ESIK
+		var ekran_degisti := ekran.distance_squared_to(_zemin3d_son_ekran) > 0.25
+		if not zoom_degisti and not ekran_degisti:
+			if iso_center.distance_to(_zemin3d_son_iso_merkez) < _ZEMIN3D_BOLGE_ESIK / z:
 				return
-	_zemin3d_etkin_ppd = ppd
+	_zemin3d_son_zoom = z
+	_zemin3d_son_ekran = ekran
 	_zemin3d_son_iso_merkez = iso_center
+	# Ekran yogunlugunda ornekle; zoom-out'ta VP_MAX ile sinirli.
 	_zemin3d_viewport.size = Vector2i(
 		clampi(int(iso_w * ppd), 256, int(_ZEMIN3D_VP_MAX)),
 		clampi(int(iso_h * ppd), 192, int(_ZEMIN3D_VP_MAX))
 	)
+	var vp_sz: Vector2 = Vector2(_zemin3d_viewport.size)
 	_zemin3d_sprite.position = iso_center
-	_zemin3d_sprite.scale = Vector2.ONE / ppd
+	# Doku -> iso: scale = 1/ppd (VP clamp olursa gercek oran vp_sz uzerinden).
+	_zemin3d_sprite.scale = Vector2(iso_w / maxf(vp_sz.x, 1.0), iso_h / maxf(vp_sz.y, 1.0))
 	if is_instance_valid(_zemin3d_kam3d):
-		_zemin3d_kam3d.size = iso_h * sqrt(2.0)
+		# Ortho zoom: size = temel / z; temel = iso_h*sqrt(2)*z (kalibrasyon korunur).
+		var yeni_size := iso_h * sqrt(2.0)
+		_zemin3d_temel_size = yeni_size * z
+		_zemin3d_kam3d.size = _zemin3d_temel_size / z
 		var geri := Vector3(
 			sqrt(3.0) / (2.0 * sqrt(2.0)), 0.5, sqrt(3.0) / (2.0 * sqrt(2.0))
 		)

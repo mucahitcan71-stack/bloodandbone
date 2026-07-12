@@ -296,6 +296,12 @@ func _world_system_hazirla() -> void:
 func _path_graph_hazirla() -> void:
 	path_graph.configure(self, world_system)
 
+func path_debug_toggle() -> void:
+	var acik := path_graph.toggle_path_debug()
+	var savas_bilgi = ui_node("Label_SavasBilgi")
+	if savas_bilgi != null:
+		savas_bilgi.text = "Debug: %s" % ("ACIK" if acik else "KAPALI")
+
 func _world_refs_sync() -> void:
 	aktif_harita_id = world_system.get_active_map_id()
 	harita_sinir = world_system.get_map_bounds()
@@ -468,14 +474,17 @@ func get_nesne_katmani() -> Node2D:
 func map_gorsel_node(node_name: String) -> Node:
 	return world_system.find_map_node(node_name)
 
-func birim_gorselini_uygula(birim: Dictionary) -> void:
-	world_system.birim_gorselini_uygula(birim)
+func birim_gorselini_uygula(birim: Dictionary, delta: float = 0.0) -> void:
+	world_system.birim_gorselini_uygula(birim, delta)
 
 func gecis_engelli_mi(konum: Vector2) -> bool:
 	return world_system.gecis_engelli_mi(konum)
 
 func yol_uzerinde_mi(konum: Vector2) -> bool:
 	return path_graph.yol_uzerinde_mi(konum)
+
+func yol_hiz_avantaji_mi(konum: Vector2) -> bool:
+	return path_graph.yol_hiz_avantaji_mi(konum)
 
 func birim_yol_bul(from: Vector2, to: Vector2) -> PackedVector2Array:
 	return path_graph.plan_move(from, to)
