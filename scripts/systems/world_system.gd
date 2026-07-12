@@ -71,6 +71,22 @@ const _ASKER_YON_ESIGI := 0.05  # kucuk adim (AI yol-disi) icin; idle jitter yok
 const _ASKER_DONUS_HIZI := 16.0  # lerp weight / sn; yuksek = onceki anlik his
 const _RENK_OSMANLI := Color(1.15, 0.85, 0.85)  # hafif kirmizi multiply tint
 const _RENK_ROMA := Color(0.85, 0.9, 1.2)  # hafif mavi multiply tint
+# Faction ayak halkasi (RTS secim / taraf ID) — asker yaw'dan bagimsiz sibling
+# Y: tube yaricapi (~kalinlik/2) uzerinde; aksi halde zemin plane z-fight / gomulme
+const _HALKA_Y := 0.95
+const _HALKA_BOYUT := 7.6  # dis kenar yaricapi (~1.2x ayak izi, scale 10)
+const _HALKA_KALINLIK := 1.5  # radyal halka kalinligi (outer - inner)
+# Osmanli: toprakta gorunur doygun kirmizi (eski 0.85/0.15 kirli kahvede kayboluyordu)
+const _HALKA_RENK_OSMANLI := Color(1.0, 0.18, 0.08, 0.98)
+const _HALKA_RENK_ROMA := Color(0.2, 0.45, 1.0, 0.95)
+const _HALKA_SECILI_PARLAKLIK := 1.5
+const _HALKA_SECILI_OLCEK := 1.15
+const _HALKA_SECILI_KALINLIK_CARPAN := 1.25
+const _HALKA_SECILI_PULSE_HIZ := 3.2
+const _HALKA_SECILI_PULSE_AMP := 0.1
+const _HALKA_SECILI_KENAR := Color(1.0, 1.0, 1.0, 0.92)
+const _HALKA_SECILI_KENAR_OFSET := 0.9
+const _HALKA_SECILI_KENAR_KALINLIK := 0.45
 const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
 const _NOKTA_KALE_YOL := "res://assets/proplar/yapilar/blood_and_bone_control_point_v2.glb"
 const _NOKTA_KALE_OLCEK := 80.0
@@ -134,6 +150,8 @@ var _asker_walk_key := ""
 var _asker_idle_key := ""
 var _asker_anim_hazir := false
 var _zemin3d_birim_asker_adet := 0
+var _halka_torus_mesh: TorusMesh = null
+var _halka_kenar_mesh: TorusMesh = null
 var decor_katmani: Node2D = null
 var nesne_katmani: Node2D = null
 var kamera: Camera2D = null
@@ -1000,6 +1018,8 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_kok = null
 	_zemin3d_asker_kok = null
 	_zemin3d_birim_asker_adet = 0
+	_halka_torus_mesh = null
+	_halka_kenar_mesh = null
 	_asker_anim_hazir = false
 	_asker_paylasilan_libler.clear()
 	_asker_walk_key = ""
@@ -1250,13 +1270,19 @@ func zemin3d_birim_asker_ekle(birim: Dictionary) -> void:
 	var skel := _zemin3d_skeleton_bul(asker)
 	if skel != null:
 		_zemin3d_asker_kutuphaneleri_hazirla(asker, skel)
-	_zemin3d_asker_faction_boya(asker, str(birim.get("taraf", "")))
+	var taraf := str(birim.get("taraf", ""))
+	_zemin3d_asker_faction_boya(asker, taraf)
 	_zemin3d_asker_anim_bagla(asker, false)
 	birim["asker3d"] = asker
 	birim["asker3d_son_konum"] = konum
 	birim["asker3d_yuz"] = _ASKER_YON_OFFSET
 	birim["asker3d_hedef_yuz"] = _ASKER_YON_OFFSET
 	birim["asker3d_anim"] = ""
+	var halka := _zemin3d_halka_olustur(bid)
+	halka.position = Vector3(konum.x, _HALKA_Y, konum.y)
+	_zemin3d_asker_kok.add_child(halka)
+	birim["halka3d"] = halka
+	_zemin3d_halka_gorunum_uygula(halka, taraf, bool(birim.get("secili", false)))
 	_zemin3d_birim_asker_adet += 1
 	_zemin3d_asker_viewport_modu_ayarla()
 
@@ -1269,10 +1295,20 @@ func zemin3d_birim_asker_guncelle(birim: Dictionary, delta: float = 0.0) -> void
 	asker.position = Vector3(konum.x, 0.0, konum.y)
 
 	var kok = birim.get("kok_node")
+	var gorunur := true
 	if is_instance_valid(kok):
-		asker.visible = kok.visible
+		gorunur = kok.visible
 	elif is_instance_valid(birim.get("node")):
-		asker.visible = birim["node"].visible
+		gorunur = birim["node"].visible
+	asker.visible = gorunur
+
+	var halka = birim.get("halka3d")
+	if is_instance_valid(halka):
+		halka.position = Vector3(konum.x, _HALKA_Y, konum.y)
+		halka.visible = gorunur
+		if bool(birim.get("secili", false)):
+			var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.001 * _HALKA_SECILI_PULSE_HIZ) * _HALKA_SECILI_PULSE_AMP
+			halka.scale = Vector3.ONE * (_HALKA_SECILI_OLCEK * pulse)
 
 	var onceki: Vector2 = birim.get("asker3d_son_konum", konum)
 	var delta_pos := konum - onceki
@@ -1305,13 +1341,24 @@ func zemin3d_birim_asker_guncelle(birim: Dictionary, delta: float = 0.0) -> void
 		birim["asker3d_anim"] = hedef_anim
 
 
+func zemin3d_birim_halka_secili(birim: Dictionary, secili: bool) -> void:
+	var halka = birim.get("halka3d")
+	if not is_instance_valid(halka):
+		return
+	_zemin3d_halka_gorunum_uygula(halka, str(birim.get("taraf", "")), secili)
+
+
 func zemin3d_birim_asker_sil(birim: Dictionary) -> void:
 	var asker = birim.get("asker3d")
 	if is_instance_valid(asker):
 		asker.queue_free()
 		_zemin3d_birim_asker_adet = maxi(0, _zemin3d_birim_asker_adet - 1)
 		_zemin3d_asker_viewport_modu_ayarla()
+	var halka = birim.get("halka3d")
+	if is_instance_valid(halka):
+		halka.queue_free()
 	birim.erase("asker3d")
+	birim.erase("halka3d")
 	birim.erase("asker3d_son_konum")
 	birim.erase("asker3d_yuz")
 	birim.erase("asker3d_hedef_yuz")
@@ -1383,6 +1430,80 @@ func _zemin3d_asker_faction_boya(asker: Node3D, taraf: String) -> void:
 					bm.albedo_color.a
 				)
 			mi.set_surface_override_material(si, kopya)
+
+
+func _zemin3d_halka_torus(outer_r: float, kalinlik: float) -> TorusMesh:
+	var mesh := TorusMesh.new()
+	# Godot TorusMesh: inner/outer = merkezden kenar yaricaplari (tube degil)
+	mesh.outer_radius = outer_r
+	mesh.inner_radius = maxf(outer_r - kalinlik, 0.05)
+	mesh.rings = 10
+	mesh.ring_segments = 20
+	return mesh
+
+
+func _zemin3d_halka_materyal(renk: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = renk
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Zemin plane ile z-fight olmasin; RTS halka her zaman boyansin
+	mat.no_depth_test = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.render_priority = 10
+	return mat
+
+
+func _zemin3d_halka_olustur(bid: int) -> Node3D:
+	if _halka_torus_mesh == null:
+		_halka_torus_mesh = _zemin3d_halka_torus(_HALKA_BOYUT, _HALKA_KALINLIK)
+	if _halka_kenar_mesh == null:
+		_halka_kenar_mesh = _zemin3d_halka_torus(
+			_HALKA_BOYUT + _HALKA_SECILI_KENAR_OFSET,
+			_HALKA_SECILI_KENAR_KALINLIK
+		)
+	var kok := Node3D.new()
+	kok.name = "Halka3D_%d" % bid
+	var mi := MeshInstance3D.new()
+	mi.name = "HalkaMesh"
+	mi.mesh = _halka_torus_mesh
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	kok.add_child(mi)
+	var kenar := MeshInstance3D.new()
+	kenar.name = "HalkaKenar"
+	kenar.mesh = _halka_kenar_mesh
+	kenar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	kenar.visible = false
+	kok.add_child(kenar)
+	return kok
+
+
+func _zemin3d_halka_gorunum_uygula(halka: Node3D, taraf: String, secili: bool) -> void:
+	var taban := _HALKA_RENK_OSMANLI if taraf == "osmanli" else _HALKA_RENK_ROMA
+	var mi := halka.get_node_or_null("HalkaMesh") as MeshInstance3D
+	var kenar := halka.get_node_or_null("HalkaKenar") as MeshInstance3D
+	if mi == null:
+		return
+	if secili:
+		var parlak := Color(
+			clampf(taban.r * _HALKA_SECILI_PARLAKLIK, 0.0, 1.0),
+			clampf(taban.g * _HALKA_SECILI_PARLAKLIK, 0.0, 1.0),
+			clampf(taban.b * _HALKA_SECILI_PARLAKLIK, 0.0, 1.0),
+			minf(taban.a + 0.08, 1.0)
+		)
+		mi.material_override = _zemin3d_halka_materyal(parlak)
+		mi.scale = Vector3.ONE * _HALKA_SECILI_KALINLIK_CARPAN
+		halka.scale = Vector3.ONE * _HALKA_SECILI_OLCEK
+		if kenar != null:
+			kenar.material_override = _zemin3d_halka_materyal(_HALKA_SECILI_KENAR)
+			kenar.visible = true
+	else:
+		mi.material_override = _zemin3d_halka_materyal(taban)
+		mi.scale = Vector3.ONE
+		halka.scale = Vector3.ONE
+		if kenar != null:
+			kenar.visible = false
 
 
 func _zemin3d_asker_anim_bagla(asker: Node3D, walk_baslat: bool) -> void:

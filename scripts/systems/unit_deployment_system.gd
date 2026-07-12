@@ -269,15 +269,16 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	_host.get_nesne_katmani().add_child(kok)
 
 	var cerceve = ColorRect.new()
-	cerceve.color = Color(0.05, 0.05, 0.08, 0.55) if taraf == "osmanli" else Color(0.15, 0.05, 0.25, 0.65)
+	cerceve.color = Color(1.0, 0.92, 0.25, 0.0)
 	cerceve.size = Vector2(34, 34)
 	cerceve.position = Vector2(-17, -32)
 	cerceve.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cerceve.z_index = -1
+	cerceve.visible = false
 	kok.add_child(cerceve)
 
 	var kare = ColorRect.new()
-	kare.color = tip["renk"]
+	kare.color = Color(0, 0, 0, 0)
 	kare.size = Vector2(30, 30)
 	kare.position = Vector2(-15, -30)
 	kare.z_index = 0
@@ -287,6 +288,7 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	sembol.text = tip["sembol"]
 	sembol.position = Vector2(5, 5)
 	sembol.add_theme_font_size_override("font_size", 14)
+	sembol.visible = false
 	kare.add_child(sembol)
 
 	var asker_l = Label.new()
@@ -364,6 +366,8 @@ func create_unit(baslangic: Vector2, hedef_nokta: String, taraf: String, tip: Di
 	_host.birim_id_sayaci += 1
 	_host.aktif_birimler.append(birim)
 	_host.terfi_kullanimi_artir(taraf, tip["isim"])
+	if _host.world_system != null:
+		_host.world_system.zemin3d_birim_asker_ekle(birim)
 
 func assign_strip_slot(entry: Dictionary) -> void:
 	if entry.has("strip_slot"):
