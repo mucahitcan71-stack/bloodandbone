@@ -88,6 +88,19 @@ const _HALKA_SECILI_KENAR := Color(1.0, 1.0, 1.0, 0.92)
 const _HALKA_SECILI_KENAR_OFSET := 0.9
 const _HALKA_SECILI_KENAR_KALINLIK := 0.45
 const _ZEMIN3D_SUBDIV := 240  # tepecik detayi icin plane bolunmesi
+# Zemin3D isik / ortam (kolay ayar)
+const _ISIK_ACI := Vector3(-45.0, -35.0, 0.0)  # degrees
+const _ISIK_ENERJI := 1.15
+const _ISIK_RENK := Color(1.0, 0.97, 0.9)
+const _ISIK_GOLGE_MESAFE := 3500.0
+const _HDRI_YOL := "res://assets/zemin/DaySkyHDRI016B_2K_HDR.exr"
+const _ORTAM_ENERJI := 0.45
+const _TONEMAP_EXPOSURE := 1.0
+const _SSAO_AKTIF := true
+const _SSAO_YARICAP := 1.2
+const _SSAO_SIDDET := 0.35
+const _GLOW_AKTIF := true
+const _GLOW_SIDDET := 0.2
 const _NOKTA_KALE_YOL := "res://assets/proplar/yapilar/blood_and_bone_control_point_v2.glb"
 const _NOKTA_KALE_OLCEK := 80.0
 const _KALE_YOL_KENAR_PAYI := 16.0
@@ -1070,9 +1083,15 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	kok3d.add_child(mi)
 
 	var isik := DirectionalLight3D.new()
-	isik.rotation_degrees = Vector3(-55.0, -35.0, 0.0)
-	isik.light_energy = 1.15
-	isik.shadow_enabled = false
+	isik.name = "ZeminGunIsigi"
+	isik.rotation_degrees = _ISIK_ACI
+	isik.light_energy = _ISIK_ENERJI
+	isik.light_color = _ISIK_RENK
+	isik.shadow_enabled = true
+	isik.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	isik.directional_shadow_max_distance = _ISIK_GOLGE_MESAFE
+	isik.shadow_blur = 1.0
+	isik.shadow_bias = 0.03
 	kok3d.add_child(isik)
 
 	# 2:1 izometriye kalibre ortografik kamera:
@@ -1087,14 +1106,14 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	kam.position = Vector3(merkez.x, 0.0, merkez.y) + geri * mesafe
 	kam.near = 1.0
 	kam.far = mesafe * 2.0 + 400.0
-	var env := Environment.new()
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(1.0, 1.0, 1.0)
-	env.ambient_light_energy = 0.35
-	kam.environment = env
 	kok3d.add_child(kam)
 	kam.current = true
 	_zemin3d_kam3d = kam
+
+	var we := WorldEnvironment.new()
+	we.name = "ZeminOrtam"
+	we.environment = _zemin3d_ortam_olustur()
+	kok3d.add_child(we)
 
 	if _AGAC_TEST_AKTIF:
 		_zemin3d_test_agac_ekle(kok3d)
@@ -1114,6 +1133,38 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_viewport = vp
 	_zemin3d_sprite = spr
 	_zemin3d_bolge_guncelle(true)
+
+
+func _zemin3d_ortam_olustur() -> Environment:
+	var env := Environment.new()
+	env.background_mode = Environment.BG_SKY
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = _TONEMAP_EXPOSURE
+	env.ssao_enabled = _SSAO_AKTIF
+	env.ssao_radius = _SSAO_YARICAP
+	env.ssao_intensity = _SSAO_SIDDET
+	env.glow_enabled = _GLOW_AKTIF
+	env.glow_intensity = _GLOW_SIDDET
+	env.glow_strength = 0.8
+	env.glow_bloom = 0.05
+
+	var hdri: Texture2D = null
+	if ResourceLoader.exists(_HDRI_YOL):
+		hdri = load(_HDRI_YOL) as Texture2D
+	if hdri != null:
+		var pan := PanoramaSkyMaterial.new()
+		pan.panorama = hdri
+		var sky := Sky.new()
+		sky.sky_material = pan
+		env.sky = sky
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		env.ambient_light_energy = _ORTAM_ENERJI
+	else:
+		# HDRI yoksa duz renk fill (siyah zemin golge boslugu olmasin)
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color(0.92, 0.94, 1.0)
+		env.ambient_light_energy = _ORTAM_ENERJI
+	return env
 
 
 func _zemin3d_gorunen_bolge() -> Dictionary:
