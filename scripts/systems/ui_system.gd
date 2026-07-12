@@ -23,9 +23,11 @@ var _fps_legend: Label = null
 var _timing_label: Label = null
 var _fps_acik := true
 var _PERF_DIAG_TIMING_ACIK := false
+var _vsync_acik := true
 var _perf_diag_status := {
 	"prop": true, "golge": true, "ssao": true, "asker": true,
 	"fog": true, "minimap": true, "zemin": true, "viewport": true, "timing": false,
+	"vsync": true, "viewport_olcek": 1.0,
 }
 var _timing_us := {
 	"fog": 0, "minimap": 0, "combat": 0, "ui": 0, "zemin3d": 0,
@@ -122,7 +124,6 @@ func build_fps_overlay() -> void:
 	lbl.add_theme_color_override("font_color", Color(0.98, 0.98, 0.75, 1.0))
 	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	lbl.add_theme_constant_override("outline_size", 3)
-	lbl.text = _fps_overlay_metni()
 	layer.add_child(lbl)
 	_fps_label = lbl
 	var legend := Label.new()
@@ -135,9 +136,11 @@ func build_fps_overlay() -> void:
 	legend.add_theme_color_override("font_color", Color(0.85, 0.9, 0.75, 0.95))
 	legend.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	legend.add_theme_constant_override("outline_size", 2)
-	legend.text = "F4:Fog  F12:Mini  Ctrl+F6:Zemin  Ctrl+F7:VP  F1:Timing | F6:Prop  F7:Golge  F10:SSAO  F11:Asker  F2:FPS"
+	legend.text = "F4:Fog  F12:Mini  Ctrl+F6:Zemin  Ctrl+F7:VP  Ctrl+F3:VSync  Ctrl+F8:Olcek  F1:Timing | F6:Prop  F7:Golge  F10:SSAO  F11:Asker  F2:FPS  F3:Path"
 	layer.add_child(legend)
 	_fps_legend = legend
+	_vsync_durum_oku()
+	_fps_label.text = _fps_overlay_metni()
 	var timing := Label.new()
 	timing.name = "Label_PerfTiming"
 	timing.visible = false
@@ -171,6 +174,23 @@ func set_perf_diag_status(status: Dictionary) -> void:
 
 func is_perf_timing_acik() -> bool:
 	return _PERF_DIAG_TIMING_ACIK
+
+func is_vsync_acik() -> bool:
+	return _vsync_acik
+
+func toggle_vsync() -> bool:
+	_vsync_acik = not _vsync_acik
+	DisplayServer.window_set_vsync_mode(
+		DisplayServer.VSYNC_ENABLED if _vsync_acik else DisplayServer.VSYNC_DISABLED
+	)
+	_perf_diag_status["vsync"] = _vsync_acik
+	if _fps_acik and is_instance_valid(_fps_label):
+		_fps_label.text = _fps_overlay_metni()
+	return _vsync_acik
+
+func _vsync_durum_oku() -> void:
+	_vsync_acik = DisplayServer.window_get_vsync_mode() != DisplayServer.VSYNC_DISABLED
+	_perf_diag_status["vsync"] = _vsync_acik
 
 func toggle_perf_timing() -> bool:
 	_PERF_DIAG_TIMING_ACIK = not _PERF_DIAG_TIMING_ACIK
@@ -219,8 +239,10 @@ func tick_fps_overlay() -> void:
 		_timing_label.text = _timing_overlay_metni()
 
 func _fps_overlay_metni() -> String:
-	return "FPS: %d  |  Prop:%s Golge:%s SSAO:%s Asker:%s | Fog:%s Mini:%s Zem:%s VP:%s" % [
+	return "FPS: %d  |  VSync:%s Viewport: %s | Prop:%s Golge:%s SSAO:%s Asker:%s | Fog:%s Mini:%s Zem:%s VP:%s" % [
 		Engine.get_frames_per_second(),
+		_perf_diag_etiket("vsync"),
+		_viewport_olcek_etiket(),
 		_perf_diag_etiket("prop"),
 		_perf_diag_etiket("golge"),
 		_perf_diag_etiket("ssao"),
@@ -230,6 +252,18 @@ func _fps_overlay_metni() -> String:
 		_perf_diag_etiket("zemin"),
 		_perf_diag_etiket("viewport"),
 	]
+
+func _viewport_olcek_etiket() -> String:
+	var o := float(_perf_diag_status.get("viewport_olcek", 1.0))
+	if is_equal_approx(o, 1.0):
+		return "1.0x"
+	if is_equal_approx(o, 1.25):
+		return "1.25x"
+	if is_equal_approx(o, 1.5):
+		return "1.5x"
+	if is_equal_approx(o, 2.0):
+		return "2.0x"
+	return "%.2fx" % o
 
 func _timing_overlay_metni() -> String:
 	return (

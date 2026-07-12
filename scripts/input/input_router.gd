@@ -110,7 +110,10 @@ func _handle_left_drag_pan(
 func _handle_fps_overlay_toggle(event: InputEvent) -> bool:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return false
-	if (event as InputEventKey).keycode != KEY_F2:
+	var ek := event as InputEventKey
+	if ek.keycode != KEY_F2:
+		return false
+	if ek.ctrl_pressed or ek.shift_pressed or ek.alt_pressed:
 		return false
 	_host.fps_overlay_toggle()
 	return true
@@ -122,15 +125,22 @@ func _handle_perf_diag_toggle(event: InputEvent) -> bool:
 	var key := ek.keycode
 	var kind := ""
 	# F8 = Godot editor/debugger "Stop" (oyunu kapatır). F9 = breakpoint.
-	# SSAO/Asker bu yüzden F10/F11. F1=Timing F4=Fog F12=Minimap Ctrl+F6=Zemin Ctrl+F7=VP.
+	# SSAO/Asker F10/F11. F1=Timing F3=Path F4=Fog F12=Minimap.
+	# Ctrl+F3=VSync Ctrl+F6=Zemin Ctrl+F7=VP ALWAYS Ctrl+F8=Viewport ölçek (bare F8 yasak).
 	if ek.ctrl_pressed:
 		match key:
+			KEY_F3:
+				kind = "vsync"
 			KEY_F6:
 				kind = "zemin"
 			KEY_F7:
 				kind = "viewport"
+			KEY_F8:
+				kind = "viewport_olcek"
 			_:
 				return false
+	elif ek.shift_pressed or ek.alt_pressed:
+		return false
 	else:
 		match key:
 			KEY_F1:
@@ -155,7 +165,11 @@ func _handle_perf_diag_toggle(event: InputEvent) -> bool:
 func _handle_path_debug_toggle(event: InputEvent) -> bool:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return false
-	if (event as InputEventKey).keycode != KEY_F3:
+	var ek := event as InputEventKey
+	if ek.keycode != KEY_F3:
+		return false
+	# Ctrl+F3 = VSync; F3 yalnız = path debug
+	if ek.ctrl_pressed or ek.shift_pressed or ek.alt_pressed:
 		return false
 	_host.path_debug_toggle()
 	return true

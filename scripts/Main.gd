@@ -307,12 +307,14 @@ func fps_overlay_toggle() -> void:
 
 func perf_diag_toggle(kind: String) -> void:
 	match kind:
-		"prop", "golge", "ssao", "asker", "zemin", "viewport":
+		"prop", "golge", "ssao", "asker", "zemin", "viewport", "viewport_olcek":
 			world_system.perf_diag_toggle(kind)
 		"fog", "minimap":
 			fog_system.perf_diag_toggle(kind)
 		"timing":
 			ui_system.toggle_perf_timing()
+		"vsync":
+			ui_system.toggle_vsync()
 		_:
 			pass
 	ui_system.set_perf_diag_status(_perf_diag_status_birlesik())
@@ -321,6 +323,7 @@ func _perf_diag_status_birlesik() -> Dictionary:
 	var status := world_system.get_perf_diag_status()
 	status.merge(fog_system.get_perf_diag_status())
 	status["timing"] = ui_system.is_perf_timing_acik()
+	status["vsync"] = ui_system.is_vsync_acik()
 	return status
 
 func _world_refs_sync() -> void:

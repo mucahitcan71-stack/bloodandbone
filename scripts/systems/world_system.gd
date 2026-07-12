@@ -25,10 +25,12 @@ const _CIMEN_KARO_TEX_PX := 64
 const _CIM_DOKU_OLCEK := 0.5  # 1.0 = mevcut; kucuk = daha sik tekrar = daha kucuk cim
 const _CIMEN_DIS_PAY := 640.0  # harita sinirinin disina cim (bos kose alanlari)
 ## SubViewport piksel yogunlugu = Camera2D.zoom * olcek (1.0 = ekran 1:1, >1 = supersample).
-const _VIEWPORT_OLCEK := 1.0
+## Ctrl+F8 ile runtime cycle: 1.0 → 1.25 → 1.5 → 2.0 → 1.0
+var _VIEWPORT_OLCEK := 1.0
+const _VIEWPORT_OLCEK_ADIMLAR := [1.0, 1.25, 1.5, 2.0]
 # --- TEMP PERF DIAG (F6 Prop / F7 Golge / F10 SSAO / F11 Asker / Ctrl+F6 Zemin / Ctrl+F7 VP) ---
 # In-game toggle: InputRouter → Main → WorldSystem.restart gerekmez.
-# Not: F8 editor Stop (hardcoded), F9 breakpoint — SSAO/Asker F10/F11.
+# Not: F8 editor Stop (hardcoded), F9 breakpoint — SSAO/Asker F10/F11. Ctrl+F8 = olcek.
 var _PERF_DIAG_ASKER_ACIK := true
 var _PERF_DIAG_GOLGE_ACIK := true
 var _PERF_DIAG_PROP_ACIK := true
@@ -206,7 +208,28 @@ func get_perf_diag_status() -> Dictionary:
 		"asker": _PERF_DIAG_ASKER_ACIK,
 		"zemin": _PERF_DIAG_ZEMIN_ACIK,
 		"viewport": _PERF_DIAG_VIEWPORT_ALWAYS,
+		"viewport_olcek": _VIEWPORT_OLCEK,
 	}
+
+func get_viewport_olcek() -> float:
+	return _VIEWPORT_OLCEK
+
+func viewport_olcek_cycle() -> float:
+	var idx := 0
+	for i in _VIEWPORT_OLCEK_ADIMLAR.size():
+		if is_equal_approx(_VIEWPORT_OLCEK, float(_VIEWPORT_OLCEK_ADIMLAR[i])):
+			idx = i
+			break
+	idx = (idx + 1) % _VIEWPORT_OLCEK_ADIMLAR.size()
+	_VIEWPORT_OLCEK = float(_VIEWPORT_OLCEK_ADIMLAR[idx])
+	if is_instance_valid(_zemin3d_sprite):
+		_zemin3d_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_zemin3d_bolge_guncelle(true)
+	# UPDATE_ONCE iken size degisince yeniden ornekle
+	if is_instance_valid(_zemin3d_viewport) \
+			and _zemin3d_viewport.render_target_update_mode != SubViewport.UPDATE_ALWAYS:
+		_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	return _VIEWPORT_OLCEK
 
 func perf_diag_toggle(kind: String) -> Dictionary:
 	match kind:
@@ -222,6 +245,9 @@ func perf_diag_toggle(kind: String) -> Dictionary:
 			_PERF_DIAG_ZEMIN_ACIK = not _PERF_DIAG_ZEMIN_ACIK
 		"viewport":
 			_PERF_DIAG_VIEWPORT_ALWAYS = not _PERF_DIAG_VIEWPORT_ALWAYS
+		"viewport_olcek":
+			viewport_olcek_cycle()
+			return get_perf_diag_status()
 		_:
 			pass
 	_perf_diag_uygula(kind)
