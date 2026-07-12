@@ -52,6 +52,12 @@ const _KAMERA_LIMIT_PAY := 4200.0  # zoom-out'ta kenarlarin gorunmesi icin limit
 const _ZEMIN3D_SHADER_YOL := "res://assets/zemin/zemin3d_teren.gdshader"
 const _ZEMIN_PBR := false  # true = PBR cim (color+normal+roughness+AO)
 const _ZEMIN_HARMAN := true  # true = noise harman (cim+toprak+tas) — aktif varsayilan
+# 3D teren harman (zemin3d_teren.gdshader) — cim hakim, yumusak gecis
+const _GECIS_GENISLIK := 0.25
+const _TOPRAK_MIKTAR := 0.15
+const _TAS_MIKTAR := 0.08
+const _LEKE_OLCEK := 3.0  # dusuk frekans = buyuk/seyrek leke
+const _RENK_VARYASYON := 0.1
 const _CIM_UV_TEKRAR := Vector2(40.0, 24.0)  # 15000x9000 haritada tekrar sayisi (buyuk = sik/net)
 const _DOKU_PBR_COLOR := "res://assets/zemin/Grass004_2K-JPG_Color.jpg"
 const _DOKU_PBR_NORMAL := "res://assets/zemin/Grass004_2K-JPG_NormalGL.jpg"
@@ -2101,8 +2107,12 @@ func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
 	# Noise/tepe olcekleri harita boyutuyla orantili: leke ve tepe boyutu
 	# dunya biriminde sabit kalsin (referans genislik 6280 = eski 5000'lik harita)
 	var oran := gw / 6280.0
-	mat.set_shader_parameter("noise_olcek", 1.5 * oran)
+	mat.set_shader_parameter("leke_olcek", _LEKE_OLCEK * oran)
 	mat.set_shader_parameter("tepe_olcek", 1.6 * oran)
+	mat.set_shader_parameter("toprak_miktar", _TOPRAK_MIKTAR)
+	mat.set_shader_parameter("tas_miktar", _TAS_MIKTAR)
+	mat.set_shader_parameter("gecis_genislik", _GECIS_GENISLIK)
+	mat.set_shader_parameter("renk_varyasyon", _RENK_VARYASYON)
 	var sis := _doku_yukle_veya_null(_DOKU_SIS)
 	if sis != null:
 		mat.set_shader_parameter("sis_tex", sis)
