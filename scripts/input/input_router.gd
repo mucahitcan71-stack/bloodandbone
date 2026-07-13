@@ -71,7 +71,7 @@ func handle_secondary_click(event_position: Vector2) -> void:
 		return
 	_host.dusman_sag_tik_menu_kapat()
 	if _host.secili_birim != null:
-		_host.harita_sag_tik_menu_ac(event_position, dunya_pos)
+		_host.harita_sag_tik_menu_ac(event_position, _host.ekran_to_logical(dunya_pos))
 		return
 	_host.komut_menusu_kapat()
 
@@ -321,7 +321,7 @@ func _apply_unit_click_decision(tiklanan_oyuncu, tiklanan_dusman, dunya_pos: Vec
 		if _host.secili_komut == "pusu":
 			_host.birim_pusu_kur()
 		elif _host.secili_komut == "saldir":
-			_host.birim_komut_saldir(_host.secili_birim, dunya_pos)
+			_host.birim_komut_saldir(_host.secili_birim, _host.ekran_to_logical(dunya_pos))
 		else:
 			_host.birim_hareket_ettir(_host.ekran_to_logical(dunya_pos))
 	elif _host.secili_envanter_tip_anahtari != "":

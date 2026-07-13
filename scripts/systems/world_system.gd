@@ -13,7 +13,67 @@ const _ZEMIN_DOKU := "3d"  # "3d" | "cim" | "zengin" | "pixel"
 const _PIXEL_CIMEN_ZEMIN := false
 const _ESKI_SPRITE_ZEMIN := false
 const _GIZLE_ARAZI_BOLGE_GORSEL := true
-const _ARAZI_GORSEL := true  # editor poligonlari (gizlenme/tepe/vadi)
+const _ARAZI_GORSEL := true  # editor poligonlari (oyun overlay asagida)
+## Tepe/vadi yari-saydam overlay (oyunda kapali; yukseklik mesh'te).
+const _ARAZI_POLIGON_GORSEL := false
+## Gizlenme overlay (oyunda kapali; editor ayri cizim).
+const _GIZLENME_POLIGON_GORSEL := false
+const _TEPE_YUKSEKLIK := 350.0
+const _VADI_DERINLIK := 150.0
+## Boyanan heightmap'ten otomatik tepe/vadi siniflandirma (combat baglama sonra).
+const _TEPE_ESIK := 80.0
+const _VADI_ESIK := -40.0
+## Kenar yumusatma ust siniri; kucuk editor poligonlarinda AABB'ye gore dusurulur.
+const _GECIS_MESAFE := 900.0
+## Soft-falloff kenar mesafesine eklenen organic FBM noise (±).
+const _KENAR_NOISE_GUC := 300.0
+## Eski poligon tepe/vadi genligine FBM (artik height boyama kullanilir; helper'lar kaldi).
+const _FBM_LACUNARITY := 2.0
+const _FBM_GAIN := 0.5
+const _FBM_OKTAV := 3
+const _FBM_AMPLITUD_ETKI := 0.45
+## Shader: yukseklik → kuru/acik vs yesil/koyu albedo.
+const _YUKSEKLIK_DOKU_ETKI := 0.4
+## Shader: egim (1-dot(n,up)) — duz cim / gecis / dik toprak-tas.
+const _EGIM_ESIK_1 := 0.15
+const _EGIM_ESIK_2 := 0.45
+## Bake AO (heightmap G); vadi koyulastirma.
+const _AO_GUC := 0.35
+const _HEIGHTMAP_MAX_W := 256
+## Gorsel oturma: prop egim uyumu (1=tam slope, 0=dik).
+const _PROP_EGIM_UYUM := 0.3
+const _KAYA_EGIM_UYUM := 0.7
+const _YAPI_EGIM_UYUM := 0.0
+## Kale pad: disk ortalama yukseklik + soft falloff (bake ONCESI).
+const _KALE_DUZLEME_YARICAP := 220.0
+const _KALE_DUZLEME_GECIS := 300.0
+## Yol koridoru: tam duzleme genisligi + soft falloff (logical).
+const _YOL_KORIDOR_GENISLIK := 150.0
+const _YOL_GECIS_GENISLIK := 250.0
+## 3D yol seridi: zemin ustu ofset + Catmull sonrasi ornekleme (logical).
+const _YOL_Z_OFFSET := 4.0
+const _YOL_ORNEKLEME_ADIM := 30.0
+const _YOL_GENISLIK_ANA := 80.0
+const _YOL_GENISLIK_PATIKA := 50.0
+const _YOL_GENISLIK_GIZLI := 30.0
+const _YOL_TEX_TEKRAR := 160.0
+const _YOL_DOKU_ANA := "res://assets/zemin/Ground028_2K-JPG_Color.jpg"
+const _YOL_DOKU_YEDEK := "res://assets/zemin/Ground037_2K-JPG_Color.jpg"
+const _YOL_SHADER_YOL := "res://assets/zemin/yol3d_serit.gdshader"
+## Profil yumusatma yaricapi (logical mesafe boyunca).
+const _YOL_PROFIL_YUMUSAT := 180.0
+## Tiklama: Camera3D heightfield — dunya adimi + binary refine / yedek iterasyon.
+const _TIK_RAY_ADIM_DUNYA := 16.0
+const _TIK_RAY_ADIM_MAX := 512
+const _TIK_RAY_BINARY := 24
+const _TIK_RAY_EPS := 0.25
+const _TIK_ITER_MAX := 8
+const _TIK_DEBUG := false
+## Asker Y: hedef yukseklige hizli lerp (goruntu; mantik duz kalir).
+const _ASKER_YUKSEKLIK_LERP := 22.0
+const _NORMAL_EPS_MIN := 8.0
+## World Y → 2D iso ekran (cam ~30°); tiklama/HP bari 3D askerle hizalanir. Mantik konum degismez.
+const _YUKSEKLIK_ISO_CARPAN := 0.5
 const _CIMEN_GRID_K := 64.0
 const _CIMEN_GERCEK_YOL := "res://assets/zemin/cimen_gercek.jpg"
 const _CIMEN_ZENGIN_YOLLARI := [
@@ -41,6 +101,8 @@ var _perf_diag_isik: DirectionalLight3D = null
 var _perf_diag_env: Environment = null
 var _zemin3d_prop_kok: Node3D = null
 var _zemin3d_nokta_kok: Node3D = null
+var _zemin3d_yol_kok: Node3D = null
+var _yol3d_mat: Material = null
 var _zemin3d_mesh_mi: MeshInstance3D = null
 # --- /TEMP PERF DIAG ---
 const _ZEMIN3D_VP_MAX := 4096.0  # bolge basina viewport ust siniri
@@ -58,6 +120,9 @@ const _TOPRAK_MIKTAR := 0.15
 const _TAS_MIKTAR := 0.08
 const _LEKE_OLCEK := 3.0  # dusuk frekans = buyuk/seyrek leke
 const _RENK_VARYASYON := 0.1
+# Hafif noise tepecik (bolge yuksekligi ustune eklenir; mantik Y=0).
+const _ZEMIN_YUKSEKLIK := 4.0
+const _YUKSEKLIK_OLCEK := 2000.0
 const _CIM_UV_TEKRAR := Vector2(40.0, 24.0)  # 15000x9000 haritada tekrar sayisi (buyuk = sik/net)
 const _DOKU_PBR_COLOR := "res://assets/zemin/Grass004_2K-JPG_Color.jpg"
 const _DOKU_PBR_NORMAL := "res://assets/zemin/Grass004_2K-JPG_NormalGL.jpg"
@@ -149,6 +214,14 @@ var nokta_altin = {}
 var arazi_bolgeleri: Array = []
 var arazi_poligonlari: Array = []
 var _gizlenme_poly_cache: Array = []  # PackedVector2Array listesi
+var _yukseklik_grid_w := 0
+var _yukseklik_grid_h := 0
+var _yukseklik_veri: PackedFloat32Array = PackedFloat32Array()
+var _arazi_heightmap: ImageTexture = null
+var _arazi_heightmap_min := Vector2.ZERO
+var _arazi_heightmap_max := Vector2.ONE
+var _kenar_noise: FastNoiseLite = null
+var _fbm_noise: FastNoiseLite = null
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
 var gorsel_yollar: Array = []
@@ -385,19 +458,126 @@ func nokta_gorsel_kok_pos(nokta: String) -> Vector2:
 
 
 func birim_gorsel_konum(logical: Vector2) -> Vector2:
+	var base: Vector2
 	if _ISO_ARAZI_CIZIMI:
-		return _izo(logical) - Vector2(15.0, 15.0)
-	return logical
+		base = _izo(logical) - Vector2(15.0, 15.0)
+	else:
+		base = logical
+	return base + _yukseklik_ekran_ofs(logical)
 
 
 func birim_y_sort_foot(logical: Vector2) -> Vector2:
 	return birim_gorsel_konum(logical) + Vector2(15.0, 30.0)
 
 
+func _yukseklik_ekran_ofs(logical: Vector2) -> Vector2:
+	if not _ISO_ARAZI_CIZIMI:
+		return Vector2.ZERO
+	var h := zemin_yuksekligi(logical.x, logical.y)
+	if absf(h) < 0.01:
+		return Vector2.ZERO
+	# Godot 2D Y asagi; yukseklik ekranda yukari.
+	return Vector2(0.0, -h * _YUKSEKLIK_ISO_CARPAN)
+
+
 func ekran_to_logical(ekran_pos: Vector2) -> Vector2:
-	if _ISO_ARAZI_CIZIMI:
-		return IsoProj.iso_to_logical(ekran_pos - _izo_cizim_offseti(harita_sinir))
-	return ekran_pos
+	if not _ISO_ARAZI_CIZIMI:
+		return ekran_pos
+	# Yukseklik: duz iso kayar. Once Camera3D+heightfield; olmazsa iteratif ofset.
+	var ray := _ekran_to_logical_raycast(ekran_pos)
+	if ray.x < INF:
+		return ray
+	return _ekran_to_logical_iteratif(ekran_pos)
+
+
+## Screen → SubViewport piksel → Camera3D ray → heightfield (Y=h(XZ)). Basarisiz: (INF,INF).
+func _ekran_to_logical_raycast(ekran_pos: Vector2) -> Vector2:
+	if _ZEMIN_DOKU != "3d" \
+			or not is_instance_valid(_zemin3d_kam3d) \
+			or not is_instance_valid(_zemin3d_sprite) \
+			or not is_instance_valid(_zemin3d_viewport):
+		return Vector2(INF, INF)
+	var vp_sz := Vector2(_zemin3d_viewport.size)
+	if vp_sz.x < 2.0 or vp_sz.y < 2.0:
+		return Vector2(INF, INF)
+	# Sprite2D centered: local (0,0)=merkez; scale/parent guvenli.
+	var local: Vector2 = _zemin3d_sprite.to_local(ekran_pos)
+	var pix := local + vp_sz * 0.5
+	if pix.x < -2.0 or pix.y < -2.0 or pix.x > vp_sz.x + 2.0 or pix.y > vp_sz.y + 2.0:
+		return Vector2(INF, INF)
+	pix.x = clampf(pix.x, 0.0, vp_sz.x - 1.0)
+	pix.y = clampf(pix.y, 0.0, vp_sz.y - 1.0)
+	var origin: Vector3 = _zemin3d_kam3d.project_ray_origin(pix)
+	var dir: Vector3 = _zemin3d_kam3d.project_ray_normal(pix)
+	if dir.length_squared() < 0.0001:
+		return Vector2(INF, INF)
+	dir = dir.normalized()
+	var t_max := maxf(_zemin3d_kam3d.far, _zemin3d_kam_mesafe * 2.0 + 400.0)
+	# Tam t_max kapsansin; min dunya adimi tercih, gerekirse genislet (binary zaten sifiri bulur).
+	var step := maxf(_TIK_RAY_ADIM_DUNYA, t_max / float(_TIK_RAY_ADIM_MAX))
+	var max_adim := int(ceil(t_max / step)) + 1
+	var t_lo := -1.0
+	var t_hi := -1.0
+	var prev_t := 0.0
+	var prev_dy := 0.0
+	var have_prev := false
+	for i in range(max_adim + 1):
+		var t := minf(float(i) * step, t_max)
+		var p: Vector3 = origin + dir * t
+		var dy := p.y - zemin_yuksekligi(p.x, p.z)
+		if have_prev and prev_dy > 0.0 and dy <= 0.0:
+			t_lo = prev_t
+			t_hi = t
+			break
+		prev_t = t
+		prev_dy = dy
+		have_prev = true
+		if t >= t_max:
+			break
+	if t_lo < 0.0:
+		# Kabaca hic carpisma: zaten gomuluyse veya bitiste yakin ise fallback.
+		var p0: Vector3 = origin
+		var dy0 := p0.y - zemin_yuksekligi(p0.x, p0.z)
+		var p_end: Vector3 = origin + dir * t_max
+		var dy_end := p_end.y - zemin_yuksekligi(p_end.x, p_end.z)
+		if dy0 <= 0.0:
+			# Kamera yakin/gozlem noktasi yuksek tepenin altinda basladi — kisa geri sar.
+			t_lo = 0.0
+			t_hi = minf(step, t_max)
+		elif absf(dy_end) < 80.0:
+			t_lo = maxf(t_max - step, 0.0)
+			t_hi = t_max
+		else:
+			return Vector2(INF, INF)
+	# Binary: dy(t)=ray_y - h(xz) sifiri (egimli heightfield'te linear lerp yetersiz).
+	for _b in range(_TIK_RAY_BINARY):
+		var tm := (t_lo + t_hi) * 0.5
+		var pm: Vector3 = origin + dir * tm
+		var dym := pm.y - zemin_yuksekligi(pm.x, pm.z)
+		if absf(dym) <= _TIK_RAY_EPS:
+			t_hi = tm
+			break
+		if dym > 0.0:
+			t_lo = tm
+		else:
+			t_hi = tm
+	var hit: Vector3 = origin + dir * t_hi
+	if _TIK_DEBUG:
+		print("tik_ray hit=(%.1f,%.1f) h=%.1f pix=%s" % [hit.x, hit.z, zemin_yuksekligi(hit.x, hit.z), pix])
+	return Vector2(hit.x, hit.z)
+
+
+## Yukseklik iso ofseti ile iterasyon: L s.t. iso(L)+ofs(h(L)) ≈ ekran (ray basarisizsa).
+func _ekran_to_logical_iteratif(ekran_pos: Vector2) -> Vector2:
+	var off := _izo_cizim_offseti(harita_sinir)
+	var logical := IsoProj.iso_to_logical(ekran_pos - off)
+	for _i in range(_TIK_ITER_MAX):
+		var ofs := _yukseklik_ekran_ofs(logical)
+		var next_l := IsoProj.iso_to_logical(ekran_pos - off - ofs)
+		if next_l.distance_squared_to(logical) < 0.01:
+			return next_l
+		logical = next_l
+	return logical
 
 
 func logical_to_ekran(logical: Vector2) -> Vector2:
@@ -497,15 +677,22 @@ func harita_uygula(map_id: String) -> void:
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
 	arazi_poligonlari = map_data.get("arazi_poligonlari", []).duplicate(true)
 	_gizlenme_poly_cache_yenile()
+	_kenar_noise = null
+	_fbm_noise = null
+	_yukseklik_haritasi_yukle(map_data.get("yukseklik_haritasi", {}))
+	# Bake: height brush → kale pad → yol koridor → heightmap+AO → props/kale → yol mesh.
+	_kale_yol_yaricapi_onbellek = -1.0
+	_kale_padlari_duzle()
 	bolge_etiketleri = map_data.get("bolge_etiketleri", []).duplicate(true)
 	gorsel_yollar = map_data.get("gorsel_yollar", []).duplicate(true)
 	gorsel_patikalar = map_data.get("gorsel_patikalar", []).duplicate(true)
+	_yol_koridorlari_duzle()
+	_arazi_heightmap_yenile()
 	gorsel_lekeler = map_data.get("gorsel_lekeler", []).duplicate(true)
 	dere_yataklari = map_data.get("dere_yataklari", []).duplicate(true)
 	nehir_hatlari = map_data.get("nehir_hatlari", []).duplicate(true)
 	cevre_dekor = map_data.get("cevre_dekor", []).duplicate(true)
 	harita_proplari = map_data.get("proplar", []).duplicate(true)
-	_kale_yol_yaricapi_onbellek = -1.0
 	nokta_duzen = map_data.get("nokta_duzen", {}).duplicate()
 	nokta_slotlari = map_data.get("nokta_slotlari", {}).duplicate()
 	us_idleri = map_data.get("usler", []).duplicate()
@@ -516,6 +703,7 @@ func harita_uygula(map_id: String) -> void:
 		if str(bolge.get("tip", "")) == "orman":
 			orman_bolgeleri.append(bolge)
 	harita_gorsellerini_guncelle()
+	# (harita_gorselleri → _zemin3d_ekle: props → kale → yol strip mesh)
 	kamera_limitlerini_guncelle()
 	if _on_map_applied.is_valid():
 		_on_map_applied.call()
@@ -778,6 +966,483 @@ func _gizlenme_poly_cache_yenile() -> void:
 		if poly.size() >= 3:
 			_gizlenme_poly_cache.append(poly)
 
+
+## Logical (XZ) yukseklik — boyanan heightmap bilinear. Harita disi → 0.
+func zemin_yuksekligi(logical_x: float, logical_y: float) -> float:
+	return _yukseklik_bilinear(logical_x, logical_y)
+
+
+## Heightmap turevlerinden egim normali (gorsel tilt). Harita disi → UP.
+func zemin_normali(logical_x: float, logical_y: float) -> Vector3:
+	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 2 or _yukseklik_grid_h < 2:
+		return Vector3.UP
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	if logical_x < min_x or logical_x > max_x or logical_y < min_y or logical_y > max_y:
+		return Vector3.UP
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var cell_x := map_w / float(maxi(_yukseklik_grid_w - 1, 1))
+	var cell_y := map_h / float(maxi(_yukseklik_grid_h - 1, 1))
+	var eps_x := maxf(cell_x, _NORMAL_EPS_MIN)
+	var eps_y := maxf(cell_y, _NORMAL_EPS_MIN)
+	# Kenarda harita-disi 0 kirilmasin: ornekleri sinira kipsla.
+	var hx := _yukseklik_bilinear(clampf(logical_x + eps_x, min_x, max_x), logical_y) \
+			- _yukseklik_bilinear(clampf(logical_x - eps_x, min_x, max_x), logical_y)
+	var hz := _yukseklik_bilinear(logical_x, clampf(logical_y + eps_y, min_y, max_y)) \
+			- _yukseklik_bilinear(logical_x, clampf(logical_y - eps_y, min_y, max_y))
+	var dx := maxf(clampf(logical_x + eps_x, min_x, max_x) - clampf(logical_x - eps_x, min_x, max_x), 0.001)
+	var dz := maxf(clampf(logical_y + eps_y, min_y, max_y) - clampf(logical_y - eps_y, min_y, max_y), 0.001)
+	return Vector3(-hx / dx, 1.0, -hz / dz).normalized()
+
+
+## Height degerinden tepe/vadi/normal — combat bonus baglamasi sonra.
+func arazi_tipi_yukseklikten(logical_x: float, logical_y: float) -> String:
+	var h := zemin_yuksekligi(logical_x, logical_y)
+	if h >= _TEPE_ESIK:
+		return "tepe"
+	if h <= _VADI_ESIK:
+		return "vadi"
+	return "normal"
+
+
+func _yukseklik_haritasi_yukle(ham: Variant) -> void:
+	var map_w := maxf(float(harita_sinir.get("max_x", 1.0)) - float(harita_sinir.get("min_x", 0.0)), 1.0)
+	var map_h := maxf(float(harita_sinir.get("max_y", 1.0)) - float(harita_sinir.get("min_y", 0.0)), 1.0)
+	var tw := _HEIGHTMAP_MAX_W
+	var th := maxi(1, int(round(float(tw) * map_h / map_w)))
+	_yukseklik_grid_w = tw
+	_yukseklik_grid_h = th
+	_yukseklik_veri = PackedFloat32Array()
+	_yukseklik_veri.resize(tw * th)
+	_yukseklik_veri.fill(0.0)
+	if typeof(ham) != TYPE_DICTIONARY:
+		return
+	var d: Dictionary = ham
+	var gw := int(d.get("genislik", tw))
+	var gh := int(d.get("yukseklik", th))
+	if gw < 1 or gh < 1:
+		return
+	_yukseklik_grid_w = gw
+	_yukseklik_grid_h = gh
+	_yukseklik_veri.resize(gw * gh)
+	_yukseklik_veri.fill(0.0)
+	var ham_veri: Variant = d.get("veri", null)
+	if ham_veri is PackedFloat32Array:
+		var pf: PackedFloat32Array = ham_veri
+		var n := mini(pf.size(), gw * gh)
+		for i in range(n):
+			_yukseklik_veri[i] = pf[i]
+	elif typeof(ham_veri) == TYPE_ARRAY:
+		var arr: Array = ham_veri
+		var n2 := mini(arr.size(), gw * gh)
+		for i in range(n2):
+			_yukseklik_veri[i] = float(arr[i])
+
+
+func _yukseklik_bilinear(logical_x: float, logical_y: float) -> float:
+	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1 or _yukseklik_grid_h < 1:
+		return 0.0
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	if logical_x < min_x or logical_x > max_x or logical_y < min_y or logical_y > max_y:
+		return 0.0
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var gw := _yukseklik_grid_w
+	var gh := _yukseklik_grid_h
+	if gw <= 1 or gh <= 1:
+		return _yukseklik_veri[0] if _yukseklik_veri.size() > 0 else 0.0
+	var u := (logical_x - min_x) / map_w * float(gw - 1)
+	var v := (logical_y - min_y) / map_h * float(gh - 1)
+	var x0 := clampi(int(floor(u)), 0, gw - 1)
+	var y0 := clampi(int(floor(v)), 0, gh - 1)
+	var x1 := mini(x0 + 1, gw - 1)
+	var y1 := mini(y0 + 1, gh - 1)
+	var tx := u - float(x0)
+	var ty := v - float(y0)
+	var h00 := _yukseklik_veri[y0 * gw + x0]
+	var h10 := _yukseklik_veri[y0 * gw + x1]
+	var h01 := _yukseklik_veri[y1 * gw + x0]
+	var h11 := _yukseklik_veri[y1 * gw + x1]
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), ty)
+
+
+## Kontrol noktalari etrafinda heightmap disk duzlemesi (soft falloff). Bake oncesi.
+func _kale_padlari_duzle() -> void:
+	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1 or _yukseklik_grid_h < 1:
+		return
+	var r := _KALE_DUZLEME_YARICAP
+	var g := _KALE_DUZLEME_GECIS
+	var dis_max := r + g
+	var dis_max_sq := dis_max * dis_max
+	for nokta in nokta_konumlari:
+		if kavsak_konumlari.has(nokta):
+			continue
+		var merkez := get_kale_anchor(nokta)
+		var ort := _yukseklik_disk_ortalama(merkez, r)
+		_yukseklik_disk_duzle(merkez, r, g, dis_max_sq, ort)
+
+
+func _yukseklik_disk_ortalama(merkez: Vector2, yaricap: float) -> float:
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var gw := _yukseklik_grid_w
+	var gh := _yukseklik_grid_h
+	var r_sq := yaricap * yaricap
+	var toplam := 0.0
+	var adet := 0.0
+	var ix0 := clampi(int(floor((merkez.x - yaricap - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+	var ix1 := clampi(int(ceil((merkez.x + yaricap - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+	var iy0 := clampi(int(floor((merkez.y - yaricap - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+	var iy1 := clampi(int(ceil((merkez.y + yaricap - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+	for iy in range(iy0, iy1 + 1):
+		var ly := lerpf(min_y, max_y, float(iy) / float(maxi(gh - 1, 1)))
+		for ix in range(ix0, ix1 + 1):
+			var lx := lerpf(min_x, max_x, float(ix) / float(maxi(gw - 1, 1)))
+			var dx := lx - merkez.x
+			var dy := ly - merkez.y
+			if dx * dx + dy * dy <= r_sq:
+				toplam += _yukseklik_veri[iy * gw + ix]
+				adet += 1.0
+	if adet < 1.0:
+		return _yukseklik_bilinear(merkez.x, merkez.y)
+	return toplam / adet
+
+
+func _yukseklik_disk_duzle(merkez: Vector2, yaricap: float, gecis: float, dis_max_sq: float, hedef: float) -> void:
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var gw := _yukseklik_grid_w
+	var gh := _yukseklik_grid_h
+	var dis_max := yaricap + gecis
+	var ix0 := clampi(int(floor((merkez.x - dis_max - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+	var ix1 := clampi(int(ceil((merkez.x + dis_max - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+	var iy0 := clampi(int(floor((merkez.y - dis_max - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+	var iy1 := clampi(int(ceil((merkez.y + dis_max - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+	for iy in range(iy0, iy1 + 1):
+		var ly := lerpf(min_y, max_y, float(iy) / float(maxi(gh - 1, 1)))
+		for ix in range(ix0, ix1 + 1):
+			var lx := lerpf(min_x, max_x, float(ix) / float(maxi(gw - 1, 1)))
+			var dx := lx - merkez.x
+			var dy := ly - merkez.y
+			var d2 := dx * dx + dy * dy
+			if d2 > dis_max_sq:
+				continue
+			var dist := sqrt(d2)
+			var blend := 1.0
+			if dist > yaricap:
+				blend = 1.0 - smoothstep(0.0, 1.0, (dist - yaricap) / maxf(gecis, 1.0))
+			var i := iy * gw + ix
+			_yukseklik_veri[i] = lerpf(_yukseklik_veri[i], hedef, blend)
+
+
+## Yol koridoru: profil yumusat → koridor cek → soft falloff (bake oncesi).
+func _yol_koridorlari_duzle() -> void:
+	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1:
+		return
+	var polyler: Array = _yol_duzleme_polylines()
+	if polyler.is_empty():
+		return
+	var koridor := _YOL_KORIDOR_GENISLIK
+	var gecis := _YOL_GECIS_GENISLIK
+	var dis_max := koridor + gecis
+	var dis_max_sq := dis_max * dis_max
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var gw := _yukseklik_grid_w
+	var gh := _yukseklik_grid_h
+	for poly in polyler:
+		var pts: PackedVector2Array = poly
+		if pts.size() < 2:
+			continue
+		var n := pts.size()
+		var ham := PackedFloat32Array()
+		ham.resize(n)
+		var cum := PackedFloat32Array()
+		cum.resize(n)
+		cum[0] = 0.0
+		ham[0] = _yukseklik_bilinear(pts[0].x, pts[0].y)
+		for i in range(1, n):
+			cum[i] = cum[i - 1] + pts[i - 1].distance_to(pts[i])
+			ham[i] = _yukseklik_bilinear(pts[i].x, pts[i].y)
+		var profil := _yol_profil_yumusat(ham, cum, _YOL_PROFIL_YUMUSAT)
+		for si in range(n - 1):
+			var a := pts[si]
+			var b := pts[si + 1]
+			var ab := b - a
+			var ab_len_sq := ab.length_squared()
+			var ha := profil[si]
+			var hb := profil[si + 1]
+			var ix0 := clampi(int(floor((minf(a.x, b.x) - dis_max - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+			var ix1 := clampi(int(ceil((maxf(a.x, b.x) + dis_max - min_x) / map_w * float(gw - 1))), 0, gw - 1)
+			var iy0 := clampi(int(floor((minf(a.y, b.y) - dis_max - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+			var iy1 := clampi(int(ceil((maxf(a.y, b.y) + dis_max - min_y) / map_h * float(gh - 1))), 0, gh - 1)
+			for iy in range(iy0, iy1 + 1):
+				var ly := lerpf(min_y, max_y, float(iy) / float(maxi(gh - 1, 1)))
+				for ix in range(ix0, ix1 + 1):
+					var lx := lerpf(min_x, max_x, float(ix) / float(maxi(gw - 1, 1)))
+					var p := Vector2(lx, ly)
+					var t := 0.0
+					if ab_len_sq > 0.0001:
+						t = clampf((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
+					var q := a + ab * t
+					var d2 := p.distance_squared_to(q)
+					if d2 > dis_max_sq:
+						continue
+					var dist := sqrt(d2)
+					var blend := 1.0
+					if dist > koridor:
+						blend = 1.0 - smoothstep(0.0, 1.0, (dist - koridor) / maxf(gecis, 1.0))
+					var hedef_h := lerpf(ha, hb, t)
+					var i := iy * gw + ix
+					_yukseklik_veri[i] = lerpf(_yukseklik_veri[i], hedef_h, blend)
+
+
+func _yol_profil_yumusat(ham: PackedFloat32Array, cum: PackedFloat32Array, yaricap: float) -> PackedFloat32Array:
+	var n := ham.size()
+	var out := PackedFloat32Array()
+	out.resize(n)
+	if n == 0:
+		return out
+	var r := maxf(yaricap, 1.0)
+	var j0 := 0
+	var j1 := 0
+	for i in range(n):
+		var c0 := cum[i]
+		while j0 < n and cum[j0] < c0 - r:
+			j0 += 1
+		if j1 < j0:
+			j1 = j0
+		while j1 < n and cum[j1] <= c0 + r:
+			j1 += 1
+		var toplam := 0.0
+		var agirlik := 0.0
+		for j in range(j0, j1):
+			var d := absf(cum[j] - c0)
+			var w := 1.0 - smoothstep(0.0, 1.0, d / r)
+			toplam += ham[j] * w
+			agirlik += w
+		out[i] = toplam / agirlik if agirlik > 0.0001 else ham[i]
+	return out
+
+
+func _yol_duzleme_polylines() -> Array:
+	var out: Array = []
+	for baglanti in gorsel_yollar:
+		if typeof(baglanti) != TYPE_DICTIONARY:
+			continue
+		var a_id = str(baglanti.get("from", ""))
+		var b_id = str(baglanti.get("to", ""))
+		if a_id == "" or b_id == "" or not nokta_konumlari.has(a_id) or not nokta_konumlari.has(b_id):
+			continue
+		var bas = get_point_center(a_id)
+		var bit = get_point_center(b_id)
+		if _kontrol_noktasi_mi(b_id):
+			bit = _yol_ucunu_kale_bosluga_cek(bit, bas, b_id)
+		if _kontrol_noktasi_mi(a_id):
+			bas = _yol_ucunu_kale_bosluga_cek(bas, bit, a_id)
+		var tip = str(baglanti.get("tip", "normal"))
+		var pts = _organik_yol_noktalari(bas, bit, hash(a_id + b_id + aktif_harita_id + tip), float(_yol_stili(tip).get("wobble", 22.0)))
+		var ctrl: Array = []
+		for p in pts:
+			ctrl.append(p)
+		pts = PathSpline.yumusat_catmull(ctrl, _YOL_SPLINE_ADIM)
+		pts = _yol_polyline_ornekle(pts, _YOL_ORNEKLEME_ADIM)
+		if pts.size() >= 2:
+			out.append(pts)
+	for i in range(gorsel_patikalar.size()):
+		var patika = gorsel_patikalar[i]
+		var pts2 = patika.get("points", []) as Array
+		if pts2.size() < 2:
+			continue
+		var packed = PackedVector2Array()
+		for j in range(pts2.size()):
+			packed.append(pts2[j] as Vector2)
+		packed = _yol_patika_uc_kale_bosluk(packed)
+		var tip2 = str(patika.get("tip", "normal"))
+		var genis = _patika_noktalari_genislet(packed, hash("patika" + aktif_harita_id + str(i)), float(_yol_stili(tip2).get("wobble", 22.0)))
+		var ctrl2: Array = []
+		for p2 in genis:
+			ctrl2.append(p2)
+		packed = PathSpline.yumusat_catmull(ctrl2, _YOL_SPLINE_ADIM)
+		packed = _yol_polyline_ornekle(packed, _YOL_ORNEKLEME_ADIM)
+		if packed.size() >= 2:
+			out.append(packed)
+	return out
+
+
+func _prop_egim_uyumu(kategori: String) -> float:
+	match PropKatalog.kategori_normalize(kategori):
+		"agac", "bitki", "cicek":
+			return _PROP_EGIM_UYUM
+		"tas", "dag":
+			return _KAYA_EGIM_UYUM
+		"yapi":
+			return _YAPI_EGIM_UYUM
+		_:
+			return _PROP_EGIM_UYUM
+
+
+func _egim_basis(yaw_deg: float, normal: Vector3, uyum: float) -> Basis:
+	var n := normal.normalized()
+	if n.length_squared() < 0.0001:
+		n = Vector3.UP
+	var up := Vector3.UP.lerp(n, clampf(uyum, 0.0, 1.0)).normalized()
+	var align := Quaternion(Vector3.UP, up)
+	var yaw_q := Quaternion(Vector3.UP, deg_to_rad(yaw_deg))
+	return Basis(align * yaw_q)
+
+
+func _fbm_noise_hazirla() -> void:
+	if _fbm_noise != null:
+		return
+	_fbm_noise = FastNoiseLite.new()
+	_fbm_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_fbm_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_fbm_noise.fractal_octaves = _FBM_OKTAV
+	_fbm_noise.fractal_lacunarity = _FBM_LACUNARITY
+	_fbm_noise.fractal_gain = _FBM_GAIN
+	_fbm_noise.frequency = 0.0014
+	_fbm_noise.seed = hash(str(aktif_harita_id) + "fbm")
+
+
+## 3-oktav FBM ~[-1, 1]; bake sirasinda tepe/vadi amplitudunu modul eder.
+func _fbm_arazi_deger(x: float, y: float) -> float:
+	_fbm_noise_hazirla()
+	return _fbm_noise.get_noise_2d(x, y)
+
+
+func _kenar_noise_deger(x: float, y: float) -> float:
+	if _kenar_noise == null:
+		_kenar_noise = FastNoiseLite.new()
+		_kenar_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		_kenar_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+		_kenar_noise.frequency = 0.0022
+		_kenar_noise.fractal_octaves = _FBM_OKTAV
+		_kenar_noise.fractal_lacunarity = _FBM_LACUNARITY
+		_kenar_noise.fractal_gain = _FBM_GAIN
+		_kenar_noise.seed = hash(str(aktif_harita_id) + "kenar")
+	return _kenar_noise.get_noise_2d(x, y)
+
+
+## Kucuk poligonlarda sabit 400 gecis merkez yuksekligini ~0 yapardi; AABB'ye gore olcekle.
+func _poly_gecis_mesafe(poly: PackedVector2Array) -> float:
+	var min_x := poly[0].x
+	var max_x := poly[0].x
+	var min_y := poly[0].y
+	var max_y := poly[0].y
+	for i in range(1, poly.size()):
+		var p := poly[i]
+		min_x = minf(min_x, p.x)
+		max_x = maxf(max_x, p.x)
+		min_y = minf(min_y, p.y)
+		max_y = maxf(max_y, p.y)
+	var yarim := 0.5 * minf(max_x - min_x, max_y - min_y)
+	return clampf(yarim * 0.65, 8.0, _GECIS_MESAFE)
+
+
+func _koseleri_packed(koseler: Variant) -> PackedVector2Array:
+	var poly := PackedVector2Array()
+	if typeof(koseler) != TYPE_ARRAY:
+		return poly
+	for k in koseler:
+		if k is Vector2:
+			poly.append(k)
+		elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
+			var a: Array = k
+			poly.append(Vector2(float(a[0]), float(a[1])))
+	return poly
+
+
+func _poligona_kenar_mesafesi(pos: Vector2, poly: PackedVector2Array) -> float:
+	var min_d := INF
+	var n := poly.size()
+	for i in n:
+		var a := poly[i]
+		var b := poly[(i + 1) % n]
+		min_d = minf(min_d, _nokta_segmente_mesafe(pos, a, b))
+	return min_d
+
+
+func _nokta_segmente_mesafe(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var ab_len_sq := ab.length_squared()
+	var t := 0.0
+	if ab_len_sq > 0.0001:
+		t = clampf((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _arazi_heightmap_yenile() -> void:
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	# Boyama grid'i varsa dogrudan kullan; yoksa 256×aspect bos
+	var tw := _yukseklik_grid_w if _yukseklik_grid_w > 0 else _HEIGHTMAP_MAX_W
+	var th := _yukseklik_grid_h if _yukseklik_grid_h > 0 else maxi(1, int(round(float(tw) * maxf(max_y - min_y, 1.0) / maxf(max_x - min_x, 1.0))))
+	var heights := PackedFloat32Array()
+	heights.resize(tw * th)
+	if _yukseklik_veri.size() == tw * th:
+		for i in range(tw * th):
+			heights[i] = _yukseklik_veri[i]
+	else:
+		for iy in th:
+			var ly := lerpf(min_y, max_y, (float(iy) + 0.5) / float(th))
+			for ix in tw:
+				var lx := lerpf(min_x, max_x, (float(ix) + 0.5) / float(tw))
+				heights[iy * tw + ix] = zemin_yuksekligi(lx, ly)
+	# R = float yukseklik, G = bake AO [0..1]
+	var img := Image.create(tw, th, false, Image.FORMAT_RGF)
+	var ao_olcek := maxf(_TEPE_YUKSEKLIK * 0.35, 40.0)
+	for iy in th:
+		for ix in tw:
+			var hv := heights[iy * tw + ix]
+			var ao := _heightmap_ao_ornek(heights, ix, iy, tw, th, ao_olcek)
+			img.set_pixel(ix, iy, Color(hv, ao, 0.0, 1.0))
+	_arazi_heightmap = ImageTexture.create_from_image(img)
+	_arazi_heightmap_min = Vector2(min_x, min_y)
+	_arazi_heightmap_max = Vector2(max_x, max_y)
+
+
+## Komsu yukseklik farklarindan tek seferlik vadi AO (1=acik, dusuk=golge).
+func _heightmap_ao_ornek(
+	heights: PackedFloat32Array, ix: int, iy: int, tw: int, th: int, olcek: float
+) -> float:
+	var h := heights[iy * tw + ix]
+	var occ := 0.0
+	var adet := 0.0
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			var nx := clampi(ix + dx, 0, tw - 1)
+			var ny := clampi(iy + dy, 0, th - 1)
+			var dh := heights[ny * tw + nx] - h
+			if dh > 0.0:
+				var dist := sqrt(float(dx * dx + dy * dy))
+				occ += dh / dist
+			adet += 1.0
+	return clampf(1.0 - (occ / maxf(adet * olcek, 1.0)), 0.2, 1.0)
+
+
 func harita_gorsellerini_guncelle() -> void:
 	if _root == null:
 		return
@@ -874,6 +1539,11 @@ func _arazi_poligon_gorsellerini_ekle() -> void:
 		if typeof(bolge) != TYPE_DICTIONARY:
 			continue
 		var tip := str(bolge.get("tip", "gizlenme"))
+		if tip == "gizlenme":
+			if not _GIZLENME_POLIGON_GORSEL:
+				continue
+		elif not _ARAZI_POLIGON_GORSEL:
+			continue
 		var koseler: Array = bolge.get("koseler", [])
 		if koseler.size() < 3:
 			continue
@@ -908,8 +1578,10 @@ func decor_gorsellerini_guncelle() -> void:
 		return
 	for c in decor_katmani.get_children():
 		c.queue_free()
-	_gorsel_yollar_ekle()
-	_gorsel_patikalar_ekle()
+	# 3D zeminde yollar SubViewport mesh; 2D Line2D tepe/vadi ile kayar.
+	if _ZEMIN_DOKU != "3d":
+		_gorsel_yollar_ekle()
+		_gorsel_patikalar_ekle()
 	_nehir_hatlari_ekle()
 	_dere_yataklari_ekle()
 	_akarsu_ekle()
@@ -1169,6 +1841,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_asker_kok = null
 	_zemin3d_prop_kok = null
 	_zemin3d_nokta_kok = null
+	_zemin3d_yol_kok = null
 	_zemin3d_mesh_mi = null
 	_perf_diag_isik = null
 	_perf_diag_env = null
@@ -1266,6 +1939,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 		_zemin3d_test_agac_ekle(kok3d)
 	_zemin3d_proplari_ekle(kok3d)
 	_zemin3d_nokta_yapilari_ekle(kok3d)
+	_zemin3d_yollari_ekle(kok3d)
 	if _ASKER_TEST_AKTIF:
 		_zemin3d_test_asker_ekle(kok3d)
 	_zemin3d_asker_viewport_modu_ayarla(vp)
@@ -1386,17 +2060,20 @@ func _zemin3d_bolge_guncelle(zorla: bool = false) -> void:
 	_zemin3d_son_zoom = z
 	_zemin3d_son_ekran = ekran
 	_zemin3d_son_iso_merkez = iso_center
-	# Ekran yogunlugunda ornekle; zoom-out'ta VP_MAX ile sinirli.
+	# Ekran yogunlugunda ornekle; VP_MAX'a inerken en-boy oranini koru (aksi halde ortho/sprite gerilir, tik sapar).
+	var want_w := maxf(iso_w * ppd, 256.0)
+	var want_h := maxf(iso_h * ppd, 192.0)
+	var fit := minf(1.0, minf(_ZEMIN3D_VP_MAX / want_w, _ZEMIN3D_VP_MAX / want_h))
 	_zemin3d_viewport.size = Vector2i(
-		clampi(int(iso_w * ppd), 256, int(_ZEMIN3D_VP_MAX)),
-		clampi(int(iso_h * ppd), 192, int(_ZEMIN3D_VP_MAX))
+		maxi(int(want_w * fit), 256),
+		maxi(int(want_h * fit), 192)
 	)
 	var vp_sz: Vector2 = Vector2(_zemin3d_viewport.size)
 	_zemin3d_sprite.position = iso_center
-	# Doku -> iso: scale = 1/ppd (VP clamp olursa gercek oran vp_sz uzerinden).
+	# Doku -> iso: scale = 1/ppd (VP fit sonrasi gercek oran vp_sz uzerinden).
 	_zemin3d_sprite.scale = Vector2(iso_w / maxf(vp_sz.x, 1.0), iso_h / maxf(vp_sz.y, 1.0))
 	if is_instance_valid(_zemin3d_kam3d):
-		# Ortho zoom: size = temel / z; temel = iso_h*sqrt(2)*z (kalibrasyon korunur).
+		# Ortho: size = dikey dunya kapsami = iso_h*sqrt(2); en = size*(vp_w/vp_h) ≈ iso_w*sqrt(2).
 		var yeni_size := iso_h * sqrt(2.0)
 		_zemin3d_temel_size = yeni_size * z
 		_zemin3d_kam3d.size = _zemin3d_temel_size / z
@@ -1425,8 +2102,7 @@ func _zemin3d_test_agac_ekle(kok3d: Node3D) -> void:
 	if agac == null:
 		return
 	agac.name = "TestAgac"
-	# Zemin plane'i ile ayni donusum: logical (x,y) -> 3D (x, 0, y), zemin y=0
-	agac.position = Vector3(_AGAC_TEST_KONUM.x, 0.0, _AGAC_TEST_KONUM.y)
+	agac.position = Vector3(_AGAC_TEST_KONUM.x, zemin_yuksekligi(_AGAC_TEST_KONUM.x, _AGAC_TEST_KONUM.y), _AGAC_TEST_KONUM.y)
 	agac.scale = Vector3.ONE * _AGAC_TEST_OLCEK
 	kok3d.add_child(agac)
 
@@ -1458,7 +2134,7 @@ func _zemin3d_test_asker_ekle(kok3d: Node3D) -> void:
 	if asker == null:
 		return
 	asker.name = "TestAsker"
-	asker.position = Vector3(konum.x, 0.0, konum.y)
+	asker.position = Vector3(konum.x, zemin_yuksekligi(konum.x, konum.y), konum.y)
 	asker.rotation_degrees = Vector3(0.0, 180.0, 0.0) + _ASKER_ROT_DUZELTME
 	kok3d.add_child(asker)
 	var skel := _zemin3d_skeleton_bul(asker)
@@ -1478,7 +2154,8 @@ func zemin3d_birim_asker_ekle(birim: Dictionary) -> void:
 	var bid := int(birim.get("id", -1))
 	asker.name = "Asker3D_%d" % bid
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
-	asker.position = Vector3(konum.x, 0.0, konum.y)
+	var hy := zemin_yuksekligi(konum.x, konum.y)
+	asker.position = Vector3(konum.x, hy, konum.y)
 	asker.rotation_degrees = Vector3(0.0, 180.0, 0.0) + _ASKER_ROT_DUZELTME
 	_zemin3d_asker_kok.add_child(asker)
 	var skel := _zemin3d_skeleton_bul(asker)
@@ -1493,7 +2170,7 @@ func zemin3d_birim_asker_ekle(birim: Dictionary) -> void:
 	birim["asker3d_hedef_yuz"] = _ASKER_YON_OFFSET
 	birim["asker3d_anim"] = ""
 	var halka := _zemin3d_halka_olustur(bid)
-	halka.position = Vector3(konum.x, _HALKA_Y, konum.y)
+	halka.position = Vector3(konum.x, hy + _HALKA_Y, konum.y)
 	_zemin3d_asker_kok.add_child(halka)
 	birim["halka3d"] = halka
 	_zemin3d_halka_gorunum_uygula(halka, taraf, bool(birim.get("secili", false)))
@@ -1506,7 +2183,11 @@ func zemin3d_birim_asker_guncelle(birim: Dictionary, delta: float = 0.0) -> void
 	if not is_instance_valid(asker):
 		return
 	var konum: Vector2 = birim.get("konum", Vector2.ZERO)
-	asker.position = Vector3(konum.x, 0.0, konum.y)
+	var hedef_y := zemin_yuksekligi(konum.x, konum.y)
+	var y: float = asker.position.y
+	var t_y := clampf(_ASKER_YUKSEKLIK_LERP * delta, 0.0, 1.0)
+	y = lerpf(y, hedef_y, t_y)
+	asker.position = Vector3(konum.x, y, konum.y)
 
 	var kok = birim.get("kok_node")
 	var gorunur := true
@@ -1518,7 +2199,7 @@ func zemin3d_birim_asker_guncelle(birim: Dictionary, delta: float = 0.0) -> void
 
 	var halka = birim.get("halka3d")
 	if is_instance_valid(halka):
-		halka.position = Vector3(konum.x, _HALKA_Y, konum.y)
+		halka.position = Vector3(konum.x, y + _HALKA_Y, konum.y)
 		halka.visible = gorunur
 		if bool(birim.get("secili", false)):
 			var pulse := 1.0 + sin(Time.get_ticks_msec() * 0.001 * _HALKA_SECILI_PULSE_HIZ) * _HALKA_SECILI_PULSE_AMP
@@ -1959,12 +2640,238 @@ func _zemin3d_proplari_ekle(kok3d: Node3D) -> void:
 			float(kat.get("olcek", 8.0))
 		)
 		var rot := float(d.get("rot", 0.0))
+		var hy := zemin_yuksekligi(konum.x, konum.y)
+		var egim := _prop_egim_uyumu(str(kat.get("kategori", "")))
 		inst.name = "Prop_%s" % pid
-		inst.position = Vector3(konum.x, 0.0, konum.y)
-		inst.rotation_degrees = Vector3(0.0, rot, 0.0)
-		inst.scale = Vector3.ONE * olcek
+		inst.position = Vector3(konum.x, hy, konum.y)
+		if egim > 0.001:
+			var n := zemin_normali(konum.x, konum.y)
+			inst.basis = _egim_basis(rot, n, egim).scaled(Vector3.ONE * olcek)
+		else:
+			inst.rotation_degrees = Vector3(0.0, rot, 0.0)
+			inst.scale = Vector3.ONE * olcek
 		inst.visible = _PERF_DIAG_PROP_ACIK
 		kok.add_child(inst)
+
+
+## 3D yol seritleri — Catmull + yogun ornekleme, indexed ribbon, kenar Y bagimsiz.
+func _zemin3d_yollari_ekle(kok3d: Node3D) -> void:
+	if _ZEMIN_DOKU != "3d":
+		return
+	var kok := Node3D.new()
+	kok.name = "HaritaYollari3D"
+	kok3d.add_child(kok)
+	_zemin3d_yol_kok = kok
+	for baglanti in gorsel_yollar:
+		if typeof(baglanti) != TYPE_DICTIONARY:
+			continue
+		var a_id = str(baglanti.get("from", ""))
+		var b_id = str(baglanti.get("to", ""))
+		if a_id == "" or b_id == "" or not nokta_konumlari.has(a_id) or not nokta_konumlari.has(b_id):
+			continue
+		var tip = str(baglanti.get("tip", "normal"))
+		var bas = get_point_center(a_id)
+		var bit = get_point_center(b_id)
+		if _kontrol_noktasi_mi(b_id):
+			bit = _yol_ucunu_kale_bosluga_cek(bit, bas, b_id)
+		if _kontrol_noktasi_mi(a_id):
+			bas = _yol_ucunu_kale_bosluga_cek(bas, bit, a_id)
+		var pts = _organik_yol_noktalari(bas, bit, hash(a_id + b_id + aktif_harita_id + tip), float(_yol_stili(tip).get("wobble", 22.0)))
+		for parca in _yol_noktalari_kale_kes(pts):
+			_zemin3d_yol_serit_ekle(kok, parca, tip)
+	for i in range(gorsel_patikalar.size()):
+		var patika = gorsel_patikalar[i]
+		var tip2 = str(patika.get("tip", "normal"))
+		var pts2 = patika.get("points", []) as Array
+		if pts2.size() < 2:
+			continue
+		var packed = PackedVector2Array()
+		for j in range(pts2.size()):
+			packed.append(pts2[j] as Vector2)
+		packed = _yol_patika_uc_kale_bosluk(packed)
+		var genis = _patika_noktalari_genislet(packed, hash("patika" + aktif_harita_id + str(i)), float(_yol_stili(tip2).get("wobble", 22.0)))
+		for parca2 in _yol_noktalari_kale_kes(genis):
+			_zemin3d_yol_serit_ekle(kok, parca2, tip2)
+
+
+func _yol_polyline_ornekle(pts: PackedVector2Array, adim: float) -> PackedVector2Array:
+	if pts.size() < 2:
+		return pts
+	var step := maxf(adim, 1.0)
+	var out := PackedVector2Array()
+	out.append(pts[0])
+	var carry := 0.0
+	for i in range(pts.size() - 1):
+		var a := pts[i]
+		var b := pts[i + 1]
+		var seg_len := a.distance_to(b)
+		if seg_len < 0.0001:
+			continue
+		var dir := (b - a) / seg_len
+		var dist := step - carry
+		while dist <= seg_len:
+			out.append(a + dir * dist)
+			dist += step
+		carry = seg_len - (dist - step)
+	var son := pts[pts.size() - 1]
+	if out[out.size() - 1].distance_squared_to(son) > 0.25:
+		out.append(son)
+	return out
+
+
+func _yol_3d_genislik(tip: String) -> float:
+	match tip:
+		"ana":
+			return _YOL_GENISLIK_ANA
+		"gizli":
+			return _YOL_GENISLIK_GIZLI
+		_:
+			return _YOL_GENISLIK_PATIKA
+
+
+func _yol3d_materyal_al() -> Material:
+	if _yol3d_mat != null:
+		return _yol3d_mat
+	var tex := _doku_yukle_veya_null(_YOL_DOKU_ANA)
+	if tex == null:
+		tex = _doku_yukle_veya_null(_YOL_DOKU_YEDEK)
+	if tex == null:
+		var img := Image.create(1, 1, false, Image.FORMAT_RGB8)
+		img.fill(Color(0.55, 0.44, 0.30))
+		tex = ImageTexture.create_from_image(img)
+	if ResourceLoader.exists(_YOL_SHADER_YOL):
+		var sh := load(_YOL_SHADER_YOL) as Shader
+		if sh != null:
+			var sm := ShaderMaterial.new()
+			sm.shader = sh
+			sm.set_shader_parameter("albedo_tex", tex)
+			sm.set_shader_parameter("albedo_tint", Color(0.62, 0.50, 0.34, 1.0))
+			sm.set_shader_parameter("edge_softness", 0.22)
+			sm.set_shader_parameter("roughness_val", 0.95)
+			_yol3d_mat = sm
+			return sm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.55, 0.44, 0.30, 1.0)
+	mat.albedo_texture = tex
+	mat.roughness = 0.95
+	mat.metallic = 0.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_yol3d_mat = mat
+	return mat
+
+
+func _zemin3d_yol_serit_ekle(kok: Node3D, pts: PackedVector2Array, tip: String) -> void:
+	if pts.size() < 2:
+		return
+	var ctrl: Array = []
+	for p in pts:
+		ctrl.append(p)
+	var yumusak := PathSpline.yumusat_catmull(ctrl, _YOL_SPLINE_ADIM)
+	var dens := _yol_polyline_ornekle(yumusak, _YOL_ORNEKLEME_ADIM)
+	if dens.size() < 2:
+		return
+	var yari := _yol_3d_genislik(tip) * 0.5
+	var n := dens.size()
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var norms := PackedVector3Array()
+	var indices := PackedInt32Array()
+	verts.resize(n * 2)
+	uvs.resize(n * 2)
+	norms.resize(n * 2)
+	var prev_side := Vector2.ZERO
+	var v_acc := 0.0
+	for i in range(n):
+		var tan := Vector2.ZERO
+		if i == 0:
+			tan = dens[1] - dens[0]
+		elif i == n - 1:
+			tan = dens[n - 1] - dens[n - 2]
+		else:
+			tan = dens[i + 1] - dens[i - 1]
+		if tan.length_squared() < 0.0001:
+			tan = Vector2(1.0, 0.0)
+		else:
+			tan = tan.normalized()
+		var side := Vector2(-tan.y, tan.x) * yari
+		if i > 0 and side.dot(prev_side) < 0.0:
+			side = -side
+		prev_side = side
+		var p := dens[i]
+		if i > 0:
+			v_acc += dens[i].distance_to(dens[i - 1])
+		var vv := v_acc / _YOL_TEX_TEKRAR
+		var lx := p.x - side.x
+		var lz := p.y - side.y
+		var rx := p.x + side.x
+		var rz := p.y + side.y
+		var ly := zemin_yuksekligi(lx, lz) + _YOL_Z_OFFSET
+		var ry := zemin_yuksekligi(rx, rz) + _YOL_Z_OFFSET
+		var li := i * 2
+		verts[li] = Vector3(lx, ly, lz)
+		verts[li + 1] = Vector3(rx, ry, rz)
+		uvs[li] = Vector2(0.0, vv)
+		uvs[li + 1] = Vector2(1.0, vv)
+		norms[li] = Vector3.UP
+		norms[li + 1] = Vector3.UP
+	indices.resize((n - 1) * 6)
+	var ii := 0
+	for i in range(n - 1):
+		var i0 := i * 2
+		# L0,L1,R0 + R0,L1,R1 → yukari bak (cross forward×right)
+		indices[ii] = i0
+		indices[ii + 1] = i0 + 2
+		indices[ii + 2] = i0 + 1
+		indices[ii + 3] = i0 + 1
+		indices[ii + 4] = i0 + 2
+		indices[ii + 5] = i0 + 3
+		ii += 6
+	# Vertex normale: komsu ucgenlerden ortalama
+	for i in range(n * 2):
+		norms[i] = Vector3.ZERO
+	for t in range(n - 1):
+		var i0 := t * 2
+		var a := verts[i0]
+		var b := verts[i0 + 2]
+		var c := verts[i0 + 1]
+		var nrm := (b - a).cross(c - a)
+		if nrm.length_squared() < 0.0001:
+			nrm = Vector3.UP
+		else:
+			nrm = nrm.normalized()
+		norms[i0] += nrm
+		norms[i0 + 2] += nrm
+		norms[i0 + 1] += nrm
+		a = verts[i0 + 1]
+		b = verts[i0 + 2]
+		c = verts[i0 + 3]
+		nrm = (b - a).cross(c - a)
+		if nrm.length_squared() < 0.0001:
+			nrm = Vector3.UP
+		else:
+			nrm = nrm.normalized()
+		norms[i0 + 1] += nrm
+		norms[i0 + 2] += nrm
+		norms[i0 + 3] += nrm
+	for i in range(n * 2):
+		if norms[i].length_squared() < 0.0001:
+			norms[i] = Vector3.UP
+		else:
+			norms[i] = norms[i].normalized()
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mi := MeshInstance3D.new()
+	mi.mesh = am
+	mi.material_override = _yol3d_materyal_al()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	kok.add_child(mi)
 
 
 func _zemin3d_model_aabb_yerel(kok: Node3D) -> AABB:
@@ -2013,7 +2920,9 @@ func _zemin3d_nokta_yapilari_ekle(kok3d: Node3D) -> void:
 		inst.name = "NoktaYapi_" + str(nokta)
 		inst.scale = Vector3.ONE * _NOKTA_KALE_OLCEK
 		var taban_y := _zemin3d_model_taban_y_ofs(inst)
-		inst.position = Vector3(merkez.x, taban_y, merkez.y)
+		var hy := zemin_yuksekligi(merkez.x, merkez.y)
+		# Flatten sonrasi pad ortalamasi; dik durur (slope yok).
+		inst.position = Vector3(merkez.x, hy + taban_y, merkez.y)
 		kok.add_child(inst)
 
 
@@ -2104,15 +3013,30 @@ func _zemin3d_teren_materyal(gw: float, gh: float) -> ShaderMaterial:
 		gw / _ZEMIN3D_DOKU_TEKRAR,
 		gh / _ZEMIN3D_DOKU_TEKRAR
 	))
-	# Noise/tepe olcekleri harita boyutuyla orantili: leke ve tepe boyutu
-	# dunya biriminde sabit kalsin (referans genislik 6280 = eski 5000'lik harita)
+	# Noise olcekleri harita boyutuyla orantili: leke boyutu dunya biriminde sabit
+	# (referans genislik 6280 = eski 5000'lik harita). Yukseklik olcegi sabit.
 	var oran := gw / 6280.0
 	mat.set_shader_parameter("leke_olcek", _LEKE_OLCEK * oran)
-	mat.set_shader_parameter("tepe_olcek", 1.6 * oran)
+	mat.set_shader_parameter("yukseklik", _ZEMIN_YUKSEKLIK)
+	mat.set_shader_parameter("yukseklik_olcek", _YUKSEKLIK_OLCEK)
 	mat.set_shader_parameter("toprak_miktar", _TOPRAK_MIKTAR)
 	mat.set_shader_parameter("tas_miktar", _TAS_MIKTAR)
 	mat.set_shader_parameter("gecis_genislik", _GECIS_GENISLIK)
 	mat.set_shader_parameter("renk_varyasyon", _RENK_VARYASYON)
+	mat.set_shader_parameter("yukseklik_doku_etki", _YUKSEKLIK_DOKU_ETKI)
+	mat.set_shader_parameter("yukseklik_renk_olcek", _TEPE_YUKSEKLIK)
+	mat.set_shader_parameter("egim_esik_1", _EGIM_ESIK_1)
+	mat.set_shader_parameter("egim_esik_2", _EGIM_ESIK_2)
+	mat.set_shader_parameter("ao_guc", _AO_GUC)
+	if _arazi_heightmap == null:
+		_arazi_heightmap_yenile()
+	if _arazi_heightmap != null:
+		mat.set_shader_parameter("heightmap_tex", _arazi_heightmap)
+		mat.set_shader_parameter("heightmap_min", _arazi_heightmap_min)
+		mat.set_shader_parameter("heightmap_max", _arazi_heightmap_max)
+		mat.set_shader_parameter("heightmap_aktif", 1.0)
+	else:
+		mat.set_shader_parameter("heightmap_aktif", 0.0)
 	var sis := _doku_yukle_veya_null(_DOKU_SIS)
 	if sis != null:
 		mat.set_shader_parameter("sis_tex", sis)

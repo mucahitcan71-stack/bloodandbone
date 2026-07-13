@@ -32,12 +32,25 @@ const _ACILISTA_YUKLE := true
 const ARAZI_KAPANIS_ESIK := 18.0
 const ARAZI_TIPLERI := [
 	{"id": "gizlenme", "isim": "Gizlenme (Orman)", "renk": Color(0.1, 0.4, 0.1, 0.35)},
-	{"id": "tepe", "isim": "Tepe (Savunma)", "renk": Color(0.5, 0.35, 0.2, 0.35)},
-	{"id": "vadi", "isim": "Vadi (Hiz)", "renk": Color(0.3, 0.5, 0.6, 0.35)},
 ]
+const _ARAZI_TIP_RENK_ESKI := {
+	"tepe": Color(0.5, 0.35, 0.2, 0.35),
+	"vadi": Color(0.3, 0.5, 0.6, 0.35),
+}
+const YUK_GRID_W := 256
+const YUK_FIRCA_YARICAP_MIN := 100.0
+const YUK_FIRCA_YARICAP_MAX := 1500.0
+const YUK_FIRCA_YARICAP_BAS := 400.0
+const YUK_FIRCA_GUCU_MIN := 0.25
+const YUK_FIRCA_GUCU_MAX := 4.0
+const YUK_FIRCA_GUCU_BAS := 0.5
+const YUK_FIRCA_SURUKLEME_ADIM := 28.0
+const YUK_YUKSELT_ORAN := 8.0
+const YUK_OVERLAY_ALPHA := 0.48
 
-enum EditorMod { US, NOKTA, YOL, KIVIR, PROP, ARAZI }
+enum EditorMod { US, NOKTA, YOL, KIVIR, PROP, ARAZI, YUKSEKLIK }
 enum PropAltMod { YERLESTIR, DUZENLE }
+enum YukFirca { YUKSELT, ALCALT, YUMUSAT, DUZLE }
 
 var mod: EditorMod = EditorMod.NOKTA
 var noktalar: Array[Dictionary] = []
@@ -74,6 +87,20 @@ var _prop_palet_icerik: VBoxContainer
 var _prop_aktif_kategori := "agac"
 var _prop_butonlar: Dictionary = {}
 var _prop_kat_butonlar: Dictionary = {}
+var _yuk_grid_w := YUK_GRID_W
+var _yuk_grid_h := 1
+var _yuk_veri: PackedFloat32Array = PackedFloat32Array()
+var _yuk_firca: YukFirca = YukFirca.YUKSELT
+var _yuk_firca_yaricap := YUK_FIRCA_YARICAP_BAS
+var _yuk_firca_gucu := YUK_FIRCA_GUCU_BAS
+var _yuk_sol_basili := false
+var _yuk_duzle_hedef := 0.0
+var _yuk_duzle_hazir := false
+var _yuk_overlay_acik := true
+var _yuk_overlay_dirty := true
+var _yuk_overlay_img: Image = null
+var _yuk_overlay_tex: ImageTexture = null
+var _son_yuk_firca_surukleme := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -88,6 +115,7 @@ func _ready() -> void:
 	_prop_paleti.visible = false
 	_kamera.position = _harita_merkez_logical()
 	_kamera.zoom = Vector2.ONE
+	_yuk_grid_sifirla()
 	if _ACILISTA_YUKLE:
 		_yukle_editor_cikti(true)
 	queue_redraw()
@@ -128,7 +156,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_zoom_ayarla(_kamera.zoom.x + ZOOM_ADIM)
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR and _prop_sol_basili and not _prop_ui_uzerinde_mi(get_global_mouse_position()):
+		if mod == EditorMod.YUKSEKLIK and _yuk_sol_basili:
+			_yuk_firca_surukle(get_global_mouse_position())
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR and _prop_sol_basili and not _prop_ui_uzerinde_mi(get_global_mouse_position()):
 			_prop_firca_surukle(get_global_mouse_position())
 		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _prop_duzenle_surukleme and _secili_prop_idx >= 0:
 			_prop_duzenle_tasi(get_global_mouse_position())
@@ -140,7 +171,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			queue_redraw()
 		elif mod == EditorMod.ARAZI and not _arazi_aktif_koseler.is_empty():
 			queue_redraw()
-		elif _orta_tik_surukleme:
+		elif mod == EditorMod.YUKSEKLIK:
+			queue_redraw()
+		if _orta_tik_surukleme:
 			_kamera.position -= mm.relative * _kamera.zoom
 
 
@@ -153,6 +186,16 @@ func _draw() -> void:
 		IsoProjection.logical_to_iso(Vector2(HARITA_SINIR.min_x, HARITA_SINIR.max_y)) + off,
 	])
 	draw_colored_polygon(koseler, Color(0.42, 0.62, 0.43, 1.0))
+	if _yuk_overlay_acik:
+		_yuk_overlay_guncelle()
+		if _yuk_overlay_tex != null:
+			var uvs := PackedVector2Array([
+				Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(1.0, 1.0), Vector2(0.0, 1.0)
+			])
+			var cols := PackedColorArray([
+				Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 1), Color(1, 1, 1, 1)
+			])
+			draw_polygon(koseler, cols, uvs, _yuk_overlay_tex)
 
 	var font := ThemeDB.fallback_font
 	var fs := ThemeDB.fallback_font_size
@@ -221,6 +264,13 @@ func _draw() -> void:
 			var firca_yaricap_iso := _firca_yaricap * 0.5
 			draw_arc(firca_iso, firca_yaricap_iso, 0.0, TAU, 32, Color(0.2, 0.75, 0.35, 0.55), 1.5)
 
+	if mod == EditorMod.YUKSEKLIK:
+		# Fare altında lojik firca alanini (yaklasik iso yaricap) goster.
+		var yfirca_iso := get_global_mouse_position()
+		var yfirca_r := maxf(_yuk_firca_yaricap * 0.5, 8.0)
+		draw_arc(yfirca_iso, yfirca_r, 0.0, TAU, 56, Color(0.05, 0.05, 0.02, 0.75), 3.2)
+		draw_arc(yfirca_iso, yfirca_r, 0.0, TAU, 56, Color(0.98, 0.88, 0.28, 0.95), 2.0)
+
 	if mod == EditorMod.YOL and _secili_yol_kaynak_id != "":
 		var bas_n := _nokta_id_ile_bul(_secili_yol_kaynak_id)
 		if not bas_n.is_empty():
@@ -239,7 +289,9 @@ func _draw() -> void:
 		_ciz_arazi_aktif(off)
 
 	var mod_yazi := "MOD: %s" % _mod_adi()
-	if mod == EditorMod.ARAZI:
+	if mod == EditorMod.YUKSEKLIK:
+		mod_yazi = "MOD: YUKSEKLIK - firca: %s" % _yuk_firca_adi()
+	elif mod == EditorMod.ARAZI:
 		mod_yazi = "MOD: ARAZI - tip: %s" % _arazi_tip_isim(_secili_arazi_tip_idx)
 	elif mod == EditorMod.PROP:
 		if _prop_alt_mod == PropAltMod.DUZENLE:
@@ -257,7 +309,7 @@ func _draw() -> void:
 				PropKatalog.KATEGORI_SEKME.get(PropKatalog.kategori(_secili_prop_id), ""),
 			]
 	draw_string(font, Vector2(18, 26), mod_yazi, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs + 2, Color(1, 0.95, 0.7, 1))
-	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L | Arazi: A", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
+	draw_string(font, Vector2(18, 48), "Kaydet: P | Yukle: L | Arazi: A | Yukseklik: H | Overlay: G", HORIZONTAL_ALIGNMENT_LEFT, -1.0, fs, Color(0.85, 0.9, 0.75, 1.0))
 	draw_string(
 		font,
 		Vector2(18, 70),
@@ -294,11 +346,24 @@ func _draw() -> void:
 		draw_string(
 			font,
 			Vector2(18, 92),
-			"6=gizlenme 7=tepe 8=vadi | Sol tik=kose | Space/Enter/ilk koseye tik=kapat | Sag=geri | Esc=iptal",
+			"Sol tik=kose (sadece gizlenme) | Space/Enter/ilk koseye tik=kapat | Sag=geri | Esc=iptal",
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
 			Color(0.75, 0.95, 0.7, 1.0)
+		)
+		durum_y = 114.0
+	elif mod == EditorMod.YUKSEKLIK:
+		draw_string(
+			font,
+			Vector2(18, 92),
+			"1 YUKSELT 2 ALCALT 3 YUMUSAT 4 DUZLE | Firca: %.0f ([/]) | Guc: x%.2f (,/.) | G overlay" % [
+				_yuk_firca_yaricap, _yuk_firca_gucu
+			],
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1.0,
+			fs,
+			Color(0.95, 0.9, 0.55, 1.0)
 		)
 		durum_y = 114.0
 	elif mod == EditorMod.PROP:
@@ -316,7 +381,7 @@ func _draw() -> void:
 			draw_string(
 				font,
 				Vector2(18, 92),
-				"Sol tik/surukle | sag sil | Firca: %.0f ([/]) | Yogunluk: x%.1f (,/.) | E duzenle | H gizle" % [_firca_yaricap, _firca_yogunluk],
+				"Sol tik/surukle | sag sil | Firca: %.0f ([/]) | Yogunluk: x%.1f (,/.) | E duzenle | Shift+H gizle" % [_firca_yaricap, _firca_yogunluk],
 				HORIZONTAL_ALIGNMENT_LEFT,
 				-1.0,
 				fs,
@@ -327,7 +392,7 @@ func _draw() -> void:
 		draw_string(
 			font,
 			Vector2(18, 92),
-			"Prop isaretleri GIZLI (H ile goster) | %d prop" % proplar.size(),
+			"Prop isaretleri GIZLI (Shift+H ile goster) | %d prop" % proplar.size(),
 			HORIZONTAL_ALIGNMENT_LEFT,
 			-1.0,
 			fs,
@@ -364,17 +429,35 @@ func _handle_key_input(ev: InputEventKey) -> void:
 	if _tus_mu(ev, KEY_P):
 		_kaydet_editor_cikti()
 		return
+	if mod == EditorMod.YUKSEKLIK and _tus_mu(ev, KEY_1):
+		_yuk_firca = YukFirca.YUKSELT
+		queue_redraw()
+		return
+	if mod == EditorMod.YUKSEKLIK and _tus_mu(ev, KEY_2):
+		_yuk_firca = YukFirca.ALCALT
+		queue_redraw()
+		return
+	if mod == EditorMod.YUKSEKLIK and _tus_mu(ev, KEY_3):
+		_yuk_firca = YukFirca.YUMUSAT
+		queue_redraw()
+		return
+	if mod == EditorMod.YUKSEKLIK and _tus_mu(ev, KEY_4):
+		_yuk_firca = YukFirca.DUZLE
+		queue_redraw()
+		return
 	if _tus_mu(ev, KEY_1):
 		mod = EditorMod.US
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_2):
 		mod = EditorMod.NOKTA
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_3):
 			_secili_yol_tipi = "ana"
@@ -388,17 +471,13 @@ func _handle_key_input(ev: InputEventKey) -> void:
 	elif _tus_mu(ev, KEY_6) and mod == EditorMod.ARAZI:
 		_secili_arazi_tip_idx = 0
 		queue_redraw()
-	elif _tus_mu(ev, KEY_7) and mod == EditorMod.ARAZI:
-		_secili_arazi_tip_idx = 1
-		queue_redraw()
-	elif _tus_mu(ev, KEY_8) and mod == EditorMod.ARAZI:
-		_secili_arazi_tip_idx = 2
-		queue_redraw()
 	elif _tus_mu(ev, KEY_A) and not (Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_SHIFT)):
 		# Not: A basili tutulursa WASD pan da sola kayar; kisa basis = arazi modu.
 		mod = EditorMod.ARAZI
+		_secili_arazi_tip_idx = 0
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
+		_yuk_boya_bitir()
 		_surukleme_ara = {}
 		queue_redraw()
 	elif _tus_mu(ev, KEY_Y):
@@ -406,12 +485,14 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_K):
 		mod = EditorMod.KIVIR
 		_prop_paleti_kapat()
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		_surukleme_ara = {}
 		queue_redraw()
 	elif _tus_mu(ev, KEY_T):
@@ -421,6 +502,7 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_prop_duzenle_surukleme = false
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		_surukleme_ara = {}
 		_prop_paleti_ac()
 		queue_redraw()
@@ -431,27 +513,40 @@ func _handle_key_input(ev: InputEventKey) -> void:
 		_prop_duzenle_surukleme = false
 		_yol_cizim_iptal()
 		_arazi_cizim_iptal()
+		_yuk_boya_bitir()
 		_surukleme_ara = {}
 		_prop_paleti_kapat()
 		queue_redraw()
 	elif _tus_mu(ev, KEY_BRACKETLEFT):
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+		if mod == EditorMod.YUKSEKLIK:
+			_yuk_firca_yaricap = clampf(_yuk_firca_yaricap - 80.0, YUK_FIRCA_YARICAP_MIN, YUK_FIRCA_YARICAP_MAX)
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
 			_prop_rotasyon_ayarla(-8.0)
 		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
 			_firca_yaricap = clampf(_firca_yaricap - 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
 			queue_redraw()
 	elif _tus_mu(ev, KEY_BRACKETRIGHT):
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
+		if mod == EditorMod.YUKSEKLIK:
+			_yuk_firca_yaricap = clampf(_yuk_firca_yaricap + 80.0, YUK_FIRCA_YARICAP_MIN, YUK_FIRCA_YARICAP_MAX)
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
 			_prop_rotasyon_ayarla(8.0)
 		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
 			_firca_yaricap = clampf(_firca_yaricap + 20.0, FIRCA_YARICAP_MIN, FIRCA_YARICAP_MAX)
 			queue_redraw()
 	elif _tus_mu(ev, KEY_COMMA):
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+		if mod == EditorMod.YUKSEKLIK:
+			_yuk_firca_gucu = clampf(_yuk_firca_gucu - 0.15, YUK_FIRCA_GUCU_MIN, YUK_FIRCA_GUCU_MAX)
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
 			_firca_yogunluk = clampf(_firca_yogunluk - 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
 			queue_redraw()
 	elif _tus_mu(ev, KEY_PERIOD):
-		if mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
+		if mod == EditorMod.YUKSEKLIK:
+			_yuk_firca_gucu = clampf(_yuk_firca_gucu + 0.15, YUK_FIRCA_GUCU_MIN, YUK_FIRCA_GUCU_MAX)
+			queue_redraw()
+		elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.YERLESTIR:
 			_firca_yogunluk = clampf(_firca_yogunluk + 0.15, FIRCA_YOGUNLUK_MIN, FIRCA_YOGUNLUK_MAX)
 			queue_redraw()
 	elif mod == EditorMod.PROP and _prop_alt_mod == PropAltMod.DUZENLE and _secili_prop_idx >= 0:
@@ -459,11 +554,25 @@ func _handle_key_input(ev: InputEventKey) -> void:
 			_prop_olcek_ayarla(1.1)
 		elif _tus_mu(ev, KEY_MINUS) or _tus_mu(ev, KEY_KP_SUBTRACT):
 			_prop_olcek_ayarla(0.9)
-	elif _tus_mu(ev, KEY_H):
-		_prop_gizli = not _prop_gizli
-		_durum_mesaji = "Prop isaretleri %s" % ("gizlendi" if _prop_gizli else "gosteriliyor")
-		_durum_sure = 1.8
+	elif _tus_mu(ev, KEY_G):
+		_yuk_overlay_acik = not _yuk_overlay_acik
+		_durum_mesaji = "Yukseklik overlay %s" % ("acik" if _yuk_overlay_acik else "kapali")
+		_durum_sure = 1.5
 		queue_redraw()
+	elif _tus_mu(ev, KEY_H):
+		if Input.is_key_pressed(KEY_SHIFT):
+			_prop_gizli = not _prop_gizli
+			_durum_mesaji = "Prop isaretleri %s" % ("gizlendi" if _prop_gizli else "gosteriliyor")
+			_durum_sure = 1.8
+			queue_redraw()
+		else:
+			mod = EditorMod.YUKSEKLIK
+			_prop_paleti_kapat()
+			_yol_cizim_iptal()
+			_arazi_cizim_iptal()
+			_surukleme_ara = {}
+			_yuk_boya_bitir()
+			queue_redraw()
 	elif (_tus_mu(ev, KEY_SPACE) or _tus_mu(ev, KEY_ENTER) or _tus_mu(ev, KEY_KP_ENTER)) and mod == EditorMod.ARAZI:
 		_arazi_poligonu_kapat()
 	elif _tus_mu(ev, KEY_ESCAPE):
@@ -504,6 +613,18 @@ func _tus_mu(ev: InputEventKey, code: Key) -> bool:
 
 
 func _handle_left_click(mouse_dunya: Vector2) -> void:
+	if mod == EditorMod.YUKSEKLIK:
+		_yuk_sol_basili = true
+		var ylogical := _mouse_to_logical(mouse_dunya)
+		if not _harita_icinde_mi(ylogical):
+			return
+		if _yuk_firca == YukFirca.DUZLE:
+			_yuk_duzle_hedef = _yuk_ornekle(ylogical.x, ylogical.y)
+			_yuk_duzle_hazir = true
+		_son_yuk_firca_surukleme = ylogical
+		_yuk_firca_uygula(ylogical)
+		queue_redraw()
+		return
 	if mod == EditorMod.PROP:
 		if _prop_ui_uzerinde_mi(mouse_dunya):
 			return
@@ -870,6 +991,9 @@ func _kivir_modu_tikla(mouse_dunya: Vector2) -> void:
 
 
 func _handle_left_release() -> void:
+	if mod == EditorMod.YUKSEKLIK:
+		_yuk_boya_bitir()
+		return
 	if mod == EditorMod.PROP:
 		if _prop_alt_mod == PropAltMod.DUZENLE:
 			_prop_duzenle_surukleme = false
@@ -969,6 +1093,8 @@ func _editor_durumunu_temizle() -> void:
 	_sonraki_kavsak_index = 0
 	_secili_prop_idx = -1
 	_prop_duzenle_surukleme = false
+	_yuk_grid_sifirla()
+	_yuk_boya_bitir()
 
 
 func _id_uret(index: int) -> String:
@@ -1133,6 +1259,7 @@ func _kaydet_editor_cikti() -> void:
 		"bolge_etiketleri": [],
 		"proplar": _json_proplar_uret(),
 		"arazi_bolgeleri": _json_arazi_bolgeleri_uret(),
+		"yukseklik_haritasi": _json_yukseklik_uret(),
 	}
 
 	var klasor := "res://data/maps"
@@ -1149,8 +1276,11 @@ func _kaydet_editor_cikti() -> void:
 		return
 	dosya.store_string(JSON.stringify(json_data, "\t"))
 	dosya.close()
-	print("Kaydedildi: editor_cikti.json (oyun formati)")
-	_durum_mesaji = "Kaydedildi: editor_cikti.json (oyun formati)"
+	var hucre := _yuk_grid_w * _yuk_grid_h
+	print("Kaydedildi: editor_cikti.json (oyun formati) | yukseklik hucre=%d (~%.1f KB float ham)" % [
+		hucre, hucre * 4.0 / 1024.0
+	])
+	_durum_mesaji = "Kaydedildi: editor_cikti.json | yuk %dx%d" % [_yuk_grid_w, _yuk_grid_h]
 	_durum_sure = 3.0
 	queue_redraw()
 
@@ -1266,8 +1396,10 @@ func _yukle_editor_cikti(sessiz: bool = false) -> void:
 	yollar = yeni_yollar
 	_proplar_yukle(kayit)
 	_arazi_bolgeleri_yukle(kayit)
-	print("Yuklendi: %s (%d nokta, %d yol, %d prop, %d arazi)" % [
-		CIKTI_DOSYA, noktalar.size(), yollar.size(), proplar.size(), arazi_bolgeleri.size()
+	_yukseklik_yukle(kayit)
+	print("Yuklendi: %s (%d nokta, %d yol, %d prop, %d arazi, yuk %dx%d)" % [
+		CIKTI_DOSYA, noktalar.size(), yollar.size(), proplar.size(), arazi_bolgeleri.size(),
+		_yuk_grid_w, _yuk_grid_h
 	])
 	_durum_mesaji = "Yuklendi: %d nokta, %d yol, %d prop, %d arazi" % [
 		noktalar.size(), yollar.size(), proplar.size(), arazi_bolgeleri.size()
@@ -1358,6 +1490,8 @@ func _mod_adi() -> String:
 			return "PROP"
 		EditorMod.ARAZI:
 			return "ARAZI"
+		EditorMod.YUKSEKLIK:
+			return "YUKSEKLIK"
 	return "?"
 
 
@@ -1371,6 +1505,8 @@ func _arazi_tip_renk(tip_id: String) -> Color:
 	for t in ARAZI_TIPLERI:
 		if str(t.get("id", "")) == tip_id:
 			return t.get("renk", Color(0.3, 0.3, 0.3, 0.35))
+	if _ARAZI_TIP_RENK_ESKI.has(tip_id):
+		return _ARAZI_TIP_RENK_ESKI[tip_id]
 	return Color(0.3, 0.3, 0.3, 0.35)
 
 
@@ -1403,14 +1539,14 @@ func _arazi_poligonu_kapat() -> void:
 		_durum_sure = 1.8
 		queue_redraw()
 		return
-	var tip_id := str(ARAZI_TIPLERI[_secili_arazi_tip_idx].get("id", "gizlenme"))
+	var tip_id := "gizlenme"
 	var koseler: Array = []
 	for k in _arazi_aktif_koseler:
 		if k is Vector2:
 			koseler.append(k)
 	arazi_bolgeleri.append({"tip": tip_id, "koseler": koseler})
 	_arazi_aktif_koseler.clear()
-	_durum_mesaji = "Arazi eklendi: %s (%d)" % [_arazi_tip_isim(_secili_arazi_tip_idx), arazi_bolgeleri.size()]
+	_durum_mesaji = "Arazi eklendi: Gizlenme (%d)" % arazi_bolgeleri.size()
 	_durum_sure = 1.8
 	queue_redraw()
 
@@ -1853,3 +1989,208 @@ func _proplar_yukle(kayit: Dictionary) -> void:
 		})
 	_secili_prop_idx = -1
 	_prop_duzenle_surukleme = false
+
+
+func _yuk_firca_adi() -> String:
+	match _yuk_firca:
+		YukFirca.YUKSELT:
+			return "YUKSELT"
+		YukFirca.ALCALT:
+			return "ALCALT"
+		YukFirca.YUMUSAT:
+			return "YUMUSAT"
+		YukFirca.DUZLE:
+			return "DUZLE"
+	return "?"
+
+
+func _yuk_grid_boyut_hesapla() -> Vector2i:
+	var map_w := maxf(HARITA_SINIR.max_x - HARITA_SINIR.min_x, 1.0)
+	var map_h := maxf(HARITA_SINIR.max_y - HARITA_SINIR.min_y, 1.0)
+	var tw := YUK_GRID_W
+	var th := maxi(1, int(round(float(tw) * map_h / map_w)))
+	return Vector2i(tw, th)
+
+
+func _yuk_grid_sifirla() -> void:
+	var dim := _yuk_grid_boyut_hesapla()
+	_yuk_grid_w = dim.x
+	_yuk_grid_h = dim.y
+	_yuk_veri = PackedFloat32Array()
+	_yuk_veri.resize(_yuk_grid_w * _yuk_grid_h)
+	_yuk_veri.fill(0.0)
+	_yuk_overlay_dirty = true
+
+
+func _yuk_boya_bitir() -> void:
+	_yuk_sol_basili = false
+	_yuk_duzle_hazir = false
+
+
+func _yuk_hucre_merkez(ix: int, iy: int) -> Vector2:
+	var u := (float(ix) + 0.5) / float(_yuk_grid_w)
+	var v := (float(iy) + 0.5) / float(_yuk_grid_h)
+	return Vector2(
+		lerpf(HARITA_SINIR.min_x, HARITA_SINIR.max_x, u),
+		lerpf(HARITA_SINIR.min_y, HARITA_SINIR.max_y, v)
+	)
+
+
+func _yuk_idx(ix: int, iy: int) -> int:
+	return iy * _yuk_grid_w + ix
+
+
+func _yuk_hucre_oku(ix: int, iy: int) -> float:
+	if ix < 0 or iy < 0 or ix >= _yuk_grid_w or iy >= _yuk_grid_h:
+		return 0.0
+	return _yuk_veri[_yuk_idx(ix, iy)]
+
+
+func _yuk_ornekle(logical_x: float, logical_y: float) -> float:
+	if _yuk_veri.is_empty() or _yuk_grid_w < 1 or _yuk_grid_h < 1:
+		return 0.0
+	var map_w := maxf(HARITA_SINIR.max_x - HARITA_SINIR.min_x, 1.0)
+	var map_h := maxf(HARITA_SINIR.max_y - HARITA_SINIR.min_y, 1.0)
+	var u := (logical_x - HARITA_SINIR.min_x) / map_w * float(_yuk_grid_w - 1)
+	var v := (logical_y - HARITA_SINIR.min_y) / map_h * float(_yuk_grid_h - 1)
+	var x0 := int(floor(u))
+	var y0 := int(floor(v))
+	var x1 := mini(x0 + 1, _yuk_grid_w - 1)
+	var y1 := mini(y0 + 1, _yuk_grid_h - 1)
+	x0 = clampi(x0, 0, _yuk_grid_w - 1)
+	y0 = clampi(y0, 0, _yuk_grid_h - 1)
+	var tx := u - float(x0)
+	var ty := v - float(y0)
+	var h00 := _yuk_hucre_oku(x0, y0)
+	var h10 := _yuk_hucre_oku(x1, y0)
+	var h01 := _yuk_hucre_oku(x0, y1)
+	var h11 := _yuk_hucre_oku(x1, y1)
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), ty)
+
+
+func _yuk_firca_agirlik(dist: float, yaricap: float) -> float:
+	if yaricap <= 0.001:
+		return 0.0
+	var t := clampf(dist / yaricap, 0.0, 1.0)
+	return 1.0 - smoothstep(0.0, 1.0, t)
+
+
+func _yuk_firca_uygula(merkez: Vector2) -> void:
+	if _yuk_veri.is_empty():
+		_yuk_grid_sifirla()
+	var map_w := maxf(HARITA_SINIR.max_x - HARITA_SINIR.min_x, 1.0)
+	var map_h := maxf(HARITA_SINIR.max_y - HARITA_SINIR.min_y, 1.0)
+	var cell_w := map_w / float(_yuk_grid_w)
+	var cell_h := map_h / float(_yuk_grid_h)
+	var r := _yuk_firca_yaricap
+	var ix0 := clampi(int(floor((merkez.x - r - HARITA_SINIR.min_x) / cell_w)), 0, _yuk_grid_w - 1)
+	var ix1 := clampi(int(ceil((merkez.x + r - HARITA_SINIR.min_x) / cell_w)), 0, _yuk_grid_w - 1)
+	var iy0 := clampi(int(floor((merkez.y - r - HARITA_SINIR.min_y) / cell_h)), 0, _yuk_grid_h - 1)
+	var iy1 := clampi(int(ceil((merkez.y + r - HARITA_SINIR.min_y) / cell_h)), 0, _yuk_grid_h - 1)
+	var guc := _yuk_firca_gucu
+	var yum_kaynak: PackedFloat32Array = PackedFloat32Array()
+	if _yuk_firca == YukFirca.YUMUSAT:
+		yum_kaynak = _yuk_veri.duplicate()
+	for iy in range(iy0, iy1 + 1):
+		for ix in range(ix0, ix1 + 1):
+			var cell := _yuk_hucre_merkez(ix, iy)
+			var dist := cell.distance_to(merkez)
+			if dist > r:
+				continue
+			var w := _yuk_firca_agirlik(dist, r)
+			if w <= 0.0001:
+				continue
+			var idx := _yuk_idx(ix, iy)
+			var h := _yuk_veri[idx]
+			match _yuk_firca:
+				YukFirca.YUKSELT:
+					h += YUK_YUKSELT_ORAN * guc * w
+				YukFirca.ALCALT:
+					h -= YUK_YUKSELT_ORAN * guc * w
+				YukFirca.YUMUSAT:
+					var ort := 0.0
+					var adet := 0.0
+					for dy in range(-1, 2):
+						for dx in range(-1, 2):
+							var nx := clampi(ix + dx, 0, _yuk_grid_w - 1)
+							var ny := clampi(iy + dy, 0, _yuk_grid_h - 1)
+							ort += yum_kaynak[ny * _yuk_grid_w + nx]
+							adet += 1.0
+					ort /= maxf(adet, 1.0)
+					h = lerpf(h, ort, clampf(0.55 * guc * w, 0.0, 1.0))
+				YukFirca.DUZLE:
+					if _yuk_duzle_hazir:
+						h = lerpf(h, _yuk_duzle_hedef, clampf(0.65 * guc * w, 0.0, 1.0))
+			_yuk_veri[idx] = h
+	_yuk_overlay_dirty = true
+
+
+func _yuk_firca_surukle(mouse_dunya: Vector2) -> void:
+	var logical := _mouse_to_logical(mouse_dunya)
+	if not _harita_icinde_mi(logical):
+		return
+	if logical.distance_to(_son_yuk_firca_surukleme) < YUK_FIRCA_SURUKLEME_ADIM:
+		return
+	_son_yuk_firca_surukleme = logical
+	_yuk_firca_uygula(logical)
+
+
+func _yuk_overlay_guncelle() -> void:
+	if not _yuk_overlay_dirty and _yuk_overlay_tex != null:
+		return
+	if _yuk_veri.is_empty():
+		_yuk_grid_sifirla()
+	if _yuk_overlay_img == null or _yuk_overlay_img.get_width() != _yuk_grid_w or _yuk_overlay_img.get_height() != _yuk_grid_h:
+		_yuk_overlay_img = Image.create(_yuk_grid_w, _yuk_grid_h, false, Image.FORMAT_RGBA8)
+	var vmin := 0.0
+	var vmax := 0.0
+	for i in range(_yuk_veri.size()):
+		var hv := _yuk_veri[i]
+		vmin = minf(vmin, hv)
+		vmax = maxf(vmax, hv)
+	var span := maxf(vmax - vmin, 40.0)
+	for iy in range(_yuk_grid_h):
+		for ix in range(_yuk_grid_w):
+			var n := (_yuk_veri[_yuk_idx(ix, iy)] - vmin) / span
+			n = clampf(n, 0.0, 1.0)
+			_yuk_overlay_img.set_pixel(ix, iy, Color(n, n, n, YUK_OVERLAY_ALPHA))
+	if _yuk_overlay_tex == null:
+		_yuk_overlay_tex = ImageTexture.create_from_image(_yuk_overlay_img)
+	else:
+		_yuk_overlay_tex.update(_yuk_overlay_img)
+	_yuk_overlay_dirty = false
+
+
+func _json_yukseklik_uret() -> Dictionary:
+	var veri: Array = []
+	veri.resize(_yuk_veri.size())
+	for i in range(_yuk_veri.size()):
+		veri[i] = snappedf(_yuk_veri[i], 0.01)
+	return {
+		"genislik": _yuk_grid_w,
+		"yukseklik": _yuk_grid_h,
+		"veri": veri,
+	}
+
+
+func _yukseklik_yukle(kayit: Dictionary) -> void:
+	_yuk_grid_sifirla()
+	var ham: Variant = kayit.get("yukseklik_haritasi", null)
+	if typeof(ham) != TYPE_DICTIONARY:
+		return
+	var d: Dictionary = ham
+	var gw := int(d.get("genislik", _yuk_grid_w))
+	var gh := int(d.get("yukseklik", _yuk_grid_h))
+	var ham_veri: Variant = d.get("veri", [])
+	if typeof(ham_veri) != TYPE_ARRAY or gw < 1 or gh < 1:
+		return
+	var arr: Array = ham_veri
+	if arr.size() < gw * gh:
+		return
+	_yuk_grid_w = gw
+	_yuk_grid_h = gh
+	_yuk_veri = PackedFloat32Array()
+	_yuk_veri.resize(gw * gh)
+	for i in range(gw * gh):
+		_yuk_veri[i] = float(arr[i])
+	_yuk_overlay_dirty = true

@@ -187,9 +187,10 @@ static func parse_map(data: Dictionary) -> Dictionary:
 	print("[US] yuklenen usler=", usler)
 
 	var proplar: Array = _parse_proplar(data.get("proplar", []))
-	# Editor poligon arazileri (gizlenme/tepe/vadi). Oyun gorsel/mantik henuz kullanmaz.
+	# Editor poligon arazileri: gizlenme (pusu); eski tepe/vadi poly yukseklik icin yok sayilir.
 	# Not: "arazi_bolgeleri" ciktisi eski rect araziler (araziler[]) icindir; poligonlar ayri tutulur.
 	var arazi_poligonlari: Array = _parse_arazi_poligonlari(data.get("arazi_bolgeleri", []))
+	var yukseklik_haritasi: Dictionary = _parse_yukseklik_haritasi(data.get("yukseklik_haritasi", null), bounds)
 
 	return {
 		"id": str(data.get("id", "")),
@@ -201,6 +202,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"sinir": bounds,
 		"arazi_bolgeleri": arazi_bolgeleri,
 		"arazi_poligonlari": arazi_poligonlari,
+		"yukseklik_haritasi": yukseklik_haritasi,
 		"bolge_etiketleri": bolge_etiketleri,
 		"gorsel_yollar": gorsel_yollar,
 		"gorsel_patikalar": gorsel_patikalar,
@@ -285,6 +287,36 @@ static func _parse_arazi_poligonlari(raw: Variant) -> Array:
 			continue
 		sonuc.append({"tip": tip_id, "koseler": koseler})
 	return sonuc
+
+
+## Boyanan heightmap (editor). Eksikse duz sifir grid.
+static func _parse_yukseklik_haritasi(raw: Variant, sinir: Dictionary) -> Dictionary:
+	var map_w := maxf(float(sinir.get("max_x", 1.0)) - float(sinir.get("min_x", 0.0)), 1.0)
+	var map_h := maxf(float(sinir.get("max_y", 1.0)) - float(sinir.get("min_y", 0.0)), 1.0)
+	var varsayilan_w := 256
+	var varsayilan_h := maxi(1, int(round(float(varsayilan_w) * map_h / map_w)))
+	if typeof(raw) != TYPE_DICTIONARY:
+		var sifir := PackedFloat32Array()
+		sifir.resize(varsayilan_w * varsayilan_h)
+		sifir.fill(0.0)
+		return {"genislik": varsayilan_w, "yukseklik": varsayilan_h, "veri": sifir}
+	var d: Dictionary = raw
+	var gw := int(d.get("genislik", varsayilan_w))
+	var gh := int(d.get("yukseklik", varsayilan_h))
+	if gw < 1 or gh < 1:
+		gw = varsayilan_w
+		gh = varsayilan_h
+	var ham_veri: Variant = d.get("veri", [])
+	var veri := PackedFloat32Array()
+	veri.resize(gw * gh)
+	veri.fill(0.0)
+	if typeof(ham_veri) == TYPE_ARRAY:
+		var arr: Array = ham_veri
+		var n := mini(arr.size(), gw * gh)
+		for i in range(n):
+			veri[i] = float(arr[i])
+	return {"genislik": gw, "yukseklik": gh, "veri": veri}
+
 
 static func _parse_gorsel_yollar(raw: Variant) -> Array:
 	var yollar: Array = []
