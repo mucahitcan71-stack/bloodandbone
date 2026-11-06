@@ -20,8 +20,8 @@ var dusman_hayalet_ikonlari = {}
 var _minimap_fow_gorseli: Image = null
 var _minimap_fow_doku: ImageTexture = null
 var _minimap_dirty := true
-# Gecici: tum haritayi gostermek icin true (sonra false yap)
-var harita_sis_kapali := true
+# Gelistirici secenegi: true tum haritayi ve dusmanlari gosterir.
+var harita_sis_kapali := false
 # --- TEMP PERF DIAG (F4 Fog / F12 Minimap) ---
 var _PERF_DIAG_FOG_ACIK := true
 var _PERF_DIAG_MINIMAP_ACIK := true
@@ -33,6 +33,7 @@ const _GIZLI_MODULATE := Color(1.0, 1.0, 1.0, 0.42)
 const _OYUNCU_TARAF := "osmanli"
 
 const FOG_GORUNUR = Color(0, 0, 0, 0.0)
+const FOG_KESFEDILMIS = Color(0.06, 0.08, 0.11, 0.55)
 const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
 
 const _FOG_TEX_TARGET_W := 128
@@ -356,7 +357,7 @@ func update_minimap_fow() -> void:
 			for x in range(w):
 				var idx := y * w + x
 				var clear := idx < _clear_grid.size() and _clear_grid[idx] != 0
-				_minimap_fow_gorseli.set_pixel(x, y, FOG_GORUNUR if clear else FOG_KAPALI)
+				_minimap_fow_gorseli.set_pixel(x, y, FOG_GORUNUR if _clear_grid[idx] == 2 else FOG_KESFEDILMIS if clear else FOG_KAPALI)
 	if _minimap_fow_doku == null:
 		_minimap_fow_doku = ImageTexture.create_from_image(_minimap_fow_gorseli)
 	else:
@@ -403,7 +404,6 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 
 	for anahtar in su_anki_gorus_alani:
 		kesfedilen_alanlar[anahtar] = true
-		_stamp_clear_cell(anahtar)
 
 	var nokta_konumlari = _world.get_point_positions()
 	for nokta in nokta_konumlari:
@@ -417,10 +417,7 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 				kesfedilen_noktalar[nokta] = true
 				break
 
-	if harita_sis_kapali:
-		_clear_grid.fill(1)
-	_fog_dirty = true
-	_minimap_dirty = true
+	_rebuild_clear_grid()
 	_upload_fog_texture()
 
 func create_fog_layer() -> void:
@@ -504,28 +501,27 @@ func _ensure_fog_draw_node() -> void:
 	])
 
 func _rebuild_clear_grid() -> void:
-	var n := _fog_tex_w * _fog_tex_h
-	if _clear_grid.size() != n:
-		_clear_grid.resize(n)
-	_clear_grid.fill(0)
-	if harita_sis_kapali:
-		_clear_grid.fill(1)
-		return
-	var origin := _hucre_anahtari(_map_min)
-	for anahtar in kesfedilen_alanlar:
-		_stamp_clear_cell_at(anahtar, origin)
-
-func _stamp_clear_cell(anahtar: Vector2i) -> void:
-	_stamp_clear_cell_at(anahtar, _hucre_anahtari(_map_min))
-
-func _stamp_clear_cell_at(anahtar: Vector2i, origin: Vector2i) -> void:
-	var tx := anahtar.x - origin.x
-	var ty := anahtar.y - origin.y
-	if tx < 0 or ty < 0 or tx >= _fog_tex_w or ty >= _fog_tex_h:
-		return
-	var idx := ty * _fog_tex_w + tx
-	if idx >= 0 and idx < _clear_grid.size():
-		_clear_grid[idx] = 1
+	# Doku piksellerini dunya koordinatlarindan sorgula: harita baslangici ve
+	# minimum mantiksal hucre boyutu doku ile bire bir olmak zorunda degil.
+	# 0 = bilinmeyen, 1 = kesfedilmis, 2 = aktif gorus.
+	var next_grid := PackedByteArray()
+	next_grid.resize(_fog_tex_w * _fog_tex_h)
+	for y in range(_fog_tex_h):
+		for x in range(_fog_tex_w):
+			var pos := _map_min + Vector2(
+				(float(x) + 0.5) / float(_fog_tex_w) * _map_size.x,
+				(float(y) + 0.5) / float(_fog_tex_h) * _map_size.y)
+			var key := _hucre_anahtari(pos)
+			var state := 0
+			if harita_sis_kapali or su_anki_gorus_alani.get(key, false):
+				state = 2
+			elif kesfedilen_alanlar.get(key, false):
+				state = 1
+			next_grid[y * _fog_tex_w + x] = state
+	if next_grid != _clear_grid:
+		_clear_grid = next_grid
+		_fog_dirty = true
+		_minimap_dirty = true
 
 func _upload_fog_texture() -> void:
 	if not _fog_dirty:
@@ -543,7 +539,7 @@ func _upload_fog_texture() -> void:
 	var bytes := PackedByteArray()
 	bytes.resize(n * 4)
 	for i in range(n):
-		var v := 1.0 if (i < _clear_grid.size() and _clear_grid[i] != 0) else 0.0
+		var v := float(_clear_grid[i]) * 0.5 if i < _clear_grid.size() else 0.0
 		bytes.encode_float(i * 4, v)
 	_fog_image.set_data(_fog_tex_w, _fog_tex_h, false, Image.FORMAT_RF, bytes)
 	if _fog_texture == null:
