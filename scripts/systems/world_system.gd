@@ -16,22 +16,14 @@ const _GIZLE_ARAZI_BOLGE_GORSEL := true
 const _ARAZI_GORSEL := true  # editor poligonlari (oyun overlay asagida)
 ## Tepe/vadi yari-saydam overlay (oyunda kapali; yukseklik mesh'te).
 const _ARAZI_POLIGON_GORSEL := false
-## Gizlenme overlay (oyunda kapali; editor ayri cizim).
-const _GIZLENME_POLIGON_GORSEL := false
+## Gizlenme yesil overlay (oyunda kapali; kaynak = gizlenme_maskesi).
+const _GIZLENME_GORSEL := false
+const _GIZLENME_ESIK := 0.5
+## Shader / AO olcegi (logical yukseklik birimi); kaynak = boyanan heightmap.
 const _TEPE_YUKSEKLIK := 350.0
-const _VADI_DERINLIK := 150.0
 ## Boyanan heightmap'ten otomatik tepe/vadi siniflandirma (combat baglama sonra).
 const _TEPE_ESIK := 80.0
 const _VADI_ESIK := -40.0
-## Kenar yumusatma ust siniri; kucuk editor poligonlarinda AABB'ye gore dusurulur.
-const _GECIS_MESAFE := 900.0
-## Soft-falloff kenar mesafesine eklenen organic FBM noise (±).
-const _KENAR_NOISE_GUC := 300.0
-## Eski poligon tepe/vadi genligine FBM (artik height boyama kullanilir; helper'lar kaldi).
-const _FBM_LACUNARITY := 2.0
-const _FBM_GAIN := 0.5
-const _FBM_OKTAV := 3
-const _FBM_AMPLITUD_ETKI := 0.45
 ## Shader: yukseklik → kuru/acik vs yesil/koyu albedo.
 const _YUKSEKLIK_DOKU_ETKI := 0.4
 ## Shader: egim (1-dot(n,up)) — duz cim / gecis / dik toprak-tas.
@@ -56,9 +48,12 @@ const _YOL_ORNEKLEME_ADIM := 30.0
 const _YOL_GENISLIK_ANA := 80.0
 const _YOL_GENISLIK_PATIKA := 50.0
 const _YOL_GENISLIK_GIZLI := 30.0
-const _YOL_TEX_TEKRAR := 160.0
-const _YOL_DOKU_ANA := "res://assets/zemin/Ground028_2K-JPG_Color.jpg"
-const _YOL_DOKU_YEDEK := "res://assets/zemin/Ground037_2K-JPG_Color.jpg"
+const _YOL_DOKU_TEKRAR := 200.0
+const _YOL_KENAR_YUMUSAK := 0.15
+## Ana yol: tas yatagi (cobble yok). Patika/gizli: camurlu toprak.
+const _YOL_DOKU_TAS := "res://assets/zemin/tas.jpg"
+const _YOL_DOKU_TOPRAK := "res://assets/zemin/Ground037_2K-JPG_Color.jpg"
+const _YOL_DOKU_TOPRAK_YEDEK := "res://assets/zemin/toprak.jpg"
 const _YOL_SHADER_YOL := "res://assets/zemin/yol3d_serit.gdshader"
 ## Profil yumusatma yaricapi (logical mesafe boyunca).
 const _YOL_PROFIL_YUMUSAT := 180.0
@@ -102,7 +97,7 @@ var _perf_diag_env: Environment = null
 var _zemin3d_prop_kok: Node3D = null
 var _zemin3d_nokta_kok: Node3D = null
 var _zemin3d_yol_kok: Node3D = null
-var _yol3d_mat: Material = null
+var _yol3d_mat_onbellek: Dictionary = {} # tip anahtari → Material
 var _zemin3d_mesh_mi: MeshInstance3D = null
 # --- /TEMP PERF DIAG ---
 const _ZEMIN3D_VP_MAX := 4096.0  # bolge basina viewport ust siniri
@@ -213,15 +208,15 @@ var nokta_puan = {}
 var nokta_altin = {}
 var arazi_bolgeleri: Array = []
 var arazi_poligonlari: Array = []
-var _gizlenme_poly_cache: Array = []  # PackedVector2Array listesi
+var _gizlenme_grid_w := 0
+var _gizlenme_grid_h := 0
+var _gizlenme_veri: PackedFloat32Array = PackedFloat32Array()
 var _yukseklik_grid_w := 0
 var _yukseklik_grid_h := 0
 var _yukseklik_veri: PackedFloat32Array = PackedFloat32Array()
 var _arazi_heightmap: ImageTexture = null
 var _arazi_heightmap_min := Vector2.ZERO
 var _arazi_heightmap_max := Vector2.ONE
-var _kenar_noise: FastNoiseLite = null
-var _fbm_noise: FastNoiseLite = null
 var orman_bolgeleri: Array = []
 var bolge_etiketleri: Array = []
 var gorsel_yollar: Array = []
@@ -676,10 +671,8 @@ func harita_uygula(map_id: String) -> void:
 	harita_sinir = map_data["sinir"].duplicate()
 	arazi_bolgeleri = map_data.get("arazi_bolgeleri", []).duplicate(true)
 	arazi_poligonlari = map_data.get("arazi_poligonlari", []).duplicate(true)
-	_gizlenme_poly_cache_yenile()
-	_kenar_noise = null
-	_fbm_noise = null
 	_yukseklik_haritasi_yukle(map_data.get("yukseklik_haritasi", {}))
+	_gizlenme_maskesi_yukle(map_data.get("gizlenme_maskesi", {}))
 	# Bake: height brush → kale pad → yol koridor → heightmap+AO → props/kale → yol mesh.
 	_kale_yol_yaricapi_onbellek = -1.0
 	_kale_padlari_duzle()
@@ -940,31 +933,74 @@ func nokta_poligon_icinde_mi(pos: Vector2, koseler: Array) -> bool:
 		return false
 	return Geometry2D.is_point_in_polygon(pos, poly)
 
-func gizlenme_bolgesinde_mi(pos: Vector2) -> bool:
-	if _gizlenme_poly_cache.is_empty():
-		_gizlenme_poly_cache_yenile()
-	for poly in _gizlenme_poly_cache:
-		if poly is PackedVector2Array and (poly as PackedVector2Array).size() >= 3:
-			if Geometry2D.is_point_in_polygon(pos, poly):
-				return true
-	return false
+func gizlenme_degeri(logical_x: float, logical_y: float) -> float:
+	return _gizlenme_bilinear(logical_x, logical_y)
 
-func _gizlenme_poly_cache_yenile() -> void:
-	_gizlenme_poly_cache.clear()
-	for bolge in arazi_poligonlari:
-		if typeof(bolge) != TYPE_DICTIONARY:
-			continue
-		if str(bolge.get("tip", "")) != "gizlenme":
-			continue
-		var poly := PackedVector2Array()
-		for k in bolge.get("koseler", []):
-			if k is Vector2:
-				poly.append(k)
-			elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
-				var a: Array = k
-				poly.append(Vector2(float(a[0]), float(a[1])))
-		if poly.size() >= 3:
-			_gizlenme_poly_cache.append(poly)
+
+func gizlenme_bolgesinde_mi(pos: Vector2) -> bool:
+	return gizlenme_degeri(pos.x, pos.y) > _GIZLENME_ESIK
+
+
+func _gizlenme_maskesi_yukle(ham: Variant) -> void:
+	var map_w := maxf(float(harita_sinir.get("max_x", 1.0)) - float(harita_sinir.get("min_x", 0.0)), 1.0)
+	var map_h := maxf(float(harita_sinir.get("max_y", 1.0)) - float(harita_sinir.get("min_y", 0.0)), 1.0)
+	var tw := _HEIGHTMAP_MAX_W
+	var th := maxi(1, int(round(float(tw) * map_h / map_w)))
+	_gizlenme_grid_w = tw
+	_gizlenme_grid_h = th
+	_gizlenme_veri = PackedFloat32Array()
+	_gizlenme_veri.resize(tw * th)
+	_gizlenme_veri.fill(0.0)
+	if typeof(ham) != TYPE_DICTIONARY:
+		return
+	var d: Dictionary = ham
+	var gw := int(d.get("genislik", tw))
+	var gh := int(d.get("yukseklik", th))
+	if gw < 1 or gh < 1:
+		return
+	_gizlenme_grid_w = gw
+	_gizlenme_grid_h = gh
+	_gizlenme_veri.resize(gw * gh)
+	_gizlenme_veri.fill(0.0)
+	var ham_veri: Variant = d.get("veri", null)
+	if ham_veri is PackedFloat32Array:
+		var pf: PackedFloat32Array = ham_veri
+		var n := mini(pf.size(), gw * gh)
+		for i in range(n):
+			_gizlenme_veri[i] = clampf(pf[i], 0.0, 1.0)
+	elif typeof(ham_veri) == TYPE_ARRAY:
+		var arr: Array = ham_veri
+		var n2 := mini(arr.size(), gw * gh)
+		for i in range(n2):
+			_gizlenme_veri[i] = clampf(float(arr[i]), 0.0, 1.0)
+
+
+func _gizlenme_bilinear(logical_x: float, logical_y: float) -> float:
+	if _gizlenme_veri.is_empty() or _gizlenme_grid_w < 1 or _gizlenme_grid_h < 1:
+		return 0.0
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	var map_w := maxf(max_x - min_x, 1.0)
+	var map_h := maxf(max_y - min_y, 1.0)
+	var gw := _gizlenme_grid_w
+	var gh := _gizlenme_grid_h
+	if gw == 1 and gh == 1:
+		return _gizlenme_veri[0] if _gizlenme_veri.size() > 0 else 0.0
+	var u := (logical_x - min_x) / map_w * float(gw - 1)
+	var v := (logical_y - min_y) / map_h * float(gh - 1)
+	var x0 := clampi(int(floor(u)), 0, gw - 1)
+	var y0 := clampi(int(floor(v)), 0, gh - 1)
+	var x1 := mini(x0 + 1, gw - 1)
+	var y1 := mini(y0 + 1, gh - 1)
+	var tx := u - float(x0)
+	var ty := v - float(y0)
+	var h00 := _gizlenme_veri[y0 * gw + x0]
+	var h10 := _gizlenme_veri[y0 * gw + x1]
+	var h01 := _gizlenme_veri[y1 * gw + x0]
+	var h11 := _gizlenme_veri[y1 * gw + x1]
+	return lerpf(lerpf(h00, h10, tx), lerpf(h01, h11, tx), ty)
 
 
 ## Logical (XZ) yukseklik — boyanan heightmap bilinear. Harita disi → 0.
@@ -1310,86 +1346,6 @@ func _egim_basis(yaw_deg: float, normal: Vector3, uyum: float) -> Basis:
 	return Basis(align * yaw_q)
 
 
-func _fbm_noise_hazirla() -> void:
-	if _fbm_noise != null:
-		return
-	_fbm_noise = FastNoiseLite.new()
-	_fbm_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	_fbm_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-	_fbm_noise.fractal_octaves = _FBM_OKTAV
-	_fbm_noise.fractal_lacunarity = _FBM_LACUNARITY
-	_fbm_noise.fractal_gain = _FBM_GAIN
-	_fbm_noise.frequency = 0.0014
-	_fbm_noise.seed = hash(str(aktif_harita_id) + "fbm")
-
-
-## 3-oktav FBM ~[-1, 1]; bake sirasinda tepe/vadi amplitudunu modul eder.
-func _fbm_arazi_deger(x: float, y: float) -> float:
-	_fbm_noise_hazirla()
-	return _fbm_noise.get_noise_2d(x, y)
-
-
-func _kenar_noise_deger(x: float, y: float) -> float:
-	if _kenar_noise == null:
-		_kenar_noise = FastNoiseLite.new()
-		_kenar_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		_kenar_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
-		_kenar_noise.frequency = 0.0022
-		_kenar_noise.fractal_octaves = _FBM_OKTAV
-		_kenar_noise.fractal_lacunarity = _FBM_LACUNARITY
-		_kenar_noise.fractal_gain = _FBM_GAIN
-		_kenar_noise.seed = hash(str(aktif_harita_id) + "kenar")
-	return _kenar_noise.get_noise_2d(x, y)
-
-
-## Kucuk poligonlarda sabit 400 gecis merkez yuksekligini ~0 yapardi; AABB'ye gore olcekle.
-func _poly_gecis_mesafe(poly: PackedVector2Array) -> float:
-	var min_x := poly[0].x
-	var max_x := poly[0].x
-	var min_y := poly[0].y
-	var max_y := poly[0].y
-	for i in range(1, poly.size()):
-		var p := poly[i]
-		min_x = minf(min_x, p.x)
-		max_x = maxf(max_x, p.x)
-		min_y = minf(min_y, p.y)
-		max_y = maxf(max_y, p.y)
-	var yarim := 0.5 * minf(max_x - min_x, max_y - min_y)
-	return clampf(yarim * 0.65, 8.0, _GECIS_MESAFE)
-
-
-func _koseleri_packed(koseler: Variant) -> PackedVector2Array:
-	var poly := PackedVector2Array()
-	if typeof(koseler) != TYPE_ARRAY:
-		return poly
-	for k in koseler:
-		if k is Vector2:
-			poly.append(k)
-		elif typeof(k) == TYPE_ARRAY and (k as Array).size() >= 2:
-			var a: Array = k
-			poly.append(Vector2(float(a[0]), float(a[1])))
-	return poly
-
-
-func _poligona_kenar_mesafesi(pos: Vector2, poly: PackedVector2Array) -> float:
-	var min_d := INF
-	var n := poly.size()
-	for i in n:
-		var a := poly[i]
-		var b := poly[(i + 1) % n]
-		min_d = minf(min_d, _nokta_segmente_mesafe(pos, a, b))
-	return min_d
-
-
-func _nokta_segmente_mesafe(p: Vector2, a: Vector2, b: Vector2) -> float:
-	var ab := b - a
-	var ab_len_sq := ab.length_squared()
-	var t := 0.0
-	if ab_len_sq > 0.0001:
-		t = clampf((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
-	return p.distance_to(a + ab * t)
-
-
 func _arazi_heightmap_yenile() -> void:
 	var min_x := float(harita_sinir.get("min_x", 0.0))
 	var max_x := float(harita_sinir.get("max_x", 1.0))
@@ -1540,7 +1496,7 @@ func _arazi_poligon_gorsellerini_ekle() -> void:
 			continue
 		var tip := str(bolge.get("tip", "gizlenme"))
 		if tip == "gizlenme":
-			if not _GIZLENME_POLIGON_GORSEL:
+			if not _GIZLENME_GORSEL:
 				continue
 		elif not _ARAZI_POLIGON_GORSEL:
 			continue
@@ -1842,6 +1798,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_prop_kok = null
 	_zemin3d_nokta_kok = null
 	_zemin3d_yol_kok = null
+	_yol3d_mat_onbellek.clear()
 	_zemin3d_mesh_mi = null
 	_perf_diag_isik = null
 	_perf_diag_env = null
@@ -2729,35 +2686,74 @@ func _yol_3d_genislik(tip: String) -> float:
 			return _YOL_GENISLIK_PATIKA
 
 
-func _yol3d_materyal_al() -> Material:
-	if _yol3d_mat != null:
-		return _yol3d_mat
-	var tex := _doku_yukle_veya_null(_YOL_DOKU_ANA)
+func _yol3d_materyal_anahtari(tip: String) -> String:
+	match tip:
+		"ana":
+			return "ana"
+		"gizli":
+			return "gizli"
+		_:
+			return "normal"
+
+
+func _yol3d_materyal_al(tip: String) -> Material:
+	var anahtar := _yol3d_materyal_anahtari(tip)
+	if _yol3d_mat_onbellek.has(anahtar):
+		return _yol3d_mat_onbellek[anahtar] as Material
+	var tas := _doku_yukle_veya_null(_YOL_DOKU_TAS)
+	var toprak := _doku_yukle_veya_null(_YOL_DOKU_TOPRAK)
+	if toprak == null:
+		toprak = _doku_yukle_veya_null(_YOL_DOKU_TOPRAK_YEDEK)
+	var tex: Texture2D = tas if anahtar == "ana" else toprak
 	if tex == null:
-		tex = _doku_yukle_veya_null(_YOL_DOKU_YEDEK)
+		tex = toprak if toprak != null else tas
 	if tex == null:
 		var img := Image.create(1, 1, false, Image.FORMAT_RGB8)
 		img.fill(Color(0.55, 0.44, 0.30))
 		tex = ImageTexture.create_from_image(img)
+	var tint := Color(0.78, 0.66, 0.48, 1.0)
+	var rough := 0.92
+	var bump := 1.35
+	var breakup := 0.0
+	match anahtar:
+		"ana":
+			tint = Color(0.82, 0.80, 0.76, 1.0)
+			rough = 0.82
+			bump = 1.6
+		"gizli":
+			tint = Color(0.92, 0.88, 0.78, 0.4)
+			rough = 0.95
+			bump = 1.1
+			breakup = 0.85
+		_:
+			tint = Color(0.72, 0.58, 0.40, 1.0)
+			rough = 0.94
+			bump = 1.35
 	if ResourceLoader.exists(_YOL_SHADER_YOL):
 		var sh := load(_YOL_SHADER_YOL) as Shader
 		if sh != null:
 			var sm := ShaderMaterial.new()
 			sm.shader = sh
 			sm.set_shader_parameter("albedo_tex", tex)
-			sm.set_shader_parameter("albedo_tint", Color(0.62, 0.50, 0.34, 1.0))
-			sm.set_shader_parameter("edge_softness", 0.22)
-			sm.set_shader_parameter("roughness_val", 0.95)
-			_yol3d_mat = sm
+			sm.set_shader_parameter("noise_tex", _zemin3d_noise_doku())
+			sm.set_shader_parameter("albedo_tint", tint)
+			sm.set_shader_parameter("edge_softness", _YOL_KENAR_YUMUSAK)
+			sm.set_shader_parameter("roughness_scale", rough)
+			sm.set_shader_parameter("derived_bump", bump)
+			sm.set_shader_parameter("color_noise_amt", 0.09 if anahtar != "gizli" else 0.14)
+			sm.set_shader_parameter("trail_breakup", breakup)
+			sm.set_shader_parameter("ao_strength", 0.4)
+			sm.set_shader_parameter("normal_scale", 1.0)
+			_yol3d_mat_onbellek[anahtar] = sm
 			return sm
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.55, 0.44, 0.30, 1.0)
+	mat.albedo_color = tint
 	mat.albedo_texture = tex
-	mat.roughness = 0.95
+	mat.roughness = rough
 	mat.metallic = 0.0
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_yol3d_mat = mat
+	_yol3d_mat_onbellek[anahtar] = mat
 	return mat
 
 
@@ -2801,7 +2797,7 @@ func _zemin3d_yol_serit_ekle(kok: Node3D, pts: PackedVector2Array, tip: String) 
 		var p := dens[i]
 		if i > 0:
 			v_acc += dens[i].distance_to(dens[i - 1])
-		var vv := v_acc / _YOL_TEX_TEKRAR
+		var vv := v_acc / _YOL_DOKU_TEKRAR
 		var lx := p.x - side.x
 		var lz := p.y - side.y
 		var rx := p.x + side.x
@@ -2869,7 +2865,7 @@ func _zemin3d_yol_serit_ekle(kok: Node3D, pts: PackedVector2Array, tip: String) 
 	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mi := MeshInstance3D.new()
 	mi.mesh = am
-	mi.material_override = _yol3d_materyal_al()
+	mi.material_override = _yol3d_materyal_al(tip)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	kok.add_child(mi)
 

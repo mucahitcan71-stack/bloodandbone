@@ -187,10 +187,14 @@ static func parse_map(data: Dictionary) -> Dictionary:
 	print("[US] yuklenen usler=", usler)
 
 	var proplar: Array = _parse_proplar(data.get("proplar", []))
-	# Editor poligon arazileri: gizlenme (pusu); eski tepe/vadi poly yukseklik icin yok sayilir.
-	# Not: "arazi_bolgeleri" ciktisi eski rect araziler (araziler[]) icindir; poligonlar ayri tutulur.
+	# Editor poligonlari: gameplay artik gizlenme_maskesi kullanir.
+	# Maske yoksa eski arazi_bolgeleri gizlenme polys bir kez maskeye migrate edilir.
 	var arazi_poligonlari: Array = _parse_arazi_poligonlari(data.get("arazi_bolgeleri", []))
 	var yukseklik_haritasi: Dictionary = _parse_yukseklik_haritasi(data.get("yukseklik_haritasi", null), bounds)
+	var gizlenme_ham: Variant = data.get("gizlenme_maskesi", null)
+	var gizlenme_maskesi: Dictionary = _parse_gizlenme_maskesi(gizlenme_ham, bounds)
+	if typeof(gizlenme_ham) != TYPE_DICTIONARY and not arazi_poligonlari.is_empty():
+		_gizlenme_maskesi_polisinden(gizlenme_maskesi, arazi_poligonlari, bounds)
 
 	return {
 		"id": str(data.get("id", "")),
@@ -203,6 +207,7 @@ static func parse_map(data: Dictionary) -> Dictionary:
 		"arazi_bolgeleri": arazi_bolgeleri,
 		"arazi_poligonlari": arazi_poligonlari,
 		"yukseklik_haritasi": yukseklik_haritasi,
+		"gizlenme_maskesi": gizlenme_maskesi,
 		"bolge_etiketleri": bolge_etiketleri,
 		"gorsel_yollar": gorsel_yollar,
 		"gorsel_patikalar": gorsel_patikalar,
@@ -274,6 +279,9 @@ static func _parse_arazi_poligonlari(raw: Variant) -> Array:
 			continue
 		var d: Dictionary = entry
 		var tip_id := str(d.get("tip", "gizlenme"))
+		# Sadece gizlenme; eski tip tepe/vadi yok sayilir (yukseklik = heightmap).
+		if tip_id != "gizlenme":
+			continue
 		var ham_koseler: Variant = d.get("koseler", [])
 		if typeof(ham_koseler) != TYPE_ARRAY:
 			continue
@@ -316,6 +324,45 @@ static func _parse_yukseklik_haritasi(raw: Variant, sinir: Dictionary) -> Dictio
 		for i in range(n):
 			veri[i] = float(arr[i])
 	return {"genislik": gw, "yukseklik": gh, "veri": veri}
+
+
+## Gizlenme maskesi (0..1). Eksikse sifir grid; caller old polys migrate edebilir.
+static func _parse_gizlenme_maskesi(raw: Variant, sinir: Dictionary) -> Dictionary:
+	return _parse_yukseklik_haritasi(raw, sinir)
+
+
+static func _gizlenme_maskesi_polisinden(maske: Dictionary, poligonlar: Array, sinir: Dictionary) -> void:
+	var gw := int(maske.get("genislik", 1))
+	var gh := int(maske.get("yukseklik", 1))
+	var veri: PackedFloat32Array = maske.get("veri", PackedFloat32Array())
+	if gw < 1 or gh < 1 or veri.size() != gw * gh:
+		return
+	var min_x := float(sinir.get("min_x", 0.0))
+	var max_x := float(sinir.get("max_x", 1.0))
+	var min_y := float(sinir.get("min_y", 0.0))
+	var max_y := float(sinir.get("max_y", 1.0))
+	for bolge in poligonlar:
+		if typeof(bolge) != TYPE_DICTIONARY:
+			continue
+		if str(bolge.get("tip", "")) != "gizlenme":
+			continue
+		var koseler: Array = bolge.get("koseler", [])
+		if koseler.size() < 3:
+			continue
+		var poly := PackedVector2Array()
+		for k in koseler:
+			if k is Vector2:
+				poly.append(k)
+		if poly.size() < 3:
+			continue
+		for iy in range(gh):
+			for ix in range(gw):
+				var u := (float(ix) + 0.5) / float(gw)
+				var v := (float(iy) + 0.5) / float(gh)
+				var cell := Vector2(lerpf(min_x, max_x, u), lerpf(min_y, max_y, v))
+				if Geometry2D.is_point_in_polygon(cell, poly):
+					veri[iy * gw + ix] = 1.0
+	maske["veri"] = veri
 
 
 static func _parse_gorsel_yollar(raw: Variant) -> Array:
