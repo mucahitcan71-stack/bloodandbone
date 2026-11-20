@@ -588,6 +588,8 @@ func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> vo
 	for x in range(min_h.x, max_h.x + 1):
 		for y in range(min_h.y, max_h.y + 1):
 			var anahtar = Vector2i(x, y)
+			if gorus_alani.has(anahtar):
+				continue
 			if _hucre_merkezi(anahtar).distance_squared_to(merkez) <= r2:
 				if _ARAZI_GORUSU_AKTIF and _world != null and not gorus_alani.has(anahtar):
 					var fow_walls: Array[PackedVector2Array] = []
