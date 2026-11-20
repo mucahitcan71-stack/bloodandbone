@@ -1,6 +1,7 @@
 extends RefCounted
 class_name FogSystem
 const FogLOS = preload("res://scripts/systems/fog_line_of_sight.gd")
+const VisionCacheResource = preload("res://scripts/systems/fog_vision_cache.gd")
 
 var _root: Node2D = null
 var _world: WorldSystem = null
@@ -52,10 +53,13 @@ var _vision_accum := 0.0
 var _map_min := Vector2.ZERO
 var _map_size := Vector2(1, 1)
 var _clear_grid: PackedByteArray = PackedByteArray()
+var _vision_cache = VisionCacheResource.new()
+var _cached_terrain_revision: int = -1
 
 func configure(root_node: Node2D, world_system: WorldSystem) -> void:
 	_root = root_node
 	_world = world_system
+	_vision_cache.clear()
 
 func get_perf_diag_status() -> Dictionary:
 	return {
@@ -168,6 +172,7 @@ func set_layer_visible(visible: bool) -> void:
 	gorus_hucre_katmani.visible = visible and not harita_sis_kapali
 
 func reset_fog_on_map_change() -> void:
+	_vision_cache.clear()
 	if is_instance_valid(gorus_hucre_katmani):
 		reset_fog_grid()
 
@@ -386,16 +391,33 @@ func is_forest_stealth_broken(target: Dictionary, observer_faction: String, unit
 func update_vision(units: Array, point_owners: Dictionary) -> void:
 	if not _PERF_DIAG_FOG_ACIK:
 		return
+	if _world != null and _world.terrain_revision != _cached_terrain_revision:
+		_vision_cache.clear()
+		_cached_terrain_revision = _world.terrain_revision
 	su_anki_gorus_alani.clear()
 	ai_su_anki_gorus_alani.clear()
+	var active_ids: Dictionary = {}
 	for birim in units:
 		if birim["hp"] <= 0:
 			continue
-		_gorus_ekle(
-			su_anki_gorus_alani if birim["taraf"] == "osmanli" else ai_su_anki_gorus_alani,
-			birim["konum"],
-			float(birim.get("gorus_yaricapi", 110.0))
-		)
+		var unit_position: Vector2 = birim["konum"]
+		var radius: float = float(birim.get("gorus_yaricapi", 110.0))
+		var faction_cells: Dictionary = su_anki_gorus_alani if birim["taraf"] == "osmanli" else ai_su_anki_gorus_alani
+		var unit_cells: Dictionary = {}
+		if birim.has("id"):
+			var unit_id: int = int(birim["id"])
+			active_ids[unit_id] = true
+			if _vision_cache.has_valid(unit_id, unit_position, radius):
+				unit_cells = _vision_cache.get_cells(unit_id, unit_position, radius)
+			else:
+				_gorus_ekle(unit_cells, unit_position, radius)
+				_vision_cache.store(unit_id, unit_position, radius, unit_cells)
+		else:
+			_gorus_ekle(unit_cells, unit_position, radius)
+		for cell in unit_cells:
+			faction_cells[cell] = true
+
+	_vision_cache.prune(active_ids)
 
 	for nokta in point_owners:
 		var merkez = _world.get_point_center(nokta)
@@ -432,6 +454,7 @@ func create_fog_layer() -> void:
 	reset_fog_grid()
 
 func reset_fog_grid() -> void:
+	_vision_cache.clear()
 	if not is_instance_valid(gorus_hucre_katmani):
 		return
 	kesfedilen_alanlar.clear()

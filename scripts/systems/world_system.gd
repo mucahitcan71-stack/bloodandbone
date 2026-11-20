@@ -1,5 +1,6 @@
 extends RefCounted
 class_name WorldSystem
+var terrain_revision: int = 0
 
 const GameData = preload("res://scripts/systems/game_data.gd")
 const MapLayoutSystem = preload("res://scripts/systems/map_layout_system.gd")
@@ -1045,6 +1046,7 @@ func arazi_tipi_yukseklikten(logical_x: float, logical_y: float) -> String:
 
 
 func _yukseklik_haritasi_yukle(ham: Variant) -> void:
+	terrain_revision += 1
 	var map_w := maxf(float(harita_sinir.get("max_x", 1.0)) - float(harita_sinir.get("min_x", 0.0)), 1.0)
 	var map_h := maxf(float(harita_sinir.get("max_y", 1.0)) - float(harita_sinir.get("min_y", 0.0)), 1.0)
 	var tw := _HEIGHTMAP_MAX_W
@@ -1155,6 +1157,7 @@ func _yukseklik_disk_ortalama(merkez: Vector2, yaricap: float) -> float:
 
 
 func _yukseklik_disk_duzle(merkez: Vector2, yaricap: float, gecis: float, dis_max_sq: float, hedef: float) -> void:
+	terrain_revision += 1
 	var min_x := float(harita_sinir.get("min_x", 0.0))
 	var max_x := float(harita_sinir.get("max_x", 1.0))
 	var min_y := float(harita_sinir.get("min_y", 0.0))
@@ -1187,6 +1190,7 @@ func _yukseklik_disk_duzle(merkez: Vector2, yaricap: float, gecis: float, dis_ma
 
 ## Yol koridoru: profil yumusat → koridor cek → soft falloff (bake oncesi).
 func _yol_koridorlari_duzle() -> void:
+	terrain_revision += 1
 	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1:
 		return
 	var polyler: Array = _yol_duzleme_polylines()
