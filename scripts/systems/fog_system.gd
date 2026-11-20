@@ -1,5 +1,6 @@
 extends RefCounted
 class_name FogSystem
+const FogLOS = preload("res://scripts/systems/fog_line_of_sight.gd")
 
 var _root: Node2D = null
 var _world: WorldSystem = null
@@ -38,6 +39,7 @@ const FOG_KAPALI = Color(0.06, 0.08, 0.11, 0.93)
 
 const _FOG_TEX_TARGET_W := 128
 const _VISION_INTERVAL := 0.15
+const _ARAZI_GORUSU_AKTIF := true
 const _FOG_SHADER_PATH := "res://assets/shaders/fog_of_war.gdshader"
 
 var _fog_tex_w := 128
@@ -576,6 +578,9 @@ func _hucre_merkezi(anahtar: Vector2i) -> Vector2:
 func _goruste_mi(pos: Vector2, gorus_alani: Dictionary) -> bool:
 	return gorus_alani.get(_hucre_anahtari(pos), false)
 
+func _fow_terrain_height(pos: Vector2) -> float:
+	return _world.zemin_yuksekligi(pos.x, pos.y)
+
 func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> void:
 	var min_h = _hucre_anahtari(merkez - Vector2(yaricap, yaricap))
 	var max_h = _hucre_anahtari(merkez + Vector2(yaricap, yaricap))
@@ -584,6 +589,10 @@ func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> vo
 		for y in range(min_h.y, max_h.y + 1):
 			var anahtar = Vector2i(x, y)
 			if _hucre_merkezi(anahtar).distance_squared_to(merkez) <= r2:
+				if _ARAZI_GORUSU_AKTIF and _world != null and not gorus_alani.has(anahtar):
+					var fow_walls: Array[PackedVector2Array] = []
+					if not FogLOS.can_see(merkez, _hucre_merkezi(anahtar), Callable(self, "_fow_terrain_height"), fow_walls, 34.0, 34.0, 8.0):
+						continue
 				gorus_alani[anahtar] = true
 
 func _clear_ghost_icon(id: int) -> void:
