@@ -241,6 +241,10 @@ var _cimen_tilemap: TileMapLayer = null
 var _doku_tabanli_tileset_onbellek: Dictionary = {}
 var _pixel_cimen_tileset_hazir: TileSet = null
 var _zemin3d_viewport: SubViewport = null
+const _FOG_FRIENDLY_MASK := preload("res://assets/shaders/fog_friendly_stencil.gdshader")
+var _fog_surface: MeshInstance3D
+var _fog_friendly_material := ShaderMaterial.new()
+
 var _zemin3d_sprite: Sprite2D = null
 var _zemin3d_kam3d: Camera3D = null
 var _zemin3d_kok: Node3D = null
@@ -1081,16 +1085,35 @@ func _yukseklik_haritasi_yukle(ham: Variant) -> void:
 
 
 func _yukseklik_bilinear(logical_x: float, logical_y: float) -> float:
-	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1 or _yukseklik_grid_h < 1:
-		return 0.0
 	var min_x := float(harita_sinir.get("min_x", 0.0))
 	var max_x := float(harita_sinir.get("max_x", 1.0))
 	var min_y := float(harita_sinir.get("min_y", 0.0))
 	var max_y := float(harita_sinir.get("max_y", 1.0))
+	return _sample_height(logical_x, logical_y, min_x, max_x, min_y, max_y,
+		maxf(max_x - min_x, 1.0), maxf(max_y - min_y, 1.0))
+
+
+## Reuse map bounds for a synchronous batch of terrain samples.
+func terrain_height_sampler() -> Callable:
+	var min_x := float(harita_sinir.get("min_x", 0.0))
+	var max_x := float(harita_sinir.get("max_x", 1.0))
+	var min_y := float(harita_sinir.get("min_y", 0.0))
+	var max_y := float(harita_sinir.get("max_y", 1.0))
+	return _sample_height_at.bind(min_x, max_x, min_y, max_y,
+		maxf(max_x - min_x, 1.0), maxf(max_y - min_y, 1.0))
+
+
+func _sample_height_at(pos: Vector2, min_x: float, max_x: float, min_y: float, max_y: float,
+		map_w: float, map_h: float) -> float:
+	return _sample_height(pos.x, pos.y, min_x, max_x, min_y, max_y, map_w, map_h)
+
+
+func _sample_height(logical_x: float, logical_y: float, min_x: float, max_x: float, min_y: float, max_y: float,
+		map_w: float, map_h: float) -> float:
+	if _yukseklik_veri.is_empty() or _yukseklik_grid_w < 1 or _yukseklik_grid_h < 1:
+		return 0.0
 	if logical_x < min_x or logical_x > max_x or logical_y < min_y or logical_y > max_y:
 		return 0.0
-	var map_w := maxf(max_x - min_x, 1.0)
-	var map_h := maxf(max_y - min_y, 1.0)
 	var gw := _yukseklik_grid_w
 	var gh := _yukseklik_grid_h
 	if gw <= 1 or gh <= 1:
@@ -1797,6 +1820,7 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_cimen_tilemap = null
 	_zemin3d_viewport = null
 	_zemin3d_sprite = null
+	_fog_surface = null
 	_zemin3d_kok = null
 	_zemin3d_asker_kok = null
 	_zemin3d_prop_kok = null
@@ -1916,6 +1940,36 @@ func _zemin3d_ekle(sinir: Dictionary) -> void:
 	_zemin3d_viewport = vp
 	_zemin3d_sprite = spr
 	_zemin3d_bolge_guncelle(true)
+
+
+func set_3d_fog_overlay(material: ShaderMaterial, enabled: bool) -> bool:
+	if not is_instance_valid(_zemin3d_kam3d):
+		return false
+	if not is_instance_valid(_fog_surface):
+		var quad := QuadMesh.new()
+		quad.size = Vector2(2.0, 2.0)
+		_fog_surface = MeshInstance3D.new()
+		_fog_surface.name = "TerrainFog"
+		_fog_surface.mesh = quad
+		_fog_surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_fog_surface.ignore_occlusion_culling = true
+		_fog_surface.custom_aabb = AABB(Vector3(-1, -1, -2), Vector3(2, 2, 2))
+		_zemin3d_kam3d.add_child(_fog_surface)
+	var visibility_changed := _fog_surface.visible != enabled
+	_fog_surface.material_override = material
+	_fog_surface.visible = enabled
+	# Refresh a static terrain viewport when the mask or its visibility changes.
+	if (visibility_changed or enabled) and _PERF_DIAG_VIEWPORT_ALWAYS:
+		if _zemin3d_viewport.render_target_update_mode == SubViewport.UPDATE_DISABLED:
+			_zemin3d_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	return true
+
+
+func _protect_friendly_mesh_from_fog(mesh: MeshInstance3D) -> void:
+	if _fog_friendly_material.shader == null:
+		_fog_friendly_material.shader = _FOG_FRIENDLY_MASK
+		_fog_friendly_material.render_priority = -1
+	mesh.material_overlay = _fog_friendly_material
 
 
 func _zemin3d_ortam_olustur() -> Environment:
@@ -2261,6 +2315,8 @@ func _zemin3d_asker_faction_boya(asker: Node3D, taraf: String) -> void:
 		if not (node is MeshInstance3D):
 			continue
 		var mi := node as MeshInstance3D
+		if taraf == "osmanli":
+			_protect_friendly_mesh_from_fog(mi)
 		var mesh := mi.mesh
 		if mesh == null:
 			continue

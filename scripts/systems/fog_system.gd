@@ -48,13 +48,23 @@ var _fog_tex_h := 96
 var _fog_image: Image = null
 var _fog_texture: ImageTexture = null
 var _fog_poly: Polygon2D = null
+var _fog_3d_material: ShaderMaterial
 var _fog_dirty := true
 var _vision_accum := 0.0
 var _map_min := Vector2.ZERO
 var _map_size := Vector2(1, 1)
-var _clear_grid: PackedByteArray = PackedByteArray()
+var _clear_grid := PackedByteArray()
+var _mask_pixels_by_cell: Dictionary[Vector2i, Array] = {}
+var _mask_visible_cells: Dictionary[Vector2i, bool] = {}
+var _mask_reveal_all := false
+var _fog_texture_bytes := PackedByteArray()
 var _vision_cache = VisionCacheResource.new()
 var _cached_terrain_revision: int = -1
+
+# Latest vision update CPU times: vision, mask, texture preparation, texture submission.
+var measure_vision_update := false
+var vision_update_usec := Vector4i.ZERO
+var vision_update_uploaded_texture := false
 
 func configure(root_node: Node2D, world_system: WorldSystem) -> void:
 	_root = root_node
@@ -92,7 +102,7 @@ func _perf_diag_fog_uygula() -> void:
 			_upload_fog_texture()
 	else:
 		if is_instance_valid(gorus_hucre_katmani):
-			gorus_hucre_katmani.visible = false
+			set_layer_visible(false)
 
 func get_fog_layer() -> Node:
 	return gorus_hucre_katmani
@@ -166,10 +176,10 @@ func reset_match_discovery(point_ids: Array) -> void:
 func set_layer_visible(visible: bool) -> void:
 	if not is_instance_valid(gorus_hucre_katmani):
 		return
-	if not _PERF_DIAG_FOG_ACIK:
-		gorus_hucre_katmani.visible = false
-		return
-	gorus_hucre_katmani.visible = visible and not harita_sis_kapali
+	var enabled := visible and _PERF_DIAG_FOG_ACIK and not harita_sis_kapali
+	var projected_in_3d := _world != null and _fog_3d_material != null and _world.set_3d_fog_overlay(_fog_3d_material, enabled)
+	gorus_hucre_katmani.visible = enabled and not projected_in_3d
+
 
 func reset_fog_on_map_change() -> void:
 	_vision_cache.clear()
@@ -396,6 +406,11 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 		_cached_terrain_revision = _world.terrain_revision
 	su_anki_gorus_alani.clear()
 	ai_su_anki_gorus_alani.clear()
+	var started := Time.get_ticks_usec() if measure_vision_update else 0
+	if measure_vision_update:
+		vision_update_usec = Vector4i.ZERO
+		vision_update_uploaded_texture = false
+	var terrain_height := _world.terrain_height_sampler() if _world != null else Callable()
 	var active_ids: Dictionary = {}
 	for birim in units:
 		if birim["hp"] <= 0:
@@ -410,10 +425,10 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 			if _vision_cache.has_valid(unit_id, unit_position, radius):
 				unit_cells = _vision_cache.get_cells(unit_id, unit_position, radius)
 			else:
-				_gorus_ekle(unit_cells, unit_position, radius)
+				_gorus_ekle(unit_cells, unit_position, radius, terrain_height)
 				_vision_cache.store(unit_id, unit_position, radius, unit_cells)
 		else:
-			_gorus_ekle(unit_cells, unit_position, radius)
+			_gorus_ekle(unit_cells, unit_position, radius, terrain_height)
 		for cell in unit_cells:
 			faction_cells[cell] = true
 
@@ -422,9 +437,9 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 	for nokta in point_owners:
 		var merkez = _world.get_point_center(nokta)
 		if point_owners[nokta] == "osmanli":
-			_gorus_ekle(su_anki_gorus_alani, merkez, kontrol_noktasi_gorus_yaricapi)
+			_gorus_ekle(su_anki_gorus_alani, merkez, kontrol_noktasi_gorus_yaricapi, terrain_height)
 		elif point_owners[nokta] == "dogu_roma":
-			_gorus_ekle(ai_su_anki_gorus_alani, merkez, kontrol_noktasi_gorus_yaricapi)
+			_gorus_ekle(ai_su_anki_gorus_alani, merkez, kontrol_noktasi_gorus_yaricapi, terrain_height)
 
 	for anahtar in su_anki_gorus_alani:
 		kesfedilen_alanlar[anahtar] = true
@@ -441,7 +456,13 @@ func update_vision(units: Array, point_owners: Dictionary) -> void:
 				kesfedilen_noktalar[nokta] = true
 				break
 
+	if measure_vision_update:
+		var now := Time.get_ticks_usec()
+		vision_update_usec.x = now - started
+		started = now
 	_rebuild_clear_grid()
+	if measure_vision_update:
+		vision_update_usec.y = Time.get_ticks_usec() - started
 	_upload_fog_texture()
 
 func create_fog_layer() -> void:
@@ -462,8 +483,7 @@ func reset_fog_grid() -> void:
 	ai_su_anki_gorus_alani.clear()
 	_vision_accum = _VISION_INTERVAL
 	_ensure_fog_resolution()
-	_clear_grid.resize(_fog_tex_w * _fog_tex_h)
-	_clear_grid.fill(0)
+	_reset_mask_pixels()
 	_ensure_fog_draw_node()
 	_fog_dirty = true
 	_minimap_dirty = true
@@ -509,6 +529,17 @@ func _ensure_fog_draw_node() -> void:
 			_fog_poly.material = mat
 		gorus_hucre_katmani.add_child(_fog_poly)
 
+	if _fog_3d_material == null:
+		_fog_3d_material = ShaderMaterial.new()
+		_fog_3d_material.shader = preload("res://assets/shaders/fog_of_war_3d.gdshader")
+		_fog_3d_material.render_priority = Material.RENDER_PRIORITY_MAX
+		_fog_3d_material.set_shader_parameter("fog_color", FOG_KAPALI)
+		_fog_3d_material.set_shader_parameter("fog_noise_a", load("res://assets/textures/fog/Abstract_Noise_072-512x512.png"))
+		_fog_3d_material.set_shader_parameter("fog_noise_b", load("res://assets/textures/fog/Abstract_Noise_098-512x512.png"))
+	_fog_3d_material.set_shader_parameter("fog_tex", _fog_texture)
+	_fog_3d_material.set_shader_parameter("map_min", _map_min)
+	_fog_3d_material.set_shader_parameter("map_size", _map_size)
+
 	_fog_poly.texture = _fog_texture
 	if _fog_poly.material is ShaderMaterial:
 		(_fog_poly.material as ShaderMaterial).set_shader_parameter("fog_tex", _fog_texture)
@@ -527,56 +558,92 @@ func _ensure_fog_draw_node() -> void:
 		Vector2(0.0, th),
 	])
 
-func _rebuild_clear_grid() -> void:
-	# Doku piksellerini dunya koordinatlarindan sorgula: harita baslangici ve
-	# minimum mantiksal hucre boyutu doku ile bire bir olmak zorunda degil.
-	# 0 = bilinmeyen, 1 = kesfedilmis, 2 = aktif gorus.
-	var next_grid := PackedByteArray()
-	next_grid.resize(_fog_tex_w * _fog_tex_h)
+func _reset_mask_pixels() -> void:
+	_mask_pixels_by_cell.clear()
+	_mask_visible_cells.clear()
+	_mask_reveal_all = false
+	var pixel_count := _fog_tex_w * _fog_tex_h
+	_clear_grid.resize(pixel_count)
+	_clear_grid.fill(0)
+	_fog_texture_bytes.resize(pixel_count * 4)
+	_fog_texture_bytes.fill(0)
+
+	# The texture and logical grid have independent origins and spacing.
 	for y in range(_fog_tex_h):
 		for x in range(_fog_tex_w):
 			var pos := _map_min + Vector2(
 				(float(x) + 0.5) / float(_fog_tex_w) * _map_size.x,
 				(float(y) + 0.5) / float(_fog_tex_h) * _map_size.y)
-			var key := _hucre_anahtari(pos)
-			var state := 0
-			if harita_sis_kapali or su_anki_gorus_alani.get(key, false):
-				state = 2
-			elif kesfedilen_alanlar.get(key, false):
-				state = 1
-			next_grid[y * _fog_tex_w + x] = state
-	if next_grid != _clear_grid:
-		_clear_grid = next_grid
+			var pixels: Array = _mask_pixels_by_cell.get_or_add(_hucre_anahtari(pos), [])
+			pixels.append(y * _fog_tex_w + x)
+
+
+func _rebuild_clear_grid() -> void:
+	if _mask_pixels_by_cell.is_empty():
+		_reset_mask_pixels()
+
+	var changed := false
+	if harita_sis_kapali:
+		if not _mask_reveal_all:
+			_clear_grid.fill(2)
+			_mask_reveal_all = true
+			changed = true
+	elif _mask_reveal_all:
+		# The reveal-all override never writes to exploration history.
+		_clear_grid.fill(0)
+		_fog_texture_bytes.fill(0)
+		_mask_visible_cells.clear()
+		_mask_reveal_all = false
+		for cell in kesfedilen_alanlar:
+			_write_mask_cell(cell, 1)
+		changed = true
+
+	if not harita_sis_kapali:
+		for cell in _mask_visible_cells.keys():
+			if not su_anki_gorus_alani.get(cell, false):
+				# Every active cell is already in permanent exploration history.
+				_write_mask_cell(cell, 1)
+				_mask_visible_cells.erase(cell)
+				changed = true
+		for cell in su_anki_gorus_alani:
+			if not _mask_visible_cells.has(cell) and _write_mask_cell(cell, 2):
+				_mask_visible_cells[cell] = true
+				changed = true
+
+	if changed:
 		_fog_dirty = true
 		_minimap_dirty = true
+
+
+func _write_mask_cell(cell: Vector2i, state: int) -> bool:
+	if not _mask_pixels_by_cell.has(cell):
+		return false
+	var rf := state * 0.5
+	for pixel: int in _mask_pixels_by_cell[cell]:
+		_clear_grid[pixel] = state
+		_fog_texture_bytes.encode_float(pixel * 4, rf)
+	return true
 
 func _upload_fog_texture() -> void:
 	if not _fog_dirty:
 		return
 	if not _PERF_DIAG_FOG_ACIK or harita_sis_kapali:
 		if is_instance_valid(gorus_hucre_katmani):
-			gorus_hucre_katmani.visible = false
+			set_layer_visible(false)
 		_fog_dirty = false
 		return
-	_ensure_fog_draw_node()
-	if _fog_image == null:
+	var started := Time.get_ticks_usec() if measure_vision_update else 0
+	if _fog_image == null or _fog_texture == null:
 		return
-	# RF: her piksel 1 float
-	var n := _fog_tex_w * _fog_tex_h
-	var bytes := PackedByteArray()
-	bytes.resize(n * 4)
-	for i in range(n):
-		var v := float(_clear_grid[i]) * 0.5 if i < _clear_grid.size() else 0.0
-		bytes.encode_float(i * 4, v)
-	_fog_image.set_data(_fog_tex_w, _fog_tex_h, false, Image.FORMAT_RF, bytes)
-	if _fog_texture == null:
-		_fog_texture = ImageTexture.create_from_image(_fog_image)
-	else:
-		_fog_texture.update(_fog_image)
-	if is_instance_valid(_fog_poly):
-		_fog_poly.texture = _fog_texture
-		if _fog_poly.material is ShaderMaterial:
-			(_fog_poly.material as ShaderMaterial).set_shader_parameter("fog_tex", _fog_texture)
+	_fog_image.set_data(_fog_tex_w, _fog_tex_h, false, Image.FORMAT_RF, _fog_texture_bytes)
+	if measure_vision_update:
+		var now := Time.get_ticks_usec()
+		vision_update_usec.z = now - started
+		started = now
+	_fog_texture.update(_fog_image)
+	if measure_vision_update:
+		vision_update_usec.w = Time.get_ticks_usec() - started
+		vision_update_uploaded_texture = true
 	set_layer_visible(true)
 	_fog_dirty = false
 
@@ -606,7 +673,10 @@ func _goruste_mi(pos: Vector2, gorus_alani: Dictionary) -> bool:
 func _fow_terrain_height(pos: Vector2) -> float:
 	return _world.zemin_yuksekligi(pos.x, pos.y)
 
-func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> void:
+func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float, terrain_height := Callable()) -> void:
+	if _ARAZI_GORUSU_AKTIF and _world != null and not terrain_height.is_valid():
+		terrain_height = _world.terrain_height_sampler()
+	var fow_walls: Array[PackedVector2Array] = []
 	var min_h = _hucre_anahtari(merkez - Vector2(yaricap, yaricap))
 	var max_h = _hucre_anahtari(merkez + Vector2(yaricap, yaricap))
 	var r2 := yaricap * yaricap
@@ -615,10 +685,10 @@ func _gorus_ekle(gorus_alani: Dictionary, merkez: Vector2, yaricap: float) -> vo
 			var anahtar = Vector2i(x, y)
 			if gorus_alani.has(anahtar):
 				continue
-			if _hucre_merkezi(anahtar).distance_squared_to(merkez) <= r2:
-				if _ARAZI_GORUSU_AKTIF and _world != null and not gorus_alani.has(anahtar):
-					var fow_walls: Array[PackedVector2Array] = []
-					if not FogLOS.can_see(merkez, _hucre_merkezi(anahtar), Callable(self, "_fow_terrain_height"), fow_walls, 34.0, 34.0, 8.0):
+			var target := _hucre_merkezi(anahtar)
+			if target.distance_squared_to(merkez) <= r2:
+				if _ARAZI_GORUSU_AKTIF and terrain_height.is_valid():
+					if not FogLOS.can_see(merkez, target, terrain_height, fow_walls, 34.0, 34.0, 8.0):
 						continue
 				gorus_alani[anahtar] = true
 
