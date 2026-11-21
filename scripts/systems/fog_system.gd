@@ -504,6 +504,8 @@ func _ensure_fog_draw_node() -> void:
 			var mat := ShaderMaterial.new()
 			mat.shader = sh
 			mat.set_shader_parameter("fog_color", FOG_KAPALI)
+			mat.set_shader_parameter("fog_noise_a", load("res://assets/textures/fog/Abstract_Noise_072-512x512.png"))
+			mat.set_shader_parameter("fog_noise_b", load("res://assets/textures/fog/Abstract_Noise_098-512x512.png"))
 			_fog_poly.material = mat
 		gorus_hucre_katmani.add_child(_fog_poly)
 
